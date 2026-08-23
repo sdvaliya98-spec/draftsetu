@@ -1,0 +1,47 @@
+{
+  "document_type": "Pedhinama_Affidavit",
+  "applicant_details": {
+    "APPLICANT_NAME": "અરજદારનું આખું નામ",
+    "APPLICANT_AGE": "૩૫",
+    "APPLICANT_OCCUPATION": "ખેતી / ધંધો",
+    "APPLICANT_ADDRESS_1": "સરનામું લાઇન ૧",
+    "APPLICANT_ADDRESS_2": "સરનામું લાઇન ૨"
+  },
+  "land_details": {
+    "DISTRICT": "જીલ્લાનું નામ",
+    "TALUKA": "તાલુકાનું નામ",
+    "VILLAGE_NAME": "ગામનું નામ",
+    "ACCOUNT_NO": "૧૨૩",
+    "NEW_SURVEY_NO": "૪૫૬ નવીન",
+    "OLD_SURVEY_NO": "૭૮૯ જૂનો",
+    "LAND_AREA": "૦-૫૦-૦૦",
+    "LAND_ASSESSMENT": "૫.૫૦"
+  },
+  "deceased_details": {
+    "APPLICANT_DEATH_PERSON": "પિતાશ્રી / પિતરાઈ",
+    "DECEASED_PERSON_NAME": "ગુજરી જનારનું આખું નામ",
+    "DEATH_DATE": "DD/MM/YYYY",
+    "DEATH_PLACE": "અવસાનનું સ્થળ"
+  },
+  "HEIRS": [
+    {
+      "index": 1,
+      "name": "વારસદાર ૧ નું નામ",
+      "age": "૪૦",
+      "relation": "પુત્ર",
+      "status": "હયાત"
+    },
+    {
+      "index": 2,
+      "name": "વારસદાર ૨ નું નામ",
+      "age": "૩૮",
+      "relation": "પુત્રી",
+      "status": "હયાત"
+    }
+  ],
+  "submission_details": {
+    "OFFICE_NAME": "મામલતદાર શ્રી / તલાટી શ્રી",
+    "TODAY_DATE": "DD/MM/YYYY",
+    "PLACE": "સ્થળ"
+  }
+}

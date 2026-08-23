@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: legal-doc-backend
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/uploads:/app/backend/uploads
+      - ./backend/backups:/app/backend/backups
+      - ./backend/document_system.db:/app/backend/document_system.db
+    env_file:
+      - ./backend/.env
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: legal-doc-proxy
+    restart: always
+    ports:
+      - "80:80"
+      # - "443:443" # Uncomment after SSL setup
+    volumes:
+      # Serve outputs directory directly through Nginx proxy for static performance optimization
+      - ./backend/uploads/outputs:/usr/share/nginx/html/outputs:ro
+    depends_on:
+      - backend

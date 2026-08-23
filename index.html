@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="gu">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DraftSetu - Professional Legal Document Automation Platform</title>
+
+    <!-- Google Fonts: Comprehensive Font Collection (Outfit, Inter & Noto Sans Gujarati) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800;900&family=Noto+Sans+Gujarati:wght@400;500;700&display=swap"
+        rel="stylesheet">
+
+    <!-- TinyMCE 6 Editor -->
+    <script src="https://cdn.jsdelivr.net/npm/tinymce@6.8.3/tinymce.min.js" referrerpolicy="origin"></script>
+
+    <!-- Flatpickr Datepicker CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
+    <!-- html2pdf for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <!-- Custom Style Sheet -->
+    <link rel="stylesheet" href="style.css">
+
+    <style>
+        /* CKEditor Custom Styling if referenced */
+        .ck-editor__editable {
+            min-height: 250px !important;
+            font-family: 'Noto Sans Gujarati', sans-serif !important;
+            font-size: 16px !important;
+            line-height: 1.6 !important;
+        }
+
+        .ck-content {
+            font-family: 'Noto Sans Gujarati', sans-serif !important;
+        }
+
+        .ck.ck-editor__main>.ck-editor__editable:not(.ck-focused) {
+            border-color: #d1d5db !important;
+        }
+
+        .ck.ck-editor__main>.ck-editor__editable.ck-focused {
+            border-color: #1e3a8a !important;
+            box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.1) !important;
+        }
+
+        .ck.ck-toolbar {
+            background: #f9fafb !important;
+            border-top-left-radius: 8px !important;
+            border-top-right-radius: 8px !important;
+            border-color: #d1d5db !important;
+        }
+
+        .ck-editor__editable_inline {
+            border-bottom-left-radius: 8px !important;
+            border-bottom-right-radius: 8px !important;
+        }
+    </style>
+
+</head>
+
+<body class="bg-gray-100 min-h-screen text-gray-800 font-gujarati">
+    <!-- Premium Loading Splash Screen -->
+    <div id="splash-screen"
+        style="position: fixed; inset: 0; background: linear-gradient(135deg, #0b0f19 0%, #1e1b4b 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999; transition: opacity 0.4s ease, visibility 0.4s ease; font-family: 'Outfit', 'Inter', sans-serif;">
+        <div
+            style="text-align: center; color: white; display: flex; flex-direction: column; align-items: center; gap: 1rem; max-width: 450px; padding: 2rem;">
+            <!-- Logo Icon with Animation -->
+            <div
+                style="font-size: 5rem; line-height: 1; margin-bottom: 0.5rem; filter: drop-shadow(0 10px 15px rgba(59, 130, 246, 0.35)); animation: float 3s ease-in-out infinite;">
+                ⚖️</div>
+
+            <!-- Welcome Title -->
+            <h1
+                style="font-size: 2.25rem; font-weight: 900; letter-spacing: -0.025em; margin: 0; background: linear-gradient(to right, #60a5fa, #c7d2fe); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                Welcome to DraftSetu</h1>
+
+            <!-- Subtitle -->
+            <p
+                style="font-size: 0.875rem; font-weight: 700; color: #94a3b8; letter-spacing: 0.05em; text-transform: uppercase; margin: 0;">
+                Smart Legal Document Automation Platform</p>
+
+            <!-- Loading Progress Bar -->
+            <div
+                style="width: 240px; height: 5px; background: rgba(255, 255, 255, 0.08); border-radius: 9999px; overflow: hidden; margin-top: 2rem;">
+                <div id="splash-progress"
+                    style="width: 10%; height: 100%; background: linear-gradient(to right, #3b82f6, #6366f1); border-radius: 9999px; transition: width 0.3s ease;">
+                </div>
+            </div>
+
+            <!-- Telemetry Status Message -->
+            <p id="splash-status"
+                style="font-size: 0.75rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; min-height: 1.5rem;">
+                Initializing components...</p>
+        </div>
+    </div>
+    <style>
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+    </style>
+    <script>
+        // Initializing progress simulation for instant loading feel
+        (function () {
+            const progressEl = document.getElementById('splash-progress');
+            const statusEl = document.getElementById('splash-status');
+            let progress = 10;
+
+            const messages = [
+                "Connecting to database...",
+                "Loading Gujarati language library...",
+                "Resolving document structures...",
+                "Preparing layout templates...",
+                "Bootstrapping application..."
+            ];
+
+            const interval = setInterval(() => {
+                if (progress < 90) {
+                    progress += Math.floor(Math.random() * 12) + 5;
+                    if (progress > 90) progress = 90;
+                    if (progressEl) progressEl.style.width = progress + '%';
+
+                    // Update status message
+                    const msgIdx = Math.min(Math.floor((progress - 10) / 16), messages.length - 1);
+                    if (statusEl && messages[msgIdx]) {
+                        statusEl.innerText = messages[msgIdx];
+                    }
+                }
+            }, 100);
+
+            window.hideSplashScreen = function () {
+                clearInterval(interval);
+                if (progressEl) progressEl.style.width = '100%';
+                if (statusEl) statusEl.innerText = "Loaded successfully!";
+
+                setTimeout(() => {
+                    const splash = document.getElementById('splash-screen');
+                    if (splash) {
+                        splash.style.opacity = '0';
+                        splash.style.visibility = 'hidden';
+                        setTimeout(() => {
+                            splash.remove();
+                        }, 400);
+                    }
+                }, 150);
+            };
+        })();
+    </script>
+
+    <!-- Main React App root container -->
+    <div id="root"></div>
+
+    <script>
+        // Force 127.0.0.1 for local development to avoid IPv6 resolution issues (localhost vs ::1)
+        const hostname = window.location.hostname;
+        const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+        // window.API_BASE = isLocal ? "http://127.0.0.1:8000" : `http://${hostname}:8000`;
+
+        window.API_BASE =
+            isLocal
+                ? "http://127.0.0.1:8000"
+                : "https://marshall-compound-chassis-salt.trycloudflare.com";
+
+        //  window.API_BASE = isLocal ? "http://127.0.0.1:8000" : 'https://journalists-grams-filing-worker.trycloudflare.com';
+        window.apiFetch = async (path, options = {}, retries = 2) => {
+            const cleanPath = path.startsWith('/') ? path : `/${path}`;
+            const url = `${window.API_BASE}${cleanPath}`;
+            const isFormData = options.body instanceof FormData;
+            const headers = { ...options.headers };
+            if (!isFormData && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+            let token = null;
+            try { token = localStorage.getItem('authToken'); } catch (e) { console.warn("⚠️ [STORAGE] Blocked access to localStorage:", e.message); }
+            if (token && !headers['Authorization']) headers['Authorization'] = `Bearer ${token}`;
+            const fetchOptions = { ...options, headers };
+            if (fetchOptions.body && typeof fetchOptions.body === 'object' && !isFormData) {
+                fetchOptions.body = JSON.stringify(fetchOptions.body);
+            }
+
+            const executeFetch = async (attempt) => {
+                try {
+                    const res = await fetch(url, fetchOptions);
+                    if (!res.ok) {
+                        let errorData = {};
+                        try { errorData = await res.json(); } catch (e) {
+                            const text = await res.text().catch(() => "Unknown Error");
+                            errorData = { detail: text };
+                        }
+                        const error = new Error(errorData.detail || `Server Error (${res.status})`);
+                        error.status = res.status;
+                        error.data = errorData;
+                        throw error;
+                    }
+                    return res;
+                } catch (err) {
+                    if (err.name === 'TypeError' || err.message.includes('Failed to fetch')) {
+                        console.error(`❌ [API NETWORK ERROR] ${cleanPath}:`, err);
+                        if (attempt < retries) {
+                            const delay = Math.pow(2, attempt) * 1000;
+                            await new Promise(r => setTimeout(r, delay));
+                            return executeFetch(attempt + 1);
+                        }
+                        const offlineErr = new Error("SERVER_OFFLINE");
+                        offlineErr.originalError = err;
+                        throw offlineErr;
+                    }
+
+                    const isRetryableStatus = err.status >= 500 && err.status <= 504;
+                    if (isRetryableStatus && attempt < retries) {
+                        const delay = Math.pow(2, attempt) * 1000;
+                        await new Promise(r => setTimeout(r, delay));
+                        return executeFetch(attempt + 1);
+                    }
+
+                    console.error(`❌ [API ERR] ${cleanPath}:`, err.message);
+                    throw err;
+                }
+            };
+            return executeFetch(0);
+        };
+
+        window.checkBackendHealth = async () => {
+            try {
+                const res = await fetch(`${window.API_BASE}/health`);
+                const data = await res.json();
+                return res.ok && (data.status === 'ok' || data.status === 'online');
+            } catch (e) { return false; }
+        };
+    </script>
+
+    <!-- React 18 & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+
+    <!-- React 18 Compatibility Shim for Recharts / hoist-non-react-statics -->
+    <!-- hoist-non-react-statics (bundled in Recharts) accesses React.ForwardRef and React.Memo -->
+    <!-- as Symbol keys — these are internal in React 18 but must be shimmed for UMD compat -->
+    <script>
+        (function () {
+            if (!window.React) return;
+            try {
+                // Shim React internal Symbols that hoist-non-react-statics needs
+                if (!React.ForwardRef) React.ForwardRef = Symbol.for('react.forward_ref');
+                if (!React.Memo) React.Memo = Symbol.for('react.memo');
+                if (!React.Fragment) React.Fragment = Symbol.for('react.fragment');
+                if (!React.Portal) React.Portal = Symbol.for('react.portal');
+                if (!React.Profiler) React.Profiler = Symbol.for('react.profiler');
+                if (!React.StrictMode) React.StrictMode = Symbol.for('react.strict_mode');
+                if (!React.Suspense) React.Suspense = Symbol.for('react.suspense');
+                if (!React.ContextProvider) React.ContextProvider = Symbol.for('react.provider');
+                if (!React.ContextConsumer) React.ContextConsumer = Symbol.for('react.context');
+            } catch (e) {
+                console.warn('[Shim] React compat shim failed:', e.message);
+            }
+        })();
+    </script>
+
+    <!-- prop-types and Recharts MUST load BEFORE Babel to prevent UMD from -->
+    <!-- detecting a false CommonJS environment and using require('react') -->
+    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+    <!-- Recharts 2.10.3: last stable release verified to work with React 18 UMD -->
+    <script src="https://unpkg.com/recharts@2.10.3/umd/Recharts.js"></script>
+    <script>
+        // Verify Recharts loaded correctly — if not, create a safe stub so the app still runs
+        if (!window.Recharts) {
+            console.warn('[Recharts] Failed to load — charts will be hidden. Check CDN connectivity.');
+            window.Recharts = {};
+        }
+    </script>
+
+    <!-- Babel Standalone (for in-browser transpilation of JSX) -->
+    <!-- NOTE: Babel must come AFTER Recharts to prevent UMD CommonJS detection -->
+    <script src="https://unpkg.com/@babel/standalone@7.26.10/babel.min.js"></script>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        outfit: ['Outfit', 'sans-serif'],
+                        gujarati: ['"Noto Sans Gujarati"', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#1e3a8a',
+                        secondary: '#2563EB',
+                        dark: '#0F172A',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Flatpickr JS -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+    <!-- JSZip (required by docx-preview) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <!-- docx-preview JS -->
+    <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.1.15/dist/docx-preview.min.js"></script>
+
+    <!-- Constants & Utilities -->
+    <script type="text/babel" src="constants.jsx"></script>
+    <script type="text/babel" src="src/utils/maskAadhaar.js"></script>
+    <script type="text/babel" src="src/utils/gujarati_utils.jsx"></script>
+    <script type="text/babel" src="src/utils/draftCacheManager.js"></script>
+    <script type="text/babel" src="src/utils/formUtils.js"></script>
+    <script type="text/babel" src="src/services/sessionManager.js"></script>
+
+    <!-- Components -->
+    <script type="text/babel" src="src/components/Icons.jsx"></script>
+    <script type="text/babel" src="src/components/A4Page.jsx"></script>
+    <script type="text/babel" src="src/components/InputField.jsx"></script>
+    <script type="text/babel" src="src/components/HybridDropdownField.jsx"></script>
+    <script type="text/babel" src="src/components/NestedRepeater.jsx"></script>
+    <script type="text/babel" src="src/components/PartyManager.jsx"></script>
+    <script type="text/babel" src="src/components/DynamicFormRenderer.jsx"></script>
+    <script type="text/babel" src="src/components/PreviewModal.jsx"></script>
+    <script type="text/babel" src="src/components/PdfPreviewModal.jsx"></script>
+    <script type="text/babel" src="src/components/RichTextEditor.jsx"></script>
+    <script type="text/babel" src="src/components/UserMenu.jsx"></script>
+    <script type="text/babel" src="src/components/AuthModal.jsx"></script>
+    <script type="text/babel" src="src/components/GovHeader.jsx"></script>
+    <script type="text/babel" src="src/components/TemplateEditorModal.jsx"></script>
+    <script type="text/babel" src="src/components/MyDocumentsModal.jsx"></script>
+    <script type="text/babel" src="src/components/WalletDashboard.jsx"></script>
+    <script type="text/babel" src="src/components/AdminWalletPanel.jsx"></script>
+    <script type="text/babel" src="src/components/AdminDashboard.jsx"></script>
+    <script type="text/babel" src="src/components/ActivityLogs.jsx"></script>
+    <script type="text/babel" src="src/components/StorageAnalytics.jsx"></script>
+    <script type="text/babel" src="src/components/TemplateAnalytics.jsx"></script>
+    <script type="text/babel" src="src/components/TemplateHealth.jsx"></script>
+    <script type="text/babel" src="src/components/TemplateAnalyticsDetail.jsx"></script>
+    <script type="text/babel" src="src/components/DocumentServicesPanel.jsx"></script>
+    <script type="text/babel" src="src/components/AdminSharedModals.jsx"></script>
+    <script type="text/babel" src="src/components/AdminPanel.jsx?v=2"></script>
+    <script type="text/babel" src="src/components/DocumentPreview.jsx"></script>
+    <script type="text/babel" src="src/components/FormPanel.jsx?v=2"></script>
+
+    <!-- Pages -->
+    <script type="text/babel" src="src/pages/HomePage.jsx"></script>
+    <script type="text/babel" src="src/pages/StaticPageView.jsx"></script>
+
+    <!-- Main React App component & bootstrap -->
+    <script type="text/babel" src="app.jsx"></script>
+
+    <script>
+        // Timeout if React fails to load
+        setTimeout(() => {
+            const root = document.getElementById('root');
+            if (root && root.innerHTML === '') {
+                root.innerHTML = `<div style="text-align: center; margin-top: 100px; font-family: sans-serif; color: white; background: #0f172a; padding: 2rem; border-radius: 1rem; max-width: 400px; margin-left: auto; margin-right: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.3);">
+                    <h2 style="color: #ef4444; margin-bottom: 1rem;">Failed to initialize application.</h2>
+                    <p style="color: #94a3b8; font-size: 0.875rem; margin-bottom: 1.5rem;">Please check your connection or refresh the page.</p>
+                    <button onclick="location.reload()" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">Retry</button>
+                </div>`;
+                const splash = document.getElementById('splash-screen');
+                if (splash) splash.remove();
+            }
+        }, 15000);
+    </script>
+</body>
+
+</html>

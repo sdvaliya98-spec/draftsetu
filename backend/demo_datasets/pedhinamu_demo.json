@@ -1,0 +1,58 @@
+{
+    "APPLICANT_NAME": "ઉપેન્દ્રસિંહ અજીતસિંહ વાઘેલા",
+    "APPLICANT_AGE": "49",
+    "APPLICANT_OCCUPATION": "ખેતી",
+    "APPLICANT_ADDRESS_1": "મુ.પો. કોઠ",
+    "APPLICANT_ADDRESS_2": "તા. ધોળકા જી. અમદાવાદ",
+    "DISTRICT": "અમદાવાદ",
+    "TALUKA": "ધોળકા",
+    "VILLAGE_NAME": "કોઠ",
+    "APPLICANT_DEATH_PERSON": "પિતા",
+    "DECEASED_PERSON_NAME": "અજીતસિંહ હરિસિંહ વાઘેલા",
+    "DEATH_DATE": "28/10/2006",
+    "DEATH_PLACE": "ગાંગડ",
+    "ACCOUNT_NO": "727",
+    "NEW_SURVEY_NO": "446",
+    "OLD_SURVEY_NO": "1340",
+    "LAND_AREA": "1-50-36",
+    "LAND_ASSESSMENT": "5.35",
+    "OFFICE_NAME": "સાણં તલાટી કમમંત્રી શ્રી",
+    "TODAY_DATE": "24/05/2026",
+    "PLACE": "ધોળકા",
+    "HEIRS": [
+        {
+            "index": "1",
+            "name": "જનકબા અજીતસિંહ વાઘેલા",
+            "age": "68",
+            "relation": "પત્ની",
+            "status": "હયાત",
+            "children": [
+                {
+                    "index": "1.1",
+                    "name": "ઉપેન્દ્રસિંહ અજીતસિંહ વાઘેલા",
+                    "age": "49",
+                    "relation": "પુત્ર",
+                    "status": "હયાત",
+                    "children": [
+                        {
+                            "index": "1.1.1",
+                            "name": "વિક્રમસિંહ ઉપેન્દ્રસિંહ વાઘેલા",
+                            "age": "22",
+                            "relation": "પૌત્ર",
+                            "status": "હયાત",
+                            "children": []
+                        }
+                    ]
+                },
+                {
+                    "index": "1.2",
+                    "name": "મહેન્દ્રસિંહ અજીતસિંહ વાઘેલા",
+                    "age": "45",
+                    "relation": "પુત્ર",
+                    "status": "હયાત",
+                    "children": []
+                }
+            ]
+        }
+    ]
+}

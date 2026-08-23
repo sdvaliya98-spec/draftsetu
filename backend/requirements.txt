@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+python-docx
+docxtpl
+sqlalchemy
+pydantic
+python-multipart
+jinja2
+passlib
+bcrypt
+pyjwt
+python-dotenv
+pydantic-settings
+graphifyy
+docx2pdf
+psycopg2-binary
+alembic

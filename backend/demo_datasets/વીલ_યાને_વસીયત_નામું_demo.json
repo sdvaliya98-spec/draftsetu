@@ -1,0 +1,55 @@
+{
+  "TESTATOR_NAME": "કેશવલાલ મણીલાલ મહેતા",
+  "TESTATOR_AGE": "72",
+  "TESTATOR_RELIGION": "હિન્દુ",
+  "TESTATOR_OCCUPATION": "નિવૃત્ત",
+  "TESTATOR_ADDRESS": "૨૦૨, શ્રીજી સોસાયટી, કાલાવડ રોડ",
+  "TESTATOR_VILLAGE": "રાજકોટ",
+  "TESTATOR_TALUKA": "રાજકોટ",
+  "TESTATOR_DISTRICT": "રાજકોટ",
+  "TESTATOR_PINCODE": "360005",
+  "WILL_DATE": "2026-06-18",
+  "WILL_PLACE": "રાજકોટ",
+  "HEIRS": [
+    {
+      "index": "1",
+      "name": "વિમલાબેન કેશવલાલ મહેતા",
+      "pan": "ABCDE1234F",
+      "age": "68",
+      "religion": "હિન્દુ",
+      "occupation": "ગૃહણી",
+      "address": "૨૦૨, શ્રીજી સોસાયટી, કાલાવડ રોડ",
+      "village": "રાજકોટ",
+      "taluka": "રાજકોટ",
+      "district": "રાજકોટ",
+      "pincode": "360005",
+      "children": [
+        {
+          "index": "1.1",
+          "name": "રાજેશકુમાર કેશવલાલ મહેતા",
+          "pan": "EFGHI5678J",
+          "age": "45",
+          "religion": "હિન્દુ",
+          "occupation": "વેપાર",
+          "address": "૧૦૧, આરાધના ફ્લેટ, સેટેલાઇટ",
+          "village": "અમદાવાદ",
+          "taluka": "અમદાવાદ",
+          "district": "અમદાવાદ",
+          "pincode": "380015",
+          "children": []
+        }
+      ]
+    }
+  ],
+  "PROPERTIES": [
+    {
+      "village_name": "રાજકોટ",
+      "taluka": "રાજકોટ",
+      "district": "રાજકોટ",
+      "khata_no": "૧૧૧",
+      "survey_no": "૨૨૨",
+      "area": "૧૫૦ ચો.વાર",
+      "assessment": "૫૦.૦૦"
+    }
+  ]
+}

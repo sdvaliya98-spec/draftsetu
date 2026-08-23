@@ -1,0 +1,27 @@
+{
+  "document_type": "Public_Notice",
+  "advocate_details": {
+    "ADVOCATE_NAME": "એડવોકેટનું નામ",
+    "ADVO_ENROL_NO": "G/XXXX/YYYY",
+    "OFFICE_ADDRESS": "ઓફિસનું સરનામું",
+    "ADVOCATE_MOBILE": "9999999999",
+    "ADVOCATE_EMAIL": "advocate@email.com",
+    "OFFICE_MOBILE": "9999999999"
+  },
+  "property_details": {
+    "DISTRICT": "જીલ્લાનું નામ",
+    "SUB_DISTRICT": "તાલુકાનું નામ",
+    "VILLAGE_NAME": "ગામનું નામ",
+    "LAND_TYPE": "જુની શરત / નવી શરતની ખેતીની",
+    "KHATA_NO": "૧૨૩",
+    "SURVEY_NO": "૪૫૬",
+    "OLD_SURVEY_NO": "૭૮૯",
+    "LAND_AREA": "હે.આરે.ચો.મી. ની વિગત",
+    "LAND_ASSESSMENT": "આકાર રૂપિયાની વિગત",
+    "OWNER_NAME": "જમીન માલિકનું નામ"
+  },
+  "notice_terms": {
+    "NOTICE_DAYS": "૧૪",
+    "NOTICE_DATE": "DD/MM/YYYY"
+  }
+}

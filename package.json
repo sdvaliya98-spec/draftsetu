@@ -1,0 +1,12 @@
+{
+  "name": "thelegalsetu",
+  "version": "1.0.0",
+  "description": "TheLegalSetu - Professional Legal Document Automation Platform",
+  "scripts": {},
+  "dependencies": {
+    "@babel/core": "^8.0.0",
+    "@babel/preset-react": "^8.0.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  }
+}

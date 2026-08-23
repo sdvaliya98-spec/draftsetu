@@ -1,0 +1,54 @@
+{
+    "date": "2026-05-23",
+    "seller_name": "રમેશભાઈ પટેલ",
+    "seller_address": "રાજકોટ",
+    "seller_pan": "ABCDE1234F",
+    "buyer_name": "મહેશભાઈ પટેલ",
+    "buyer_address": "અમદાવાદ",
+    "buyer_pan": "PQRSX5678Z",
+    "survey_no": "123",
+    "amount": "45,00,000",
+    "amount_in_words": "પિસ્તાલીસ લાખ",
+    "VILLAGE_NAME": "રાજકોટ",
+    "TOTAL_AMOUNT": "45,00,000",
+    "TOTAL_AMOUNT_WORDS": "પિસ્તાલીસ લાખ",
+    "SURVEY_NO": "123",
+    "LAND_AREA": "2000 ચો.મી.",
+    "DISTRICT": "રાજકોટ",
+    "SUB_DISTRICT": "રાજકોટ",
+    "ACCOUNT_NO": "456",
+    "LAND_ASSESSMENT": "1000",
+    "LAND_TYPE": "ખેતી",
+    "EAST_BOUNDARY": "રસ્તો",
+    "WEST_BOUNDARY": "ખેતર",
+    "NORTH_BOUNDARY": "નાળો",
+    "SOUTH_BOUNDARY": "જમીન",
+    "DOCUMENT_DATE": "2026-05-23",
+    "WITNESS_1": "મહેશભાઈ પટેલ",
+    "WITNESS_2": "સુરેશભાઈ પટેલ",
+    "BUYERS": [
+        {
+            "name": "મહેશભાઈ પટેલ",
+            "address": "અમદાવાદ",
+            "pan": "ABCDE1234F"
+        }
+    ],
+    "SELLERS": [
+        {
+            "name": "રમેશભાઈ પટેલ",
+            "address": "રાજકોટ",
+            "pan": "PQRSX5678Z"
+        }
+    ],
+    "PAYMENTS": [
+        {
+            "amount": "20,00,000",
+            "date": "2026-05-23"
+        }
+    ],
+    "EXTRA_PARAGRAPHS": [
+        {
+            "text": "આ વધારાનો ફકરો છે."
+        }
+    ]
+}

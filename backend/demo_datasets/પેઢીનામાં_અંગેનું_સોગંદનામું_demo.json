@@ -1,0 +1,57 @@
+{
+  "APPLICANT_NAME": "મહેશભાઈ રમેશભાઈ પટેલ",
+  "APPLICANT_AGE": "45",
+  "APPLICANT_OCCUPATION": "ખેતી",
+  "APPLICANT_ADDRESS_1": "મુ. ગાગડ",
+  "APPLICANT_ADDRESS_2": "તા. બાવળા, જી. અમદાવાદ",
+  "DISTRICT": "અમદાવાદ",
+  "TALUKA": "બાવળા",
+  "VILLAGE_NAME": "ગાગડ",
+  "APPLICANT_DEATH_PERSON": "પિતા",
+  "DECEASED_PERSON_NAME": "રમેશભાઈ ગોવિંદભાઈ પટેલ",
+  "DEATH_DATE": "15/01/2025",
+  "DEATH_PLACE": "અમદાવાદ",
+  "LAND_DETAILS": [
+    {
+      "village": "ગાગડ",
+      "khata_no": "245",
+      "new_survey_no": "158",
+      "old_survey_no": "122",
+      "land_area": "1-25-00",
+      "land_assessment": "2500"
+    }
+  ],
+  "HEIRS": [
+    {
+      "index": "1",
+      "name": "મહેશભાઈ રમેશભાઈ પટેલ",
+      "age": "45",
+      "relation": "પુત્ર",
+      "status": "હયાત"
+    },
+    {
+      "index": "2",
+      "name": "સુરેશભાઈ રમેશભાઈ પટેલ",
+      "age": "42",
+      "relation": "પુત્ર",
+      "status": "હયાત"
+    },
+    {
+      "index": "3",
+      "name": "રીતાબેન મનોજભાઈ પટેલ",
+      "age": "39",
+      "relation": "પુત્રી",
+      "status": "હયાત"
+    },
+    {
+      "index": "4",
+      "name": "કમલાબેન રમેશભાઈ પટેલ",
+      "age": "65",
+      "relation": "પત્ની",
+      "status": "હયાત"
+    }
+  ],
+  "OFFICE_NAME": "મામલતદાર કચેરી, બાવળા",
+  "TODAY_DATE": "18/06/2026",
+  "PLACE": "બાવળા"
+}
