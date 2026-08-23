@@ -15,7 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     libreoffice-nogui \
     fonts-gargi \
-    fonts-noto-gujr \
+    fonts-noto-core \
+    fonts-samyak-gujr \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
