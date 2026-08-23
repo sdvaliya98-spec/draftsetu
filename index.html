@@ -167,12 +167,9 @@
         const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
         // window.API_BASE = isLocal ? "http://127.0.0.1:8000" : `http://${hostname}:8000`;
 
-        window.API_BASE =
-            isLocal
-                ? "http://127.0.0.1:8000"
-                : "https://marshall-compound-chassis-salt.trycloudflare.com";
-
-        //  window.API_BASE = isLocal ? "http://127.0.0.1:8000" : 'https://journalists-grams-filing-worker.trycloudflare.com';
+        window.API_BASE = (isLocal && window.location.port && window.location.port !== '8080' && window.location.port !== '80')
+            ? "http://127.0.0.1:8000"
+            : "";
         window.apiFetch = async (path, options = {}, retries = 2) => {
             const cleanPath = path.startsWith('/') ? path : `/${path}`;
             const url = `${window.API_BASE}${cleanPath}`;

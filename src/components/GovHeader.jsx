@@ -74,8 +74,8 @@ const NavItem = ({ item, onNavigate }) => {
     return (
         <div
             className="relative h-full flex items-center group"
-            onMouseEnter={() => { if (!isDocServices) setIsOpen(true); }}
-            onMouseLeave={() => { if (!isDocServices) setIsOpen(false); }}
+            onMouseEnter={() => { setIsOpen(true); }}
+            onMouseLeave={() => { setIsOpen(false); }}
         >
             <button
                 onClick={handleItemClick}
@@ -84,10 +84,10 @@ const NavItem = ({ item, onNavigate }) => {
             >
                 {item.icon && <span className="text-sm grayscale group-hover:grayscale-0 transition-all">{item.icon}</span>}
                 <span>{item.label}</span>
-                {hasChildren && !isDocServices && <span className="text-[7px] text-slate-400 group-hover:text-blue-600 transition-all">▼</span>}
+                {hasChildren && <span className="text-[7px] text-slate-400 group-hover:text-blue-600 transition-all">▼</span>}
             </button>
 
-            {hasChildren && !isDocServices && isOpen && (
+            {hasChildren && isOpen && (
                 <div className="absolute left-1/2 -translate-x-1/2 top-full mt-0 w-72 bg-white text-slate-800 rounded-b-2xl shadow-2xl py-3 border-t-4 border-blue-600 animate-fade-in z-[100]">
                     {item.children.map((sub, sidx) => (
                         <SubNavItem
@@ -259,8 +259,8 @@ const GovHeader = ({
                                 <button
                                     onClick={() => onRoleChange('admin')}
                                     className={`px-3 py-1.5 rounded-full transition-all duration-200 font-semibold ${role === 'admin'
-                                            ? 'bg-[#2563eb] text-white shadow-sm border border-[#2563eb]'
-                                            : 'bg-white text-slate-700 border border-blue-100 hover:text-slate-900 hover:bg-slate-50'
+                                        ? 'bg-[#2563eb] text-white shadow-sm border border-[#2563eb]'
+                                        : 'bg-white text-slate-700 border border-blue-100 hover:text-slate-900 hover:bg-slate-50'
                                         }`}
                                     type="button"
                                 >
@@ -269,8 +269,8 @@ const GovHeader = ({
                                 <button
                                     onClick={() => onRoleChange('user')}
                                     className={`px-3 py-1.5 rounded-full transition-all duration-200 font-semibold ${role === 'user'
-                                            ? 'bg-[#2563eb] text-white shadow-sm border border-[#2563eb]'
-                                            : 'bg-white text-slate-700 border border-blue-100 hover:text-slate-900 hover:bg-slate-50'
+                                        ? 'bg-[#2563eb] text-white shadow-sm border border-[#2563eb]'
+                                        : 'bg-white text-slate-700 border border-blue-100 hover:text-slate-900 hover:bg-slate-50'
                                         }`}
                                     type="button"
                                 >

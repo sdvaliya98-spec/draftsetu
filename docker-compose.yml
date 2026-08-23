@@ -29,7 +29,7 @@ services:
     container_name: legal-doc-proxy
     restart: always
     ports:
-      - "80:80"
+      - "8080:80"
       # - "443:443" # Uncomment after SSL setup
     volumes:
       # Serve outputs directory directly through Nginx proxy for static performance optimization
