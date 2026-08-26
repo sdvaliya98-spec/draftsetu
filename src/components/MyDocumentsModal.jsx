@@ -591,7 +591,7 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
                                                 )
                                                 : (
                                                     <>
-                                                        <button className="text-xs bg-blue-600 text-white px-2 py-1 rounded-lg font-bold hover:bg-blue-700 transition opacity-0 group-hover:opacity-100 border-0 cursor-pointer" type="button">Edit →</button>
+                                                        <button onClick={e => { e.stopPropagation(); onSelectDraft(d); }} className="text-xs bg-blue-600 text-white px-2 py-1 rounded-lg font-bold hover:bg-blue-700 transition opacity-0 group-hover:opacity-100 border-0 cursor-pointer" type="button">Edit →</button>
                                                         <button onClick={e => handleDeleteDocument(e, d)} className="text-xs border border-red-500 text-red-500 px-2 py-1 rounded-lg font-bold hover:bg-red-50 transition opacity-0 group-hover:opacity-100 bg-transparent cursor-pointer" type="button">🗑 Delete</button>
                                                     </>
                                                 )

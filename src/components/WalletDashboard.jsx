@@ -1,5 +1,27 @@
+const ensureRazorpayLoaded = () => {
+    if (window.Razorpay) return Promise.resolve(true);
+    if (window._razorpayLoadingPromise) return window._razorpayLoadingPromise;
+    window._razorpayLoadingPromise = new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.onload = () => resolve(true);
+        script.onerror = () => {
+            console.error("Failed to load Razorpay SDK dynamically.");
+            resolve(false);
+        };
+        document.body.appendChild(script);
+    });
+    return window._razorpayLoadingPromise;
+};
+
 const WalletDashboard = ({ onClose, token, userCredits, refreshCredits }) => {
     const [transactions, setTransactions] = React.useState([]);
+    const [page, setPage] = React.useState(1);
+    const [totalPages, setTotalPages] = React.useState(1);
+    const [totalTransactions, setTotalTransactions] = React.useState(0);
+    const [hasNext, setHasNext] = React.useState(false);
+    const [hasPrevious, setHasPrevious] = React.useState(false);
+    const [txLoading, setTxLoading] = React.useState(false);
     const [customCredits, setCustomCredits] = React.useState(250);
     const [razorpayKeyId, setRazorpayKeyId] = React.useState('');
     const [loading, setLoading] = React.useState(true);
@@ -11,68 +33,100 @@ const WalletDashboard = ({ onClose, token, userCredits, refreshCredits }) => {
         wallet_enabled: true
     });
 
+    React.useEffect(() => {
+        ensureRazorpayLoaded();
+    }, []);
+
     const parsedCredits = parseInt(customCredits, 10);
     const isValidCredits = !isNaN(parsedCredits) && Number.isInteger(parsedCredits) && parsedCredits >= 50 && String(customCredits).indexOf('.') === -1;
     const payableAmount = isValidCredits ? parsedCredits : 0;
 
-    const fetchWalletData = React.useCallback(async () => {
-        setLoading(true);
+    const fetchTransactions = React.useCallback(async (targetPage = 1) => {
+        setTxLoading(true);
         try {
-            // 1. Fetch balance & config
-            const balRes = await window.apiFetch('/api/wallet/balance', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (balRes.ok) {
-                const balData = await balRes.json();
-                setPublicConfig(prev => ({
-                    ...prev,
-                    support_whatsapp: balData.support_whatsapp,
-                    support_upi: balData.support_upi,
-                    wallet_enabled: balData.wallet_enabled
-                }));
-                if (refreshCredits) refreshCredits();
-            }
-
-            // 2. Fetch config and public Razorpay Key ID
-            const plansRes = await window.apiFetch('/api/wallet/plans', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (plansRes.ok) {
-                const plansData = await plansRes.json();
-                setRazorpayKeyId(plansData.razorpay_key_id || '');
-            }
-
-            // 3. Fetch transaction history
-            const txRes = await window.apiFetch('/api/wallet/transactions', {
+            const txRes = await window.apiFetch(`/api/wallet/transactions?page=${targetPage}&page_size=20`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (txRes.ok) {
                 const txData = await txRes.json();
-                setTransactions(txData);
+                if (Array.isArray(txData)) {
+                    setTransactions(txData);
+                    setPage(1);
+                    setTotalPages(1);
+                    setTotalTransactions(txData.length);
+                    setHasNext(false);
+                    setHasPrevious(false);
+                } else {
+                    setTransactions(txData.items || []);
+                    setPage(txData.page || targetPage);
+                    setTotalPages(txData.total_pages || 1);
+                    setTotalTransactions(txData.total || 0);
+                    setHasNext(Boolean(txData.has_next));
+                    setHasPrevious(Boolean(txData.has_previous));
+                }
             }
         } catch (err) {
-            console.error("Error loading wallet details:", err);
+            console.error("Error fetching wallet transactions:", err);
         } finally {
-            setLoading(false);
+            setTxLoading(false);
         }
-    }, [token, refreshCredits]);
+    }, [token]);
 
     React.useEffect(() => {
-        fetchWalletData();
-    }, [fetchWalletData]);
+        const loadInitialData = async () => {
+            setLoading(true);
+            try {
+                // 1. Fetch paginated transactions (page 1)
+                await fetchTransactions(1);
+
+                // 2. Fetch config and public Razorpay Key ID
+                const plansRes = await window.apiFetch('/api/wallet/plans', {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
+                if (plansRes.ok) {
+                    const plansData = await plansRes.json();
+                    setRazorpayKeyId(plansData.razorpay_key_id || '');
+                    if (plansData.support_whatsapp || plansData.support_upi) {
+                        setPublicConfig({
+                            support_whatsapp: plansData.support_whatsapp || '919999999999',
+                            support_upi: plansData.support_upi || 'legalsetu@upi',
+                            wallet_enabled: plansData.wallet_enabled ?? true
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error("Error loading wallet initial data:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadInitialData();
+    }, [token, fetchTransactions]);
 
     const handleCustomRecharge = async (e) => {
         if (e && e.preventDefault) e.preventDefault();
-        if (!isValidCredits) return;
+        
+        if (!isValidCredits) {
+            setAlertState({
+                type: 'error',
+                message: 'કૃપા કરીને માન્ય ક્રેડિટ્સ દાખલ કરો (ઓછામાં ઓછા 50 ક્રેડિટ્સ જરૂરી છે).'
+            });
+            return;
+        }
+
         setIsProcessing(true);
         setAlertState(null);
 
         try {
-            // 1. Create order on backend (Server calculates amount = credits * 100 paise)
+            // 1. Create order on backend
             const orderRes = await window.apiFetch('/api/wallet/create-order', {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` },
-                body: { credits: parsedCredits }
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify({ credits: parsedCredits })
             });
 
             if (!orderRes.ok) {
@@ -82,7 +136,8 @@ const WalletDashboard = ({ onClose, token, userCredits, refreshCredits }) => {
 
             const orderData = await orderRes.json();
 
-            // 2. Verify Razorpay script is available in browser
+            // 2. Ensure Razorpay script is available in browser
+            await ensureRazorpayLoaded();
             if (!window.Razorpay) {
                 throw new Error("Razorpay Checkout SDK લોડ થઈ શક્યું નથી. કૃપા કરીને પેજ રીફ્રેશ કરો.");
             }
@@ -492,7 +547,7 @@ const WalletDashboard = ({ onClose, token, userCredits, refreshCredits }) => {
                                 ટ્રાન્ઝેક્શનનો ઇતિહાસ (Transaction History)
                             </h3>
                             <span className="text-xs text-slate-400 font-medium">
-                                કુલ ટ્રાન્ઝેક્શન: {transactions.length}
+                                કુલ ટ્રાન્ઝેક્શન: {totalTransactions}
                             </span>
                         </div>
 
@@ -507,7 +562,15 @@ const WalletDashboard = ({ onClose, token, userCredits, refreshCredits }) => {
                                     <p className="text-xs font-semibold">હજુ સુધી કોઈ ટ્રાન્ઝેક્શન થયેલ નથી.</p>
                                 </div>
                             ) : (
-                                <div className="overflow-x-auto">
+                                <div className="overflow-x-auto relative">
+                                    {txLoading && (
+                                        <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center z-10">
+                                            <span className="text-xs font-bold text-blue-700 animate-pulse flex items-center gap-1.5 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100 shadow-sm">
+                                                <span>⏳</span>
+                                                <span>લોડ થઈ રહ્યું છે...</span>
+                                            </span>
+                                        </div>
+                                    )}
                                     <table className="w-full text-left border-collapse">
                                         <thead>
                                             <tr className="bg-slate-50/80 border-b border-slate-100 text-slate-400">
@@ -558,6 +621,45 @@ const WalletDashboard = ({ onClose, token, userCredits, refreshCredits }) => {
                                             ))}
                                         </tbody>
                                     </table>
+
+                                    {/* Pagination Controls */}
+                                    {totalPages > 1 && (
+                                        <div className="px-6 py-3.5 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-xs">
+                                            <div className="text-slate-500 font-bold">
+                                                પેજ <span className="font-black text-slate-800">{page}</span> / <span className="font-black text-slate-800">{totalPages}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    id="btn-prev-page"
+                                                    type="button"
+                                                    disabled={!hasPrevious || page <= 1 || txLoading}
+                                                    onClick={() => fetchTransactions(page - 1)}
+                                                    className={`px-3.5 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer border text-xs ${
+                                                        !hasPrevious || page <= 1 || txLoading
+                                                            ? 'bg-slate-100 text-slate-300 border-slate-200/60 cursor-not-allowed shadow-none'
+                                                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 active:scale-95 shadow-sm'
+                                                    }`}
+                                                >
+                                                    <span>←</span>
+                                                    <span>પાછળ</span>
+                                                </button>
+                                                <button
+                                                    id="btn-next-page"
+                                                    type="button"
+                                                    disabled={!hasNext || page >= totalPages || txLoading}
+                                                    onClick={() => fetchTransactions(page + 1)}
+                                                    className={`px-3.5 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer border text-xs ${
+                                                        !hasNext || page >= totalPages || txLoading
+                                                            ? 'bg-slate-100 text-slate-300 border-slate-200/60 cursor-not-allowed shadow-none'
+                                                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 active:scale-95 shadow-sm'
+                                                    }`}
+                                                >
+                                                    <span>આગળ</span>
+                                                    <span>→</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

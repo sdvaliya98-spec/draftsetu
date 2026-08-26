@@ -13,17 +13,8 @@
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800;900&family=Noto+Sans+Gujarati:wght@400;500;700&display=swap"
         rel="stylesheet">
 
-    <!-- TinyMCE 6 Editor -->
-    <script src="https://cdn.jsdelivr.net/npm/tinymce@6.8.3/tinymce.min.js" referrerpolicy="origin"></script>
-
     <!-- Flatpickr Datepicker CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-
-    <!-- html2pdf for PDF export -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-
-    <!-- Razorpay Checkout SDK -->
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
     <!-- Custom Style Sheet -->
     <link rel="stylesheet" href="style.css">
@@ -319,7 +310,7 @@
     <!-- docx-preview JS -->
     <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.1.15/dist/docx-preview.min.js"></script>
 
-    <!-- Constants & Utilities -->
+    <!-- Core Constants & Utilities -->
     <script type="text/babel" src="constants.jsx"></script>
     <script type="text/babel" src="src/utils/maskAadhaar.js"></script>
     <script type="text/babel" src="src/utils/gujarati_utils.jsx"></script>
@@ -327,7 +318,7 @@
     <script type="text/babel" src="src/utils/formUtils.js"></script>
     <script type="text/babel" src="src/services/sessionManager.js"></script>
 
-    <!-- Components -->
+    <!-- Core App Shell Components -->
     <script type="text/babel" src="src/components/Icons.jsx"></script>
     <script type="text/babel" src="src/components/A4Page.jsx"></script>
     <script type="text/babel" src="src/components/InputField.jsx"></script>
@@ -335,31 +326,44 @@
     <script type="text/babel" src="src/components/NestedRepeater.jsx"></script>
     <script type="text/babel" src="src/components/PartyManager.jsx"></script>
     <script type="text/babel" src="src/components/DynamicFormRenderer.jsx"></script>
-    <script type="text/babel" src="src/components/PreviewModal.jsx"></script>
-    <script type="text/babel" src="src/components/PdfPreviewModal.jsx"></script>
-    <script type="text/babel" src="src/components/RichTextEditor.jsx"></script>
     <script type="text/babel" src="src/components/UserMenu.jsx"></script>
     <script type="text/babel" src="src/components/AuthModal.jsx"></script>
     <script type="text/babel" src="src/components/GovHeader.jsx"></script>
-    <script type="text/babel" src="src/components/TemplateEditorModal.jsx"></script>
-    <script type="text/babel" src="src/components/MyDocumentsModal.jsx"></script>
-    <script type="text/babel" src="src/components/WalletDashboard.jsx"></script>
-    <script type="text/babel" src="src/components/AdminWalletPanel.jsx"></script>
-    <script type="text/babel" src="src/components/AdminDashboard.jsx"></script>
-    <script type="text/babel" src="src/components/ActivityLogs.jsx"></script>
-    <script type="text/babel" src="src/components/StorageAnalytics.jsx"></script>
-    <script type="text/babel" src="src/components/TemplateAnalytics.jsx"></script>
-    <script type="text/babel" src="src/components/TemplateHealth.jsx"></script>
-    <script type="text/babel" src="src/components/TemplateAnalyticsDetail.jsx"></script>
-    <script type="text/babel" src="src/components/DocumentServicesPanel.jsx"></script>
-    <script type="text/babel" src="src/components/AdminSharedModals.jsx"></script>
-    <script type="text/babel" src="src/components/AdminPanel.jsx"></script>
     <script type="text/babel" src="src/components/DocumentPreview.jsx"></script>
     <script type="text/babel" src="src/components/FormPanel.jsx"></script>
 
     <!-- Pages -->
     <script type="text/babel" src="src/pages/HomePage.jsx"></script>
     <script type="text/babel" src="src/pages/StaticPageView.jsx"></script>
+
+    <!-- Dynamic On-Demand Script & Component Loader -->
+    <script>
+        window._loadedLazyScripts = window._loadedLazyScripts || {};
+        window.loadLazyScript = async function(src) {
+            if (window._loadedLazyScripts[src]) {
+                return window._loadedLazyScripts[src];
+            }
+            window._loadedLazyScripts[src] = (async () => {
+                const res = await fetch(src);
+                if (!res.ok) throw new Error(`Failed to fetch ${src} (${res.status})`);
+                const code = await res.text();
+                if (window.Babel) {
+                    const transformed = window.Babel.transform(code, {
+                        presets: ['react']
+                    }).code;
+                    (0, eval)(transformed);
+                }
+            })();
+            return window._loadedLazyScripts[src];
+        };
+
+        window.loadLazyModule = async function(scripts, componentGetter) {
+            for (const src of scripts) {
+                await window.loadLazyScript(src);
+            }
+            return { default: componentGetter() };
+        };
+    </script>
 
     <!-- Main React App component & bootstrap -->
     <script type="text/babel" src="app.jsx"></script>

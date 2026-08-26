@@ -16,8 +16,9 @@ GET  /api/documents/{tracking_id}  — Get single document
 GET  /api/documents/{tracking_id}/download — Download generated file
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, BackgroundTasks
 from fastapi.responses import FileResponse, JSONResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Optional
 import json
@@ -590,7 +591,7 @@ def resolve_document_secondary(data_json: dict, db_template: Optional[models.DBT
     return "-"
 
 
-def serialize_document(doc: models.DocumentSubmission, db: Session) -> dict:
+def serialize_document(doc: models.DocumentSubmission, db: Session, template_map: Optional[dict] = None) -> dict:
     """
     Serializes a DocumentSubmission instance, dynamically resolving:
     - template_name
@@ -629,12 +630,15 @@ def serialize_document(doc: models.DocumentSubmission, db: Session) -> dict:
 
     data["template_id"] = template_id or "—"
 
-    # Query template details
+    # Query template details (use pre-fetched template_map if available to avoid N+1 queries)
     db_template = None
     if template_id:
-        db_template = db.query(models.DBTemplate).filter(
-            models.DBTemplate.template_id == template_id
-        ).first()
+        if template_map is not None and template_id in template_map:
+            db_template = template_map[template_id]
+        elif db is not None:
+            db_template = db.query(models.DBTemplate).filter(
+                models.DBTemplate.template_id == template_id
+            ).first()
 
     # Resolve template_name
     template_name = "Unknown Template"
@@ -675,6 +679,7 @@ def serialize_document(doc: models.DocumentSubmission, db: Session) -> dict:
 
 @router.get("/")
 def get_user_documents(
+    response: Response,
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(get_current_user)
 ):
@@ -682,10 +687,36 @@ def get_user_documents(
     All roles (including admin) see only their own documents here.
     Admins can see all users' documents via GET /api/admin/documents.
     """
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+
     docs = db.query(models.DocumentSubmission).filter(
         models.DocumentSubmission.user_id == current_user.id
-    ).order_by(models.DocumentSubmission.created_at.desc()).all()
-    return [serialize_document(d, db) for d in docs]
+    ).order_by(
+        func.coalesce(models.DocumentSubmission.updated_at, models.DocumentSubmission.created_at).desc()
+    ).all()
+
+    # Pre-fetch all templates in a single query to eliminate N+1 queries
+    template_ids = set()
+    for d in docs:
+        tid = getattr(d, "template_id", None)
+        if tid:
+            template_ids.add(tid)
+        elif d.data_json:
+            try:
+                pj = json.loads(d.data_json)
+                if isinstance(pj, dict) and pj.get("template_id"):
+                    template_ids.add(pj["template_id"])
+            except Exception:
+                pass
+
+    template_map = {}
+    if template_ids:
+        tpls = db.query(models.DBTemplate).filter(models.DBTemplate.template_id.in_(template_ids)).all()
+        template_map = {t.template_id: t for t in tpls}
+
+    return [serialize_document(d, db, template_map=template_map) for d in docs]
 
 
 @router.get("/{tracking_id}")

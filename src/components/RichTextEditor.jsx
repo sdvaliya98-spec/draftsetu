@@ -1,3 +1,20 @@
+const ensureTinyMCELoaded = () => {
+    if (window.tinymce) return Promise.resolve();
+    if (window._tinymceLoadingPromise) return window._tinymceLoadingPromise;
+    window._tinymceLoadingPromise = new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/tinymce@6.8.3/tinymce.min.js';
+        script.referrerPolicy = 'origin';
+        script.onload = () => resolve();
+        script.onerror = () => {
+            console.error("Failed to load TinyMCE script dynamically.");
+            resolve();
+        };
+        document.head.appendChild(script);
+    });
+    return window._tinymceLoadingPromise;
+};
+
 const Editor = ({ value, onEditorChange, init }) => {
     const textareaRef = React.useRef(null);
     const editorRef = React.useRef(null);
@@ -7,13 +24,11 @@ const Editor = ({ value, onEditorChange, init }) => {
     const [editorId] = React.useState(() => 'tinymce-editor-' + Math.random().toString(36).substring(2, 9));
 
     React.useEffect(() => {
-        if (!window.tinymce) {
-            console.warn("TinyMCE is not loaded on window.");
-            return;
-        }
-
+        let isCancelled = false;
         let activeEditor = null;
-        const timer = setTimeout(() => {
+
+        const initializeEditor = () => {
+            if (isCancelled || !window.tinymce) return;
             const el = document.getElementById(editorId);
             if (!el) return;
 
@@ -41,11 +56,15 @@ const Editor = ({ value, onEditorChange, init }) => {
                     });
                 }
             });
-        }, 50);
+        };
+
+        ensureTinyMCELoaded().then(() => {
+            setTimeout(initializeEditor, 50);
+        });
 
         return () => {
-            clearTimeout(timer);
-            if (activeEditor) {
+            isCancelled = true;
+            if (activeEditor && window.tinymce) {
                 try {
                     window.tinymce.remove(activeEditor);
                 } catch (e) {

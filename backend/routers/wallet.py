@@ -1,7 +1,8 @@
 import logging
+import math
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Header
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Header, Query
+from sqlalchemy.orm import Session, joinedload
 from pydantic import BaseModel, field_validator
 
 from backend import database, models
@@ -35,6 +36,33 @@ class TransactionResponse(BaseModel):
     balance_after: int
     remarks: Optional[str]
     created_at: str
+
+class PaginatedTransactionResponse(BaseModel):
+    items: List[TransactionResponse]
+    page: int
+    page_size: int
+    total: int
+    total_pages: int
+    has_next: bool
+    has_previous: bool
+
+class AdminWalletItemResponse(BaseModel):
+    user_id: int
+    username: str
+    mobile_number: Optional[str] = None
+    wallet_id: int
+    current_balance: int
+    created_at: str
+    updated_at: str
+
+class PaginatedAdminWalletResponse(BaseModel):
+    items: List[AdminWalletItemResponse]
+    page: int
+    page_size: int
+    total: int
+    total_pages: int
+    has_next: bool
+    has_previous: bool
 
 class CreateOrderRequest(BaseModel):
     credits: int
@@ -83,32 +111,55 @@ def get_balance(
         "support_upi": settings.SUPPORT_UPI_ID
     }
 
-@router.get("/wallet/transactions", response_model=List[TransactionResponse])
+@router.get("/wallet/transactions", response_model=PaginatedTransactionResponse)
 def get_transactions(
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(20, ge=10, le=100, description="Items per page (10 to 100)"),
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(get_current_user)
 ):
     """
-    Get the wallet transactions history list for the current authenticated user.
+    Get the paginated wallet transactions history list for the current authenticated user.
     """
-    txs = db.query(models.WalletTransaction).filter(
+    query = db.query(models.WalletTransaction).filter(
         models.WalletTransaction.user_id == current_user.id
-    ).order_by(models.WalletTransaction.created_at.desc()).all()
+    )
 
-    result = []
-    for tx in txs:
-        result.append({
-            "id": tx.id,
-            "wallet_id": tx.wallet_id,
-            "user_id": tx.user_id,
-            "type": tx.type,
-            "source": tx.source,
-            "credits": tx.credits,
-            "balance_after": tx.balance_after,
-            "remarks": tx.remarks,
-            "created_at": tx.created_at.isoformat()
-        })
-    return result
+    total = query.count()
+    total_pages = max(1, math.ceil(total / page_size)) if total > 0 else 1
+
+    if page > total_pages and total > 0:
+        items = []
+    else:
+        offset = (page - 1) * page_size
+        txs = query.order_by(models.WalletTransaction.created_at.desc()).offset(offset).limit(page_size).all()
+        items = [
+            {
+                "id": tx.id,
+                "wallet_id": tx.wallet_id,
+                "user_id": tx.user_id,
+                "type": tx.type,
+                "source": tx.source,
+                "credits": tx.credits,
+                "balance_after": tx.balance_after,
+                "remarks": tx.remarks,
+                "created_at": tx.created_at.isoformat() if tx.created_at else ""
+            }
+            for tx in txs
+        ]
+
+    has_next = page < total_pages
+    has_previous = page > 1
+
+    return {
+        "items": items,
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": total_pages,
+        "has_next": has_next,
+        "has_previous": has_previous
+    }
 
 # --- Razorpay Payment Gateway Endpoints ---
 
@@ -200,37 +251,58 @@ async def razorpay_webhook(
         signature_header=x_razorpay_signature or ""
     )
 
-@router.get("/admin/wallets", response_model=List[dict])
+@router.get("/admin/wallets", response_model=PaginatedAdminWalletResponse)
 def list_wallets(
+    search: Optional[str] = Query(None, description="Search by username or mobile number"),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(20, ge=10, le=100, description="Items per page (10 to 100)"),
     db: Session = Depends(database.get_db),
-    admin: models.User = Depends(get_admin_user),
-    search: Optional[str] = None
+    admin: models.User = Depends(get_admin_user)
 ):
     """
-    Admin only: List and search all user wallets. Includes user profiles information.
+    Admin only: Paginated list and search of all user wallets with user profile information.
     """
-    query = db.query(models.Wallet)
-    if search:
-        search_val = f"%{search}%"
+    query = db.query(models.Wallet).options(joinedload(models.Wallet.user))
+    if search and search.strip():
+        search_val = f"%{search.strip()}%"
         query = query.join(models.User).filter(
-            (models.User.username.like(search_val)) |
-            (models.User.mobile_number.like(search_val))
+            (models.User.username.ilike(search_val)) |
+            (models.User.mobile_number.ilike(search_val))
         )
     
-    wallets = query.all()
-    result = []
-    for w in wallets:
-        user = w.user
-        result.append({
-            "user_id": user.id,
-            "username": user.username,
-            "mobile_number": user.mobile_number,
-            "wallet_id": w.id,
-            "current_balance": w.current_balance,
-            "created_at": w.created_at.isoformat(),
-            "updated_at": w.updated_at.isoformat()
-        })
-    return result
+    total = query.count()
+    total_pages = max(1, math.ceil(total / page_size)) if total > 0 else 1
+
+    if page > total_pages and total > 0:
+        items = []
+    else:
+        offset = (page - 1) * page_size
+        wallets = query.order_by(models.Wallet.id.asc()).offset(offset).limit(page_size).all()
+        items = [
+            {
+                "user_id": w.user.id if w.user else w.user_id,
+                "username": w.user.username if w.user else "Unknown",
+                "mobile_number": w.user.mobile_number if w.user else None,
+                "wallet_id": w.id,
+                "current_balance": w.current_balance,
+                "created_at": w.created_at.isoformat() if w.created_at else "",
+                "updated_at": w.updated_at.isoformat() if w.updated_at else ""
+            }
+            for w in wallets
+        ]
+
+    has_next = page < total_pages
+    has_previous = page > 1
+
+    return {
+        "items": items,
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": total_pages,
+        "has_next": has_next,
+        "has_previous": has_previous
+    }
 
 @router.post("/admin/wallets/recharge")
 def admin_recharge(

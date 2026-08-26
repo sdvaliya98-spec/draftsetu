@@ -12,7 +12,7 @@ class User(Base):
     username = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
     is_admin = Column(Boolean, default=False)
-    is_active = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True, index=True)
     birth_date = Column(String, nullable=True)
     mobile_number = Column(String, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -31,16 +31,16 @@ class DocumentSubmission(Base):
     buyer_name = Column(String, nullable=True)
     amount = Column(String, nullable=True)
     data_json = Column(JSONText, nullable=True)
-    is_locked = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    is_locked = Column(Boolean, default=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), index=True)
     file_path = Column(String, nullable=True)
     final_pdf_path = Column(String, nullable=True)
     final_docx_path = Column(String, nullable=True)
     pdf_ready = Column(Boolean, default=False, nullable=True)
     pdf_generation_in_progress = Column(Boolean, default=False, nullable=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    template_id = Column(String, nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    template_id = Column(String, nullable=True, index=True)
     document_name = Column(String, nullable=True)
 
     user = relationship("User", back_populates="documents")
@@ -53,9 +53,9 @@ class MenuItem(Base):
     label = Column(String, nullable=False)
     url = Column(String, nullable=True, default="#")
     icon = Column(String, nullable=True, default="📄")
-    parent_id = Column(Integer, ForeignKey("menu_items.id"), nullable=True)
+    parent_id = Column(Integer, ForeignKey("menu_items.id"), nullable=True, index=True)
     order_index = Column(Integer, default=0)
-    is_active = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True, index=True)
     type = Column(String, nullable=True, default="page")
     template_id = Column(String, nullable=True)
 
@@ -81,8 +81,8 @@ class DBTemplate(Base):
     category = Column(String, default="General")
     fields_json = Column(JSONText, nullable=True)
     field_order_json = Column(JSONText, nullable=True)
-    is_active = Column(Boolean, default=True)
-    status = Column(String, default="ACTIVE", server_default="ACTIVE")
+    is_active = Column(Boolean, default=True, index=True)
+    status = Column(String, default="ACTIVE", server_default="ACTIVE", index=True)
     file_path = Column(String, nullable=True)
     menu_item_id = Column(Integer, nullable=True)
     document_identity_field = Column(String, nullable=True)
@@ -99,7 +99,7 @@ class StaticPage(Base):
     title = Column(String, nullable=False)
     slug = Column(String, unique=True, index=True, nullable=False)
     content = Column(Text, nullable=False, default="")
-    is_active = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -120,7 +120,7 @@ class Wallet(Base):
     __tablename__ = "wallets"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, index=True, nullable=False)
     current_balance = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -132,14 +132,14 @@ class WalletTransaction(Base):
     __tablename__ = "wallet_transactions"
 
     id = Column(Integer, primary_key=True, index=True)
-    wallet_id = Column(Integer, ForeignKey("wallets.id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    wallet_id = Column(Integer, ForeignKey("wallets.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     type = Column(String, nullable=False)  # CREDIT, DEBIT
     source = Column(String, nullable=False)  # SIGNUP, ADMIN, DOCUMENT
     credits = Column(Integer, nullable=False)
     balance_after = Column(Integer, nullable=False)
     remarks = Column(String, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
     wallet = relationship("Wallet")
     user = relationship("User")
@@ -161,7 +161,7 @@ class PaymentOrder(Base):
     error_code = Column(String, nullable=True)
     error_description = Column(String, nullable=True)
     wallet_transaction_id = Column(Integer, ForeignKey("wallet_transactions.id"), nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="payments")

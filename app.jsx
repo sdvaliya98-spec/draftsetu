@@ -65,6 +65,55 @@ const getTemplateEmptyState = (template, useDefaultInitial = false) => {
     return emptyState;
 };
 
+const LazyFallback = () => (
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[200]">
+        <div className="bg-white px-6 py-4 rounded-2xl shadow-xl flex items-center gap-3 border border-slate-100 animate-pulse">
+            <span className="inline-block animate-spin text-lg">⏳</span>
+            <span className="text-sm font-bold text-slate-700 font-gujarati">લોડ થઈ રહ્યું છે...</span>
+        </div>
+    </div>
+);
+
+const LazyAdminPanel = React.lazy(async () => {
+    return window.loadLazyModule([
+        'src/components/RichTextEditor.jsx',
+        'src/components/AdminSharedModals.jsx',
+        'src/components/StorageAnalytics.jsx',
+        'src/components/TemplateAnalytics.jsx',
+        'src/components/TemplateHealth.jsx',
+        'src/components/TemplateAnalyticsDetail.jsx',
+        'src/components/ActivityLogs.jsx',
+        'src/components/AdminDashboard.jsx',
+        'src/components/AdminWalletPanel.jsx',
+        'src/components/AdminPanel.jsx'
+    ], () => window.AdminPanel);
+});
+
+const LazyWalletDashboard = React.lazy(async () => {
+    return window.loadLazyModule([
+        'src/components/WalletDashboard.jsx'
+    ], () => window.WalletDashboard);
+});
+
+const LazyTemplateEditorModal = React.lazy(async () => {
+    return window.loadLazyModule([
+        'src/components/RichTextEditor.jsx',
+        'src/components/TemplateEditorModal.jsx'
+    ], () => window.TemplateEditorModal);
+});
+
+const LazyMyDocumentsModal = React.lazy(async () => {
+    return window.loadLazyModule([
+        'src/components/MyDocumentsModal.jsx'
+    ], () => window.MyDocumentsModal);
+});
+
+const LazyDocumentServicesPanel = React.lazy(async () => {
+    return window.loadLazyModule([
+        'src/components/DocumentServicesPanel.jsx'
+    ], () => window.DocumentServicesPanel);
+});
+
 const App = () => {
     const isInitialLoadRef = useRef(true);
     const skipRecoveryRef = useRef(false);
@@ -901,7 +950,9 @@ const App = () => {
         return dynamicMenuItems.find(item => (item.label || '').toLowerCase().includes('document services'));
     }, [dynamicMenuItems]);
 
-    const activeTemplate = allTemplates.find(t => t.id === activeTemplateId);
+    const activeTemplate = useMemo(() => {
+        return allTemplates.find(t => t.id === activeTemplateId);
+    }, [allTemplates, activeTemplateId]);
 
     const handleRoleChange = (newRole) => {
         setRole(newRole);
@@ -989,6 +1040,7 @@ const App = () => {
                                     templateId={activeTemplate?.template_id || activeTemplateId}
                                     isDownloading={isDownloading}
                                     setIsDownloading={setIsDownloading}
+                                    allTemplates={allTemplates}
                                 />
                             </div>
                         </div>
@@ -996,100 +1048,108 @@ const App = () => {
                 </div>
             </main>
 
-            <window.TemplateEditorModal
-                isOpen={isTemplateEditorOpen}
-                token={authToken}
-                template={editingTemplate || { id: 'temp', name: '', content: '', fields: {}, fieldOrder: [] }}
-                onSave={handleTemplateSave}
-                onClose={() => setIsTemplateEditorOpen(false)}
-            />
+            <React.Suspense fallback={<LazyFallback />}>
+                {isTemplateEditorOpen && (
+                    <LazyTemplateEditorModal
+                        isOpen={isTemplateEditorOpen}
+                        token={authToken}
+                        template={editingTemplate || { id: 'temp', name: '', content: '', fields: {}, fieldOrder: [] }}
+                        onSave={handleTemplateSave}
+                        onClose={() => setIsTemplateEditorOpen(false)}
+                    />
+                )}
+            </React.Suspense>
 
-            {isViewingWallet && (
-                <window.WalletDashboard
-                    onClose={() => setIsViewingWallet(false)}
-                    token={authToken}
-                    userCredits={userCredits}
-                    refreshCredits={refreshCredits}
-                />
-            )}
+            <React.Suspense fallback={<LazyFallback />}>
+                {isViewingWallet && (
+                    <LazyWalletDashboard
+                        onClose={() => setIsViewingWallet(false)}
+                        token={authToken}
+                        userCredits={userCredits}
+                        refreshCredits={refreshCredits}
+                    />
+                )}
+            </React.Suspense>
 
-            {isViewingDrafts && (
-                <window.MyDocumentsModal
-                    onClose={() => setIsViewingDrafts(false)}
-                    token={authToken}
-                    templates={allTemplates}
-                    isDownloading={isDownloading}
-                    setIsDownloading={setIsDownloading}
-                    onSelectDraft={(draft) => {
-                        if (draft.is_locked) {
-                            showToast("This document is finalized and cannot be edited.", "error");
-                            return;
-                        }
-                        try {
-                            const draftData = JSON.parse(draft.data_json);
-                            const tId = draftData.template_id || activeTemplateId;
-
-                            // Save the CURRENT states of the ACTIVE template before loading the draft
-                            if (activeTemplateId) {
-                                window.SessionManager.saveSession(activeTemplateId, { data, trackingId, isLocked });
+            <React.Suspense fallback={<LazyFallback />}>
+                {isViewingDrafts && (
+                    <LazyMyDocumentsModal
+                        onClose={() => setIsViewingDrafts(false)}
+                        token={authToken}
+                        templates={allTemplates}
+                        isDownloading={isDownloading}
+                        setIsDownloading={setIsDownloading}
+                        onSelectDraft={(draft) => {
+                            if (draft.is_locked) {
+                                showToast("This document is finalized and cannot be edited.", "error");
+                                return;
                             }
+                            try {
+                                const draftData = JSON.parse(draft.data_json);
+                                const tId = draftData.template_id || activeTemplateId;
 
-                            skipRecoveryRef.current = true;
-
-                            if (window.DraftCacheManager) {
-                                window.DraftCacheManager.save(tId, draftData, draft.tracking_id, draft.is_locked);
-                            } else {
-                                localStorage.setItem(`temp_draft_${tId}`, draft.data_json);
-                                if (draft.tracking_id) {
-                                    localStorage.setItem(`temp_tracking_id_${tId}`, draft.tracking_id);
-                                } else {
-                                    localStorage.removeItem(`temp_tracking_id_${tId}`);
+                                // Save the CURRENT states of the ACTIVE template before loading the draft
+                                if (activeTemplateId) {
+                                    window.SessionManager.saveSession(activeTemplateId, { data, trackingId, isLocked });
                                 }
-                                localStorage.setItem(`temp_locked_${tId}`, String(draft.is_locked));
+
+                                skipRecoveryRef.current = true;
+
+                                if (window.DraftCacheManager) {
+                                    window.DraftCacheManager.save(tId, draftData, draft.tracking_id, draft.is_locked);
+                                } else {
+                                    localStorage.setItem(`temp_draft_${tId}`, draft.data_json);
+                                    if (draft.tracking_id) {
+                                        localStorage.setItem(`temp_tracking_id_${tId}`, draft.tracking_id);
+                                    } else {
+                                        localStorage.removeItem(`temp_tracking_id_${tId}`);
+                                    }
+                                    localStorage.setItem(`temp_locked_${tId}`, String(draft.is_locked));
+                                }
+
+                                // Overwrite/register the session in SessionManager
+                                window.SessionManager.saveSession(tId, { data: draftData, trackingId: draft.tracking_id, isLocked: draft.is_locked });
+
+                                setActiveTemplateId(tId);
+                                setData(draftData);
+                                setTrackingId(draft.tracking_id);
+                                setIsLocked(draft.is_locked);
+                                setIsViewingDrafts(false);
+                                setCurrentView('editor');
+                                localStorage.setItem('currentView', 'editor');
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                showToast("Draft loaded successfully", "success");
+                            } catch (e) {
+                                console.error("Error loading draft", e);
+                                showToast("Error loading draft", "error");
                             }
+                        }}
+                        onDraftDeleted={(deletedId, templateId) => {
+                            const targetTemplateId = templateId || activeTemplateId;
 
-                            // Overwrite/register the session in SessionManager
-                            window.SessionManager.saveSession(tId, { data: draftData, trackingId: draft.tracking_id, isLocked: draft.is_locked });
+                            window.SessionManager.clearSession(targetTemplateId);
 
-                            setActiveTemplateId(tId);
-                            setData(draftData);
-                            setTrackingId(draft.tracking_id);
-                            setIsLocked(draft.is_locked);
-                            setIsViewingDrafts(false);
-                            setCurrentView('editor');
-                            localStorage.setItem('currentView', 'editor');
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                            showToast("Draft loaded successfully", "success");
-                        } catch (e) {
-                            console.error("Error loading draft", e);
-                            showToast("Error loading draft", "error");
-                        }
-                    }}
-                    onDraftDeleted={(deletedId, templateId) => {
-                        const targetTemplateId = templateId || activeTemplateId;
-
-                        window.SessionManager.clearSession(targetTemplateId);
-
-                        if (window.DraftCacheManager) {
-                            window.DraftCacheManager.clear(targetTemplateId);
-                        } else {
-                            localStorage.removeItem(`temp_draft_${targetTemplateId}`);
-                            localStorage.removeItem(`temp_tracking_id_${targetTemplateId}`);
-                            localStorage.removeItem(`temp_locked_${targetTemplateId}`);
-                        }
-
-                        if (trackingId === deletedId) {
-                            setTrackingId(null);
-                            setIsLocked(false);
-                            const activeTemplate = allTemplates.find(t => t.id === targetTemplateId);
-                            setData(getTemplateEmptyState(activeTemplate, false));
                             if (window.DraftCacheManager) {
                                 window.DraftCacheManager.clear(targetTemplateId);
+                            } else {
+                                localStorage.removeItem(`temp_draft_${targetTemplateId}`);
+                                localStorage.removeItem(`temp_tracking_id_${targetTemplateId}`);
+                                localStorage.removeItem(`temp_locked_${targetTemplateId}`);
                             }
-                        }
-                    }}
-                />
-            )}
+
+                            if (trackingId === deletedId) {
+                                setTrackingId(null);
+                                setIsLocked(false);
+                                const activeTemplate = allTemplates.find(t => t.id === targetTemplateId);
+                                setData(getTemplateEmptyState(activeTemplate, false));
+                                if (window.DraftCacheManager) {
+                                    window.DraftCacheManager.clear(targetTemplateId);
+                                }
+                            }
+                        }}
+                    />
+                )}
+            </React.Suspense>
 
             {isAuthModalOpen && (
                 <window.AuthModal
@@ -1105,33 +1165,40 @@ const App = () => {
                     }}
                 />
             )}
-            {isAdminPanelOpen && user && user.is_admin === true && (
-                <window.AdminPanel
-                    onClose={() => setIsAdminPanelOpen(false)}
-                    currentUser={currentUser}
-                    tab={adminPanelTab}
-                    setTab={setAdminPanelTab}
-                    templates={templates}
-                    dbTemplates={dbTpls}
-                    isLoadingTemplates={isTemplatesLoading}
-                    onEditTemplate={(t) => { setEditingTemplate({ ...t }); setIsTemplateEditorOpen(true); }}
-                    onNewTemplate={() => { openNewTemplateEditor(); setIsTemplateEditorOpen(true); }}
-                    onDeleteLocalTemplate={(id) => setTemplates(prev => prev.filter(t => t.id !== id))}
-                    onMenuUpdate={refreshMenu}
-                    onTemplatesUpdate={refreshTemplates}
-                />
-            )}
 
-            <window.DocumentServicesPanel
-                isOpen={isDocServicesPanelOpen}
-                onClose={() => setIsDocServicesPanelOpen(false)}
-                menuItem={docServicesMenuItem}
-                onSelectTemplate={(templateId) => {
-                    setCurrentView('editor');
-                    localStorage.setItem('currentView', 'editor');
-                    handleTemplateSelect(templateId);
-                }}
-            />
+            <React.Suspense fallback={<LazyFallback />}>
+                {isAdminPanelOpen && user && user.is_admin === true && (
+                    <LazyAdminPanel
+                        onClose={() => setIsAdminPanelOpen(false)}
+                        currentUser={currentUser}
+                        tab={adminPanelTab}
+                        setTab={setAdminPanelTab}
+                        templates={templates}
+                        dbTemplates={dbTpls}
+                        isLoadingTemplates={isTemplatesLoading}
+                        onEditTemplate={(t) => { setEditingTemplate({ ...t }); setIsTemplateEditorOpen(true); }}
+                        onNewTemplate={() => { openNewTemplateEditor(); setIsTemplateEditorOpen(true); }}
+                        onDeleteLocalTemplate={(id) => setTemplates(prev => prev.filter(t => t.id !== id))}
+                        onMenuUpdate={refreshMenu}
+                        onTemplatesUpdate={refreshTemplates}
+                    />
+                )}
+            </React.Suspense>
+
+            <React.Suspense fallback={<LazyFallback />}>
+                {isDocServicesPanelOpen && (
+                    <LazyDocumentServicesPanel
+                        isOpen={isDocServicesPanelOpen}
+                        onClose={() => setIsDocServicesPanelOpen(false)}
+                        menuItem={docServicesMenuItem}
+                        onSelectTemplate={(templateId) => {
+                            setCurrentView('editor');
+                            localStorage.setItem('currentView', 'editor');
+                            handleTemplateSelect(templateId);
+                        }}
+                    />
+                )}
+            </React.Suspense>
 
             {toast && (
                 <div className={`fixed bottom-5 right-5 z-50 flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border transition-all duration-300 animate-fade-in

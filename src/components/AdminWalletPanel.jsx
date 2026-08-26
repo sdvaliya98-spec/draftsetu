@@ -1,8 +1,15 @@
 
 const AdminWalletPanel = ({ token, refreshTrigger }) => {
     const [wallets, setWallets] = React.useState([]);
+    const [page, setPage] = React.useState(1);
+    const [totalPages, setTotalPages] = React.useState(1);
+    const [totalWallets, setTotalWallets] = React.useState(0);
+    const [hasNext, setHasNext] = React.useState(false);
+    const [hasPrevious, setHasPrevious] = React.useState(false);
     const [loading, setLoading] = React.useState(true);
+    const [isPaginating, setIsPaginating] = React.useState(false);
     const [searchQuery, setSearchQuery] = React.useState('');
+    const [activeSearch, setActiveSearch] = React.useState('');
     const [adjustingWallet, setAdjustingWallet] = React.useState(null); // { user_id, username, current_balance }
     const [adjustForm, setAdjustForm] = React.useState({ credits: '', type: 'CREDIT', remarks: 'Manual adjustment' });
     const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -24,7 +31,7 @@ const AdminWalletPanel = ({ token, refreshTrigger }) => {
             const data = await res.json();
             if (res.ok) {
                 alert(`Wallet initialization complete!\n\nTotal Scanned: ${data.scanned}\nWallets Created: ${data.created}\nSkipped: ${data.skipped}\nErrors: ${data.errors}`);
-                fetchWallets();
+                fetchWallets(1);
             } else {
                 alert(`Migration failed: ${data.detail || 'Unknown error'}`);
             }
@@ -35,34 +42,58 @@ const AdminWalletPanel = ({ token, refreshTrigger }) => {
         }
     };
 
-    const fetchWallets = React.useCallback(async () => {
-        setLoading(true);
+    const fetchWallets = React.useCallback(async (targetPage = 1, isBackground = false) => {
+        if (isBackground) {
+            setIsPaginating(true);
+        } else {
+            setLoading(true);
+        }
         try {
-            const url = searchQuery.trim() 
-                ? `/api/admin/wallets?search=${encodeURIComponent(searchQuery.trim())}`
-                : '/api/admin/wallets';
+            const queryParams = new URLSearchParams({
+                page: String(targetPage),
+                page_size: '20'
+            });
+            if (activeSearch.trim()) {
+                queryParams.set('search', activeSearch.trim());
+            }
+            const url = `/api/admin/wallets?${queryParams.toString()}`;
             
             const res = await window.apiFetch(url, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
                 const data = await res.json();
-                setWallets(data);
+                if (Array.isArray(data)) {
+                    setWallets(data);
+                    setTotalWallets(data.length);
+                    setTotalPages(1);
+                    setPage(1);
+                    setHasNext(false);
+                    setHasPrevious(false);
+                } else {
+                    setWallets(data.items || []);
+                    setPage(data.page || targetPage);
+                    setTotalPages(data.total_pages || 1);
+                    setTotalWallets(data.total || 0);
+                    setHasNext(Boolean(data.has_next));
+                    setHasPrevious(Boolean(data.has_previous));
+                }
             }
         } catch (err) {
             console.error("Error fetching wallets in admin:", err);
         } finally {
             setLoading(false);
+            setIsPaginating(false);
         }
-    }, [token, searchQuery]);
+    }, [token, activeSearch]);
 
     React.useEffect(() => {
-        fetchWallets();
+        fetchWallets(1);
     }, [fetchWallets, refreshTrigger]);
 
     const handleSearchSubmit = (e) => {
         if (e) e.preventDefault();
-        fetchWallets();
+        setActiveSearch(searchQuery.trim());
     };
 
     const handleAdjustSubmit = async (e) => {
@@ -93,7 +124,7 @@ const AdminWalletPanel = ({ token, refreshTrigger }) => {
                 alert(`Successfully adjusted balance! New Balance: ${data.current_balance}`);
                 setAdjustingWallet(null);
                 setAdjustForm({ credits: '', type: 'CREDIT', remarks: 'Manual adjustment' });
-                fetchWallets();
+                fetchWallets(page);
             } else {
                 setErrorMessage(data.detail || 'Adjustment failed.');
             }
@@ -114,7 +145,10 @@ const AdminWalletPanel = ({ token, refreshTrigger }) => {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex-shrink-0">
                 <div>
                     <h2 className="text-lg font-black text-slate-800 tracking-tight">Wallet Balance Manager</h2>
-                    <p className="text-xs text-slate-400 font-bold mt-0.5">Audit user wallets and process manual credit adjustments.</p>
+                    <p className="text-xs text-slate-400 font-bold mt-0.5">
+                        Audit user wallets and process manual credit adjustments. 
+                        {totalWallets > 0 && <span className="text-slate-500 font-black ml-1.5">• કુલ યુઝર્સ: {totalWallets}</span>}
+                    </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
@@ -145,7 +179,7 @@ const AdminWalletPanel = ({ token, refreshTrigger }) => {
             </div>
 
             {/* Wallets List Grid */}
-            <div className="flex-1 overflow-hidden bg-white border border-slate-200/80 rounded-2xl shadow-sm flex flex-col">
+            <div className="flex-1 overflow-hidden bg-white border border-slate-200/80 rounded-2xl shadow-sm flex flex-col relative">
                 {loading ? (
                     <div className="text-center text-slate-400 py-24 text-sm font-bold animate-pulse">Loading wallet balance listings...</div>
                 ) : wallets.length === 0 ? (
@@ -154,7 +188,15 @@ const AdminWalletPanel = ({ token, refreshTrigger }) => {
                         <p className="text-xs font-semibold">No wallets found matching search criteria.</p>
                     </div>
                 ) : (
-                    <div className="overflow-y-auto custom-scrollbar flex-1">
+                    <div className="overflow-y-auto custom-scrollbar flex-1 relative">
+                        {isPaginating && (
+                            <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center z-20">
+                                <span className="text-xs font-bold text-blue-700 animate-pulse flex items-center gap-1.5 bg-blue-50 px-3.5 py-1.5 rounded-full border border-blue-100 shadow-sm">
+                                    <span>⏳</span>
+                                    <span>લોડ થઈ રહ્યું છે...</span>
+                                </span>
+                            </div>
+                        )}
                         <table className="w-full text-left border-collapse">
                             <thead className="sticky top-0 bg-slate-50 border-b border-slate-100 text-slate-400 z-10">
                                 <tr>
@@ -195,6 +237,46 @@ const AdminWalletPanel = ({ token, refreshTrigger }) => {
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                )}
+
+                {/* Pagination Controls Bar */}
+                {!loading && totalPages > 1 && (
+                    <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs flex-shrink-0">
+                        <div className="text-slate-500 font-bold">
+                            પેજ <span className="font-black text-slate-800">{page}</span> / <span className="font-black text-slate-800">{totalPages}</span>
+                            <span className="text-slate-400 font-normal ml-3">• કુલ યુઝર્સ: {totalWallets}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                id="btn-admin-wallet-prev"
+                                type="button"
+                                disabled={!hasPrevious || page <= 1 || isPaginating}
+                                onClick={() => fetchWallets(page - 1, true)}
+                                className={`px-3.5 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer border text-xs ${
+                                    !hasPrevious || page <= 1 || isPaginating
+                                        ? 'bg-slate-100 text-slate-300 border-slate-200/60 cursor-not-allowed shadow-none'
+                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 active:scale-95 shadow-sm'
+                                }`}
+                            >
+                                <span>←</span>
+                                <span>પાછળ</span>
+                            </button>
+                            <button
+                                id="btn-admin-wallet-next"
+                                type="button"
+                                disabled={!hasNext || page >= totalPages || isPaginating}
+                                onClick={() => fetchWallets(page + 1, true)}
+                                className={`px-3.5 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer border text-xs ${
+                                    !hasNext || page >= totalPages || isPaginating
+                                        ? 'bg-slate-100 text-slate-300 border-slate-200/60 cursor-not-allowed shadow-none'
+                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 active:scale-95 shadow-sm'
+                                }`}
+                            >
+                                <span>આગળ</span>
+                                <span>→</span>
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>

@@ -233,6 +233,36 @@ def ensure_schema_up_to_date():
                 if "wallet_transaction_id" not in po_cols:
                     conn.execute(text("ALTER TABLE payment_orders ADD COLUMN wallet_transaction_id INTEGER"))
 
+        # Check and ensure high-value performance indexes exist
+        indexes_to_ensure = [
+            ("users", "ix_users_is_active", "is_active"),
+            ("document_submissions", "ix_document_submissions_user_id", "user_id"),
+            ("document_submissions", "ix_document_submissions_template_id", "template_id"),
+            ("document_submissions", "ix_document_submissions_created_at", "created_at"),
+            ("document_submissions", "ix_document_submissions_is_locked", "is_locked"),
+            ("wallet_transactions", "ix_wallet_transactions_user_id", "user_id"),
+            ("wallet_transactions", "ix_wallet_transactions_wallet_id", "wallet_id"),
+            ("wallet_transactions", "ix_wallet_transactions_created_at", "created_at"),
+            ("wallets", "ix_wallets_user_id", "user_id"),
+            ("db_templates", "ix_db_templates_is_active", "is_active"),
+            ("db_templates", "ix_db_templates_status", "status"),
+            ("static_pages", "ix_static_pages_is_active", "is_active"),
+            ("payment_orders", "ix_payment_orders_created_at", "created_at"),
+            ("menu_items", "ix_menu_items_parent_id", "parent_id"),
+            ("menu_items", "ix_menu_items_is_active", "is_active"),
+        ]
+
+        with engine.begin() as conn:
+            for tbl, idx_name, col in indexes_to_ensure:
+                if tbl in table_names:
+                    existing_indices = [idx["name"] for idx in inspector.get_indexes(tbl)]
+                    if idx_name not in existing_indices:
+                        try:
+                            logger.info(f"⚡ Creating index '{idx_name}' on {tbl}({col})...")
+                            conn.execute(text(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {tbl}({col})"))
+                        except Exception as idx_err:
+                            logger.warning(f"Could not create index {idx_name}: {idx_err}")
+
         logger.info("✅ Schema check completed successfully.")
     except Exception as e:
         logger.error(f"❌ Schema check failed: {e}")
