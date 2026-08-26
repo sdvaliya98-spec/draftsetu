@@ -31,7 +31,7 @@ const Editor = ({ value, onEditorChange, init }) => {
                         editor.setContent(contentToSet);
                     });
 
-                    editor.on('change keyup undo redo input SetContent', () => {
+                    editor.on('change keyup undo redo input', () => {
                         const content = editor.getContent();
                         if (onEditorChange) {
                             isSettingValueRef.current = true;
