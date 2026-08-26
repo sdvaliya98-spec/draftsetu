@@ -688,13 +688,13 @@ const StaticPageManager = ({ refreshTrigger }) => {
                     </div>
                 </div>
                 <div className="space-y-2">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Page Content (TipTap Editor)</label>
-                    <div className="relative rounded-[32px] border border-slate-200 overflow-hidden bg-white shadow-sm">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Page Content (Rich Text / TipTap Editor)</label>
+                    <div className="rounded-2xl border-2 border-slate-300 overflow-hidden bg-white shadow-sm min-h-[480px]">
                         <RichTextEditor 
+                            key={editing}
                             value={form.content} 
                             onChange={v => setForm(p => ({ ...p, content: v }))} 
                         />
-                        <div className="absolute bottom-2 right-4 text-[10px] font-black text-slate-300 uppercase tracking-widest z-10 pointer-events-none">Live Content Node</div>
                     </div>
                 </div>
 
@@ -708,7 +708,7 @@ const StaticPageManager = ({ refreshTrigger }) => {
                 <button onClick={async () => {
                     if (!form.title.trim() || !form.slug.trim()) return alert('Missing required fields');
                     const isNew = editing === 'new';
-                    const url = isNew ? '/api/pages/' : `/api/pages/${editing}/`;
+                    const url = isNew ? '/api/pages/' : `/api/pages/${editing}`;
                     await window.apiFetch(url, { method: isNew ? 'POST' : 'PUT', body: form });
                     setEditing(null); reload();
                 }} className="px-10 py-3 bg-blue-600 text-white rounded-2xl font-black text-xs hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all uppercase tracking-widest btn-premium">Deploy Page</button>

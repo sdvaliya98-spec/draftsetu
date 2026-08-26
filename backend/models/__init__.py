@@ -19,6 +19,7 @@ class User(Base):
 
     documents = relationship("DocumentSubmission", back_populates="user")
     wallet = relationship("Wallet", back_populates="user", uselist=False)
+    payments = relationship("PaymentOrder", back_populates="user", cascade="all, delete-orphan")
 
 
 class DocumentSubmission(Base):
@@ -142,5 +143,28 @@ class WalletTransaction(Base):
 
     wallet = relationship("Wallet")
     user = relationship("User")
+
+
+class PaymentOrder(Base):
+    __tablename__ = "payment_orders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    order_id = Column(String, unique=True, index=True, nullable=False)
+    payment_id = Column(String, unique=True, index=True, nullable=True)
+    signature = Column(String, nullable=True)
+    plan_id = Column(String, nullable=False)
+    amount = Column(Integer, nullable=False)  # Amount in paise (e.g., 19900 = ₹199)
+    currency = Column(String, default="INR", nullable=False)
+    credits = Column(Integer, nullable=False)
+    status = Column(String, default="CREATED", index=True, nullable=False)  # CREATED, SUCCESS, FAILED, CANCELLED
+    error_code = Column(String, nullable=True)
+    error_description = Column(String, nullable=True)
+    wallet_transaction_id = Column(Integer, ForeignKey("wallet_transactions.id"), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    user = relationship("User", back_populates="payments")
+    wallet_transaction = relationship("WalletTransaction")
 
 

@@ -2,41 +2,58 @@ const Editor = ({ value, onEditorChange, init }) => {
     const textareaRef = React.useRef(null);
     const editorRef = React.useRef(null);
     const isSettingValueRef = React.useRef(false);
+    const valueRef = React.useRef(value);
+    valueRef.current = value;
+    const [editorId] = React.useState(() => 'tinymce-editor-' + Math.random().toString(36).substring(2, 9));
 
     React.useEffect(() => {
-        if (!textareaRef.current || !window.tinymce) return;
+        if (!window.tinymce) {
+            console.warn("TinyMCE is not loaded on window.");
+            return;
+        }
 
         let activeEditor = null;
-        window.tinymce.init({
-            ...init,
-            target: textareaRef.current,
-            setup: (editor) => {
-                activeEditor = editor;
-                editorRef.current = editor;
-                
-                editor.on('init', () => {
-                    if (value) {
-                        editor.setContent(value);
-                    }
-                });
+        const timer = setTimeout(() => {
+            const el = document.getElementById(editorId);
+            if (!el) return;
 
-                editor.on('change keyup undo redo input', () => {
-                    const content = editor.getContent();
-                    if (onEditorChange) {
-                        isSettingValueRef.current = true;
-                        onEditorChange(content);
-                        isSettingValueRef.current = false;
-                    }
-                });
-            }
-        });
+            window.tinymce.init({
+                ...init,
+                selector: `#${editorId}`,
+                setup: (editor) => {
+                    activeEditor = editor;
+                    editorRef.current = editor;
+                    
+                    editor.on('init', () => {
+                        const contentToSet = (valueRef.current !== undefined && valueRef.current !== null)
+                            ? valueRef.current
+                            : (el.value || '');
+                        editor.setContent(contentToSet);
+                    });
+
+                    editor.on('change keyup undo redo input SetContent', () => {
+                        const content = editor.getContent();
+                        if (onEditorChange) {
+                            isSettingValueRef.current = true;
+                            onEditorChange(content);
+                            isSettingValueRef.current = false;
+                        }
+                    });
+                }
+            });
+        }, 50);
 
         return () => {
+            clearTimeout(timer);
             if (activeEditor) {
-                window.tinymce.remove(activeEditor);
+                try {
+                    window.tinymce.remove(activeEditor);
+                } catch (e) {
+                    console.warn("Error removing TinyMCE editor instance:", e);
+                }
             }
         };
-    }, []);
+    }, [editorId]);
 
     React.useEffect(() => {
         if (editorRef.current && value !== undefined && !isSettingValueRef.current) {
@@ -47,21 +64,27 @@ const Editor = ({ value, onEditorChange, init }) => {
         }
     }, [value]);
 
-    const idRef = React.useRef('tinymce-editor-' + Math.random().toString(36).substring(2, 9));
-
-    return <textarea id={idRef.current} ref={textareaRef} style={{ display: 'none' }} />;
+    return (
+        <textarea
+            id={editorId}
+            ref={textareaRef}
+            defaultValue={value || ''}
+            style={{ width: '100%', minHeight: '450px', padding: '16px', border: 'none', outline: 'none', resize: 'vertical' }}
+        />
+    );
 };
 
 const RichTextEditor = ({ value, onChange }) => {
     return (
-        <div className="rich-text-editor-wrapper overflow-hidden rounded-xl border border-slate-200">
+        <div className="rich-text-editor-wrapper w-full min-h-[480px] rounded-2xl border-2 border-slate-300 bg-white shadow-sm overflow-hidden flex flex-col">
             <Editor
                 value={value}
                 onEditorChange={(content) => {
                     onChange(content);
                 }}
                 init={{
-                    height: 550,
+                    height: 480,
+                    min_height: 450,
                     menubar: 'file edit view insert format tools table help',
                     plugins: [
                         'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
@@ -71,44 +94,25 @@ const RichTextEditor = ({ value, onChange }) => {
                     toolbar: 'undo redo | fontfamily fontsize | ' +
                         'bold italic underline strikethrough | alignleft aligncenter ' +
                         'alignright alignjustify | bullist numlist | outdent indent | ' +
-                        'forecolor backcolor | table pagebreak | removeformat | fullscreen',
+                        'forecolor backcolor | table pagebreak | code removeformat | fullscreen',
                     font_family_formats: 'Gujarati (Noto Sans)="Noto Sans Gujarati",sans-serif; Gujarati (Shruti)=Shruti,sans-serif; Arial=arial,helvetica,sans-serif;',
                     content_style: `
                         body { 
                             font-family: 'Noto Sans Gujarati', 'Shruti', sans-serif;
                             font-size: 14pt;
-                            line-height: 1.2;
+                            line-height: 1.5;
                             letter-spacing: 0px;
                             word-spacing: 0px;
                             margin: 0;
                             padding: 20px;
-                            white-space: pre-wrap;
                             box-sizing: border-box;
                             overflow-wrap: break-word;
                             background: #ffffff;
                             color: #1f2937;
                         }
-                        p, div, span {
-                            margin-top: 0 !important;
-                            margin-bottom: 0 !important;
-                            padding: 0 !important;
-                            line-height: 1.2 !important;
-                        }
-                        p {
-                            min-height: unset !important;
-                        }
                     `,
-                    forced_root_block: false,
-                    force_br_newlines: true,
-                    force_p_newlines: false,
-                    remove_linebreaks: false,
-                    verify_html: false,
-                    cleanup: false,
+                    forced_root_block: 'div',
                     entity_encoding: "raw",
-                    paste_as_text: false,
-                    paste_webkit_styles: "all",
-                    paste_merge_formats: true,
-                    smart_paste: true,
                     skin: 'oxide',
                     branding: false,
                     promotion: false,
@@ -121,3 +125,4 @@ const RichTextEditor = ({ value, onChange }) => {
 
 // Global backward compatibility
 window.RichTextEditor = RichTextEditor;
+

@@ -22,6 +22,9 @@
     <!-- html2pdf for PDF export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
+    <!-- Razorpay Checkout SDK -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
     <!-- Custom Style Sheet -->
     <link rel="stylesheet" href="style.css">
 
@@ -150,11 +153,18 @@
                         splash.style.opacity = '0';
                         splash.style.visibility = 'hidden';
                         setTimeout(() => {
-                            splash.remove();
-                        }, 400);
+                            if (splash && splash.parentNode) splash.remove();
+                        }, 250);
                     }
-                }, 150);
+                }, 100);
             };
+
+            // Safety fallback: auto-hide splash screen after 3 seconds max
+            setTimeout(() => {
+                if (typeof window.hideSplashScreen === 'function') {
+                    window.hideSplashScreen();
+                }
+            }, 3000);
         })();
     </script>
 
@@ -343,9 +353,9 @@
     <script type="text/babel" src="src/components/TemplateAnalyticsDetail.jsx"></script>
     <script type="text/babel" src="src/components/DocumentServicesPanel.jsx"></script>
     <script type="text/babel" src="src/components/AdminSharedModals.jsx"></script>
-    <script type="text/babel" src="src/components/AdminPanel.jsx?v=2"></script>
+    <script type="text/babel" src="src/components/AdminPanel.jsx"></script>
     <script type="text/babel" src="src/components/DocumentPreview.jsx"></script>
-    <script type="text/babel" src="src/components/FormPanel.jsx?v=2"></script>
+    <script type="text/babel" src="src/components/FormPanel.jsx"></script>
 
     <!-- Pages -->
     <script type="text/babel" src="src/pages/HomePage.jsx"></script>

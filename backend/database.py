@@ -166,6 +166,73 @@ def ensure_schema_up_to_date():
                 with engine.begin() as conn:
                     conn.execute(text("ALTER TABLE activity_logs ADD COLUMN template_name VARCHAR"))
 
+        # Check / Create payment_orders table
+        if "payment_orders" not in table_names:
+            logger.info("🛠️ Creating 'payment_orders' table...")
+            with engine.begin() as conn:
+                is_postgres = "postgresql" in settings.DATABASE_URL
+                if is_postgres:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS payment_orders (
+                            id SERIAL PRIMARY KEY,
+                            user_id INTEGER NOT NULL REFERENCES users(id),
+                            order_id VARCHAR NOT NULL UNIQUE,
+                            payment_id VARCHAR UNIQUE,
+                            signature VARCHAR,
+                            plan_id VARCHAR NOT NULL,
+                            amount INTEGER NOT NULL,
+                            currency VARCHAR NOT NULL DEFAULT 'INR',
+                            credits INTEGER NOT NULL,
+                            status VARCHAR NOT NULL DEFAULT 'CREATED',
+                            error_code VARCHAR,
+                            error_description VARCHAR,
+                            wallet_transaction_id INTEGER REFERENCES wallet_transactions(id),
+                            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                        );
+                        CREATE INDEX IF NOT EXISTS ix_payment_orders_user_id ON payment_orders(user_id);
+                        CREATE INDEX IF NOT EXISTS ix_payment_orders_order_id ON payment_orders(order_id);
+                        CREATE INDEX IF NOT EXISTS ix_payment_orders_payment_id ON payment_orders(payment_id);
+                        CREATE INDEX IF NOT EXISTS ix_payment_orders_status ON payment_orders(status);
+                    """))
+                else:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS payment_orders (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            user_id INTEGER NOT NULL,
+                            order_id VARCHAR NOT NULL UNIQUE,
+                            payment_id VARCHAR UNIQUE,
+                            signature VARCHAR,
+                            plan_id VARCHAR NOT NULL,
+                            amount INTEGER NOT NULL,
+                            currency VARCHAR NOT NULL DEFAULT 'INR',
+                            credits INTEGER NOT NULL,
+                            status VARCHAR NOT NULL DEFAULT 'CREATED',
+                            error_code VARCHAR,
+                            error_description VARCHAR,
+                            wallet_transaction_id INTEGER,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY(user_id) REFERENCES users(id),
+                            FOREIGN KEY(wallet_transaction_id) REFERENCES wallet_transactions(id)
+                        );
+                        CREATE INDEX IF NOT EXISTS ix_payment_orders_user_id ON payment_orders(user_id);
+                        CREATE UNIQUE INDEX IF NOT EXISTS ix_payment_orders_order_id ON payment_orders(order_id);
+                        CREATE UNIQUE INDEX IF NOT EXISTS ix_payment_orders_payment_id ON payment_orders(payment_id);
+                        CREATE INDEX IF NOT EXISTS ix_payment_orders_status ON payment_orders(status);
+                    """))
+            logger.info("✅ 'payment_orders' table created successfully.")
+        else:
+            # Table exists, ensure all columns and indexes exist
+            po_cols = [col["name"] for col in inspector.get_columns("payment_orders")]
+            with engine.begin() as conn:
+                if "error_code" not in po_cols:
+                    conn.execute(text("ALTER TABLE payment_orders ADD COLUMN error_code VARCHAR"))
+                if "error_description" not in po_cols:
+                    conn.execute(text("ALTER TABLE payment_orders ADD COLUMN error_description VARCHAR"))
+                if "wallet_transaction_id" not in po_cols:
+                    conn.execute(text("ALTER TABLE payment_orders ADD COLUMN wallet_transaction_id INTEGER"))
+
         logger.info("✅ Schema check completed successfully.")
     except Exception as e:
         logger.error(f"❌ Schema check failed: {e}")

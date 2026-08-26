@@ -13,6 +13,11 @@ from backend.utils.maintenance import backup_database, cleanup_old_outputs, clea
 from backend.core.config import settings
 from backend.core.constants import DEMO_DATASET_DIR
 
+"""
+DraftSetu Backend Application Main Entrypoint.
+Production-ready FastAPI application with Razorpay payment gateway integration.
+Last updated: 2024-05-22
+"""
 # Ensure backend directory is in sys.path
 BASE_DIR = settings.BASE_DIR
 if BASE_DIR not in sys.path:

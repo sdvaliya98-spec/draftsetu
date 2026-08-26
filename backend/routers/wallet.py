@@ -1,8 +1,8 @@
 import logging
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Header
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from backend import database, models
 from backend.services.auth_service import get_current_user, get_admin_user
@@ -35,6 +35,35 @@ class TransactionResponse(BaseModel):
     balance_after: int
     remarks: Optional[str]
     created_at: str
+
+class CreateOrderRequest(BaseModel):
+    credits: int
+
+    @field_validator('credits')
+    @classmethod
+    def validate_credits(cls, v):
+        if isinstance(v, bool) or not isinstance(v, int):
+            raise ValueError("ક્રેડિટ્સ પૂર્ણાંક સંખ્યા (Integer) હોવી જોઈએ.")
+        if v < 50:
+            raise ValueError("ઓછામાં ઓછા 50 ક્રેડિટ્સ ઉમેરવા જરૂરી છે.")
+        return v
+
+class VerifyPaymentRequest(BaseModel):
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+
+class PaymentFailureRequest(BaseModel):
+    razorpay_order_id: str
+    error_code: Optional[str] = None
+    error_description: Optional[str] = None
+
+class RechargePlansResponse(BaseModel):
+    plans: List[dict] = []
+    razorpay_key_id: str
+    wallet_enabled: bool
+    min_credits: int = 50
+    rate_inr_per_credit: int = 1
 
 # --- Endpoints ---
 
@@ -80,6 +109,96 @@ def get_transactions(
             "created_at": tx.created_at.isoformat()
         })
     return result
+
+# --- Razorpay Payment Gateway Endpoints ---
+
+@router.get("/wallet/plans", response_model=RechargePlansResponse)
+def get_recharge_plans():
+    """
+    Public / Authenticated: Returns custom credit recharge configurations and public Razorpay Key ID.
+    Never exposes RAZORPAY_KEY_SECRET.
+    """
+    return {
+        "plans": settings.RECHARGE_PLANS,
+        "razorpay_key_id": settings.RAZORPAY_KEY_ID,
+        "wallet_enabled": settings.WALLET_ENABLED,
+        "min_credits": 50,
+        "rate_inr_per_credit": 1
+    }
+
+@router.post("/wallet/create-order")
+def create_recharge_order(
+    req: CreateOrderRequest,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Authenticated user: Creates a server-authoritative Razorpay payment order for a custom credit recharge.
+    Frontend only passes `credits`; pricing (1 credit = ₹1) and payable amount are strictly calculated and enforced by backend.
+    """
+    if not settings.WALLET_ENABLED:
+        raise HTTPException(
+            status_code=400,
+            detail="Wallet functionality is currently disabled."
+        )
+    return WalletService.create_razorpay_order(db=db, user=current_user, credits=req.credits)
+
+@router.post("/wallet/verify-payment")
+def verify_payment(
+    req: VerifyPaymentRequest,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Authenticated user: Securely verifies the Razorpay signature on server-side and
+    idempotently adds purchased credits to user's wallet.
+    """
+    if not settings.WALLET_ENABLED:
+        raise HTTPException(
+            status_code=400,
+            detail="Wallet functionality is currently disabled."
+        )
+    return WalletService.verify_and_fulfill_payment(
+        db=db,
+        user=current_user,
+        razorpay_order_id=req.razorpay_order_id,
+        razorpay_payment_id=req.razorpay_payment_id,
+        razorpay_signature=req.razorpay_signature
+    )
+
+@router.post("/wallet/payment-failed")
+def report_payment_failure(
+    req: PaymentFailureRequest,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Authenticated user: Logs a client-side payment failure or cancellation for audit tracking.
+    """
+    return WalletService.record_payment_failure(
+        db=db,
+        user=current_user,
+        razorpay_order_id=req.razorpay_order_id,
+        error_code=req.error_code,
+        error_description=req.error_description
+    )
+
+@router.post("/wallet/webhook/razorpay")
+async def razorpay_webhook(
+    request: Request,
+    db: Session = Depends(database.get_db),
+    x_razorpay_signature: Optional[str] = Header(None, alias="X-Razorpay-Signature")
+):
+    """
+    Razorpay Webhook listener: Provides automated server-to-server payment verification and
+    idempotent credit fulfillment in case the frontend callback fails or user closes browser.
+    """
+    raw_body = await request.body()
+    return WalletService.process_webhook(
+        db=db,
+        payload_bytes=raw_body,
+        signature_header=x_razorpay_signature or ""
+    )
 
 @router.get("/admin/wallets", response_model=List[dict])
 def list_wallets(
