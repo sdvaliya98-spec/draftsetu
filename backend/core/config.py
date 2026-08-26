@@ -1,5 +1,7 @@
 import os
-from pydantic_settings import BaseSettings
+from typing import Optional, List
+from pydantic import model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "TheLegalSetu"
@@ -9,6 +11,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     CORS_ORIGINS: list[str] = ["*"]
     ENV: str = os.getenv("ENV", os.getenv("ENVIRONMENT", "development"))
+    ENVIRONMENT: Optional[str] = os.getenv("ENVIRONMENT", os.getenv("ENV", "development"))
 
     # Wallet Configurations
     WALLET_ENABLED: bool = True
@@ -70,29 +73,43 @@ class Settings(BaseSettings):
     BASE_DIR: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'document_system.db')}")
 
-    # Storage
+    # Storage & Backups
     UPLOAD_DIR: str = os.path.join(BASE_DIR, "uploads")
     TEMPLATE_STORAGE: str = os.path.join(UPLOAD_DIR, "templates_storage")
     OUTPUT_DIR: str = os.path.join(UPLOAD_DIR, "outputs")
     TEMP_RENDERS_DIR: str = os.path.join(UPLOAD_DIR, "temp_renders")
     TEMP_PREVIEWS_DIR: str = os.path.join(UPLOAD_DIR, "temp_previews")
+    BACKUP_DIR: Optional[str] = os.getenv("BACKUP_DIR", os.path.join(BASE_DIR, "backups"))
 
     @property
     def ALL_DIRS(self):
-        return [self.UPLOAD_DIR, self.TEMPLATE_STORAGE, self.OUTPUT_DIR, self.TEMP_RENDERS_DIR, self.TEMP_PREVIEWS_DIR]
+        dirs = [self.UPLOAD_DIR, self.TEMPLATE_STORAGE, self.OUTPUT_DIR, self.TEMP_RENDERS_DIR, self.TEMP_PREVIEWS_DIR]
+        if self.BACKUP_DIR:
+            dirs.append(self.BACKUP_DIR)
+        return dirs
 
-    class Config:
-        env_file = [
+    @model_validator(mode="after")
+    def synchronize_env(self) -> "Settings":
+        if self.ENVIRONMENT and (not self.ENV or self.ENV == "development"):
+            self.ENV = self.ENVIRONMENT
+        if not self.ENVIRONMENT and self.ENV:
+            self.ENVIRONMENT = self.ENV
+        return self
+
+    model_config = SettingsConfigDict(
+        env_file=[
             os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "backend", ".env"),
             os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"),
             ".env"
-        ]
-        case_sensitive = True
+        ],
+        case_sensitive=True,
+        extra="ignore"
+    )
 
 settings = Settings()
 
 # Security Check
-is_production = settings.ENV.lower() in ("production", "prod")
+is_production = (settings.ENV and settings.ENV.lower() in ("production", "prod")) or (settings.ENVIRONMENT and settings.ENVIRONMENT.lower() in ("production", "prod"))
 
 if is_production:
     raw_secret_key = os.getenv("SECRET_KEY")
