@@ -10,6 +10,7 @@
 
 const TemplateEditorModal = ({ isOpen, token, template, onSave, onClose }) => {
     const [name, setName] = React.useState(template.name || '');
+    const [category, setCategory] = React.useState(template.category || 'Sale Deed');
     const [menuItemId, setMenuItemId] = React.useState(template.menu_item_id || '');
     const [pageSize, setPageSize] = React.useState(template.pageSize || 'A4');
     const [creditCost, setCreditCost] = React.useState(template.credit_cost ?? 10);
@@ -320,7 +321,7 @@ const TemplateEditorModal = ({ isOpen, token, template, onSave, onClose }) => {
             await onSave({
                 ...template,
                 name,
-                category: 'General',
+                category: category || 'General',
                 menu_item_id: menuItemId ? parseInt(menuItemId) : null,
                 pageSize,
                 content: '',
@@ -531,6 +532,29 @@ const TemplateEditorModal = ({ isOpen, token, template, onSave, onClose }) => {
                                 placeholder="e.g., Sale Deed — વેચાણ દસ્તાવેજ"
                                 id="template-name-input"
                             />
+                        </div>
+
+                        {/* Document Category */}
+                        <div className="space-y-2">
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                Document Category
+                            </label>
+                            <select
+                                value={category}
+                                onChange={e => setCategory(e.target.value)}
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold text-slate-700 bg-white"
+                                id="template-category-input"
+                            >
+                                <option value="Sale Deed">Sale Deed (વેચાણ દસ્તાવેજ)</option>
+                                <option value="Paper Notice">Paper Notice (પેપર નોટીસ)</option>
+                                <option value="Affidavit">Affidavit (સોગંદનામું)</option>
+                                <option value="Relinquishment">Relinquishment (હક્ક રીલીઝ)</option>
+                                <option value="Heirship / Pedhinamu">Heirship / Pedhinamu (વારસાઈ / પેઢીનામું)</option>
+                                <option value="Will / Vasiyat">Will / Vasiyat (વીલ / વસીયતનામું)</option>
+                                <option value="Gift Deed">Gift Deed (બક્ષીસ દસ્તાવેજ)</option>
+                                <option value="Power of Attorney">Power of Attorney (પાવર ઓફ એટર્ની)</option>
+                                <option value="General">General (સામાન્ય)</option>
+                            </select>
                         </div>
 
                         {/* Submenu Assignment */}

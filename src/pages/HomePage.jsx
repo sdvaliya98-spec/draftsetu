@@ -7,23 +7,38 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [] }) => {
         ? templates 
         : templates.filter(t => (t.category || 'General') === selectedCategory);
     
+    // Dynamic Category List derived from templates
+    const availableCategories = React.useMemo(() => {
+        const cats = new Set(templates.map(t => t.category || 'General').filter(c => c && c !== 'Test / Dummy'));
+        return ['All', ...Array.from(cats)];
+    }, [templates]);
+
     // Dynamic URL Resolver Helper
-    const getTemplateUrl = (categoryName, searchKeywords = []) => {
-        const match = templates.find(t => {
+    const getTemplateUrl = (categoryName, targetTemplateId = null, searchKeywords = []) => {
+        // 1. Direct active template ID match if provided
+        if (targetTemplateId) {
+            const targetTpl = templates.find(t => t.is_active && (t.template_id === targetTemplateId || t.id === targetTemplateId));
+            if (targetTpl) {
+                return `editor?template=${targetTpl.template_id || targetTpl.id}`;
+            }
+        }
+        // 2. Direct category match
+        const categoryMatch = templates.find(t => t.is_active && (t.category || '').toLowerCase() === (categoryName || '').toLowerCase());
+        if (categoryMatch) {
+            return `editor?template=${categoryMatch.template_id || categoryMatch.id}`;
+        }
+        // 3. Fallback to search keywords if needed
+        const keywordMatch = templates.find(t => {
             if (!t.is_active) return false;
-            // First try matching by category
-            if (categoryName && (t.category || '').toLowerCase() === categoryName.toLowerCase()) return true;
-            // Otherwise match by keywords in name or template_id
-            if (searchKeywords.some(keyword => 
+            return searchKeywords.some(keyword => 
                 (t.name || '').toLowerCase().includes(keyword.toLowerCase()) || 
                 (t.template_id || t.id || '').toLowerCase().includes(keyword.toLowerCase())
-            )) return true;
-            return false;
+            );
         });
-        if (match) {
-            return `editor?template=${match.template_id || match.id}`;
+        if (keywordMatch) {
+            return `editor?template=${keywordMatch.template_id || keywordMatch.id}`;
         }
-        return "editor"; // Fallback to editor with select prompt
+        return "editor"; // Fallback to editor
     };
     
     const slides = [
@@ -34,7 +49,7 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [] }) => {
             badge: "Advanced Legal-Tech SaaS",
             bg: "from-blue-900 via-slate-900 to-indigo-950",
             actionText: "Start Generating",
-            actionUrl: getTemplateUrl('Sale Deed', ['વેચાણ', 'sale_deed'])
+            actionUrl: getTemplateUrl('Sale Deed', 'tpl_997fd57d', ['વેચાણ', 'sale_deed'])
         },
         {
             title: "સચોટ ગુજરાતી કાનૂની દસ્તાવેજો",
@@ -43,13 +58,13 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [] }) => {
             badge: "૧૦૦% સચોટ નમૂનાઓ",
             bg: "from-slate-900 via-sky-950 to-blue-900",
             actionText: "સેવાઓ એક્સપ્લોર કરો",
-            actionUrl: getTemplateUrl('Sale Deed', ['વેચાણ', 'sale_deed'])
+            actionUrl: getTemplateUrl('Sale Deed', 'tpl_997fd57d', ['વેચાણ', 'sale_deed'])
         },
         {
             title: "સુરક્ષિત દસ્તાવેજ વોલ્ટ (Vault)",
             subtitle: "તમારા ડ્રાફ્ટ્સ ગમે ત્યારે એક્સેસ કરો",
             desc: "તમારા પર્સનલ એકાઉન્ટમાં સેવ કરેલા દસ્તાવેજો સુરક્ષિત રીતે સંગ્રહિત કરો અને ગમે ત્યારે સુધારા કરો.",
-            badge: "ડેટา સુરક્ષા અને ગુપ્તતા",
+            badge: "ડેટા સુરક્ષા અને ગુપ્તતા",
             bg: "from-blue-950 via-slate-900 to-indigo-950",
             actionText: "મારા દસ્તાવેજો",
             actionUrl: "documents"
@@ -69,7 +84,7 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [] }) => {
             enTitle: "Sale Deed Blueprint",
             desc: "સ્થાવર મિલકતોના ખરીદ-વેચાણ માટે પ્રમાણભૂત વેચાણ દસ્તાવેજનો સચોટ ડ્રાફ્ટ તૈયાર કરો.",
             icon: "✍️",
-            url: getTemplateUrl('Sale Deed', ['વેચાણ', 'sale_deed']),
+            url: getTemplateUrl('Sale Deed', 'tpl_997fd57d', ['વેચાણ', 'sale_deed']),
             badge: "મોસ્ટ પોપ્યુલર",
             color: "border-blue-200 hover:border-blue-500 hover:shadow-blue-50 bg-blue-50/20"
         },
@@ -96,7 +111,7 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [] }) => {
             enTitle: "Paper Notice Template",
             desc: "જમીન મિલકતના ટાઇટલ ક્લિયરન્સ અંગે દૈનિક વર્તમાનપત્રોમાં આપવા માટેની સચોટ પેપર નોટિસ ડ્રાફ્ટ કરો.",
             icon: "📰",
-            url: getTemplateUrl('Paper Notice', ['પેપર', 'notic']),
+            url: getTemplateUrl('Paper Notice', 'tpl_adff5672', ['પેપર', 'notic']),
             badge: "નવું ટેમ્પલેટ",
             color: "border-emerald-200 hover:border-emerald-500 hover:shadow-emerald-50 bg-emerald-50/20"
         },
@@ -114,7 +129,7 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [] }) => {
             enTitle: "Affidavit Template",
             desc: "વિવિધ સરકારી અને બિનસરકારી હેતુઓ માટે સત્તાવાર સોગંદનામા અને એકરારનામા ઓટોમેટેડ તૈયાર કરો.",
             icon: "📄",
-            url: getTemplateUrl('Affidavit', ['એફિડેવિટ', 'affidavit']),
+            url: getTemplateUrl('Affidavit', 'tpl_ecd0bc4a', ['એફિડેવિટ', 'affidavit']),
             badge: "લોકપ્રિય",
             color: "border-indigo-200 hover:border-indigo-500 hover:shadow-indigo-50 bg-indigo-50/20"
         },
@@ -123,7 +138,7 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [] }) => {
             enTitle: "Notarized Document",
             desc: "પ્રમાણિત કરાર પત્રો, લીઝ એગ્રીમેન્ટ અને સત્તાવાર સંમતિ પત્રો નોટરાઈઝેશન માટે ડ્રાફ્ટ કરો.",
             icon: "✒️",
-            url: getTemplateUrl('Notary', ['નોટરી', 'notary']),
+            url: getTemplateUrl('Affidavit', 'tpl_ecd0bc4a', ['નોટરી', 'notary']),
             badge: "સ્ટેન્ડર્ડ નમૂનો",
             color: "border-teal-200 hover:border-teal-500 hover:shadow-teal-50 bg-teal-50/20"
         }
@@ -266,13 +281,9 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [] }) => {
                                 onChange={e => setSelectedCategory(e.target.value)}
                                 className="flex-1 md:w-48 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold text-slate-700 font-sans"
                             >
-                                <option value="All">All</option>
-                                <option value="General">General</option>
-                                <option value="Pedhinamu">Pedhinamu</option>
-                                <option value="Varasai">Varasai</option>
-                                <option value="Sale Deed">Sale Deed</option>
-                                <option value="Binkheti">Binkheti</option>
-                                <option value="Affidavit">Affidavit</option>
+                                {availableCategories.map(cat => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
                             </select>
                         </div>
                     </div>

@@ -18,7 +18,9 @@ const DocumentServicesPanel = ({ isOpen, onClose, menuItem, onSelectTemplate }) 
     if (!isOpen) return null;
 
     const selectedCategory = categories.find(c => c.id === selectedCategoryId) || categories[0];
-    const templates = selectedCategory?.children || [];
+    const templates = (selectedCategory?.children && selectedCategory.children.length > 0)
+        ? selectedCategory.children
+        : (selectedCategory?.template_id ? [selectedCategory] : []);
 
     return (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[150] p-4 font-sans select-none animate-fade-in" onClick={onClose}>

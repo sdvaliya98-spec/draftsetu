@@ -68,6 +68,16 @@ def create_menu_item(item: MenuItemCreate, db: Session = Depends(database.get_db
     db.add(new_item)
     db.commit()
     db.refresh(new_item)
+
+    if new_item.type == "template" and new_item.template_id:
+        target_tpl = db.query(models.DBTemplate).filter(
+            (models.DBTemplate.template_id == new_item.template_id) |
+            (models.DBTemplate.id == (int(new_item.template_id) if str(new_item.template_id).isdigit() else -1))
+        ).first()
+        if target_tpl:
+            target_tpl.menu_item_id = new_item.id
+            db.commit()
+
     return new_item
 
 @router.put("/{item_id}")
@@ -82,6 +92,15 @@ def update_menu_item(item_id: int, item: MenuItemUpdate, db: Session = Depends(d
             
     for k, v in item.model_dump().items():
         setattr(db_item, k, v)
+
+    if db_item.type == "template" and db_item.template_id:
+        target_tpl = db.query(models.DBTemplate).filter(
+            (models.DBTemplate.template_id == db_item.template_id) |
+            (models.DBTemplate.id == (int(db_item.template_id) if str(db_item.template_id).isdigit() else -1))
+        ).first()
+        if target_tpl:
+            target_tpl.menu_item_id = db_item.id
+
     db.commit()
     return {"message": "Updated"}
 

@@ -901,13 +901,18 @@ const App = () => {
                     processedNode.children = processMenuTree(processedNode.children, isCurrentNodeCategoryParent);
                 }
 
+                // If this is a static page link, preserve it as a page and do not mutate
+                if (processedNode.type === 'page') {
+                    return processedNode;
+                }
+
                 if (isUnderCategoryParent) {
                     const originalTemplateId = processedNode.template_id;
 
                     const matchingTemplates = allTemplates.filter(t => {
                         if (assignedTemplateIds.has(t.id)) return false;
 
-                        const isIdMatch = originalTemplateId && t.id === originalTemplateId;
+                        const isIdMatch = originalTemplateId && (t.id === originalTemplateId || t.template_id === originalTemplateId);
                         const isSubmenuIdMatch = t.menu_item_id === processedNode.id;
                         const matched = isIdMatch || isSubmenuIdMatch;
 
@@ -930,12 +935,13 @@ const App = () => {
                         }));
 
                         processedNode.children = [...(processedNode.children || []), ...templateChildren];
-                    }
 
-                    if (processedNode.type === 'template' || matchingTemplates.length > 0) {
-                        processedNode.type = 'dropdown';
-                        processedNode.url = '#';
-                        processedNode.template_id = null;
+                        // If node has multiple child templates, make it a dropdown
+                        if (processedNode.children.length > 1) {
+                            processedNode.type = 'dropdown';
+                            processedNode.url = '#';
+                            processedNode.template_id = null;
+                        }
                     }
                 }
 
