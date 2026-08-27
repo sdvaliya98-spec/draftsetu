@@ -594,11 +594,12 @@ const FormPanel = ({
                 }
                 previewRef.current.innerHTML = "";
 
-                if (!docx) {
+                const docxLib = window.docx || (window.loadDocxPreview ? await window.loadDocxPreview() : null);
+                if (!docxLib) {
                     throw new Error("docx-preview not loaded");
                 }
 
-                await docx.renderAsync(
+                await docxLib.renderAsync(
                     previewBlob,
                     previewRef.current,
                     undefined,

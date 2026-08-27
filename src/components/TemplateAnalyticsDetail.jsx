@@ -13,6 +13,12 @@ const TemplateAnalyticsDetail = ({ templateId, isOpen, onClose }) => {
     // Sub-modal drill down state
     const [drillDownType, setDrillDownType] = React.useState(null); // 'generated' | 'draft' | 'finalized' | 'users'
 
+    React.useEffect(() => {
+        if (isOpen && !window.Recharts?.ResponsiveContainer && window.loadRecharts) {
+            window.loadRecharts().catch(console.error);
+        }
+    }, [isOpen]);
+
     const loadData = React.useCallback(async () => {
         if (!templateId) return;
         setLoading(true);

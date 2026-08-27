@@ -13,9 +13,6 @@
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800;900&family=Noto+Sans+Gujarati:wght@400;500;700&display=swap"
         rel="stylesheet">
 
-    <!-- Flatpickr Datepicker CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-
     <!-- Custom Style Sheet -->
     <link rel="stylesheet" href="style.css">
 
@@ -105,57 +102,35 @@
         }
     </style>
     <script>
-        // Initializing progress simulation for instant loading feel
+        // Splash screen immediate controller (Zero artificial delay)
         (function () {
             const progressEl = document.getElementById('splash-progress');
             const statusEl = document.getElementById('splash-status');
-            let progress = 10;
 
-            const messages = [
-                "Connecting to database...",
-                "Loading Gujarati language library...",
-                "Resolving document structures...",
-                "Preparing layout templates...",
-                "Bootstrapping application..."
-            ];
-
-            const interval = setInterval(() => {
-                if (progress < 90) {
-                    progress += Math.floor(Math.random() * 12) + 5;
-                    if (progress > 90) progress = 90;
-                    if (progressEl) progressEl.style.width = progress + '%';
-
-                    // Update status message
-                    const msgIdx = Math.min(Math.floor((progress - 10) / 16), messages.length - 1);
-                    if (statusEl && messages[msgIdx]) {
-                        statusEl.innerText = messages[msgIdx];
-                    }
-                }
-            }, 100);
+            if (progressEl) progressEl.style.width = '60%';
+            if (statusEl) statusEl.innerText = "Loading platform...";
 
             window.hideSplashScreen = function () {
-                clearInterval(interval);
                 if (progressEl) progressEl.style.width = '100%';
-                if (statusEl) statusEl.innerText = "Loaded successfully!";
+                if (statusEl) statusEl.innerText = "Ready";
 
-                setTimeout(() => {
-                    const splash = document.getElementById('splash-screen');
-                    if (splash) {
-                        splash.style.opacity = '0';
-                        splash.style.visibility = 'hidden';
-                        setTimeout(() => {
-                            if (splash && splash.parentNode) splash.remove();
-                        }, 250);
-                    }
-                }, 100);
+                const splash = document.getElementById('splash-screen');
+                if (splash) {
+                    splash.style.transition = 'opacity 0.2s ease, visibility 0.2s ease';
+                    splash.style.opacity = '0';
+                    splash.style.visibility = 'hidden';
+                    setTimeout(() => {
+                        if (splash && splash.parentNode) splash.remove();
+                    }, 200);
+                }
             };
 
-            // Safety fallback: auto-hide splash screen after 3 seconds max
+            // Safety fallback: auto-hide splash screen after 5 seconds max if React fails
             setTimeout(() => {
                 if (typeof window.hideSplashScreen === 'function') {
                     window.hideSplashScreen();
                 }
-            }, 3000);
+            }, 5000);
         })();
     </script>
 
@@ -263,22 +238,63 @@
         })();
     </script>
 
-    <!-- prop-types and Recharts MUST load BEFORE Babel to prevent UMD from -->
-    <!-- detecting a false CommonJS environment and using require('react') -->
-    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
-    <!-- Recharts 2.10.3: last stable release verified to work with React 18 UMD -->
-    <script src="https://unpkg.com/recharts@2.10.3/umd/Recharts.js"></script>
+    <!-- Safe initial stub for Recharts -->
     <script>
-        // Verify Recharts loaded correctly — if not, create a safe stub so the app still runs
-        if (!window.Recharts) {
-            console.warn('[Recharts] Failed to load — charts will be hidden. Check CDN connectivity.');
-            window.Recharts = {};
-        }
+        window.Recharts = window.Recharts || {};
     </script>
 
     <!-- Babel Standalone (for in-browser transpilation of JSX) -->
-    <!-- NOTE: Babel must come AFTER Recharts to prevent UMD CommonJS detection -->
     <script src="https://unpkg.com/@babel/standalone@7.26.10/babel.min.js"></script>
+
+    <!-- Dynamic Script & Stylesheet Loaders for On-Demand Libraries -->
+    <script>
+        window.loadScript = function (src) {
+            if (document.querySelector(`script[src="${src}"]`)) return Promise.resolve();
+            return new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = src;
+                s.onload = () => resolve();
+                s.onerror = (e) => reject(new Error(`Failed to load script: ${src}`));
+                document.head.appendChild(s);
+            });
+        };
+
+        window.loadStylesheet = function (href) {
+            if (document.querySelector(`link[href="${href}"]`)) return Promise.resolve();
+            return new Promise((resolve, reject) => {
+                const l = document.createElement('link');
+                l.rel = 'stylesheet';
+                l.href = href;
+                l.onload = () => resolve();
+                l.onerror = (e) => reject(new Error(`Failed to load stylesheet: ${href}`));
+                document.head.appendChild(l);
+            });
+        };
+
+        // 1. On-Demand Docx Preview & JSZip Loader
+        window.loadDocxPreview = async function () {
+            if (window.docx) return window.docx;
+            await window.loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");
+            await window.loadScript("https://cdn.jsdelivr.net/npm/docx-preview@0.1.15/dist/docx-preview.min.js");
+            return window.docx;
+        };
+
+        // 2. On-Demand Recharts Loader for Admin Analytics
+        window.loadRecharts = async function () {
+            if (window.Recharts?.ResponsiveContainer) return window.Recharts;
+            await window.loadScript("https://unpkg.com/prop-types@15.8.1/prop-types.min.js");
+            await window.loadScript("https://unpkg.com/recharts@2.10.3/umd/Recharts.js");
+            return window.Recharts;
+        };
+
+        // 3. On-Demand Flatpickr Datepicker Loader
+        window.loadFlatpickr = async function () {
+            if (window.flatpickr) return window.flatpickr;
+            await window.loadStylesheet("https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css");
+            await window.loadScript("https://cdn.jsdelivr.net/npm/flatpickr");
+            return window.flatpickr;
+        };
+    </script>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -300,15 +316,6 @@
             }
         }
     </script>
-
-    <!-- Flatpickr JS -->
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-
-    <!-- JSZip (required by docx-preview) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-
-    <!-- docx-preview JS -->
-    <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.1.15/dist/docx-preview.min.js"></script>
 
     <!-- Core Constants & Utilities -->
     <script type="text/babel" src="constants.jsx"></script>

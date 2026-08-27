@@ -51,43 +51,73 @@ const DateInputField = ({ value, onChange, disabled, borderClass, placeholder = 
     // Initialize/Destroy Flatpickr once on mount
     React.useEffect(() => {
         if (!inputRef.current) return;
+        let isMounted = true;
 
-        fpRef.current = window.flatpickr ? window.flatpickr(inputRef.current, {
-            dateFormat: "d/m/Y",
-            allowInput: true,
-            clickOpens: true,
-            onChange: (selectedDates, dateStr) => {
-                if (selectedDates.length > 0) {
-                    const dateObj = selectedDates[0];
-                    const year = dateObj.getFullYear();
-                    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-                    const day = String(dateObj.getDate()).padStart(2, '0');
-                    const isoDate = `${year}-${month}-${day}`;
-                    console.log(`[DateInputField Selected] Field: ${variable || 'date'}, Selected date value: "${isoDate}"`);
-                    onChangeRef.current(isoDate);
-                } else {
-                    console.log(`[DateInputField Selected] Field: ${variable || 'date'}, Selected date value: "${dateStr}"`);
-                    onChangeRef.current(dateStr);
+        const initFp = async () => {
+            if (!window.flatpickr && window.loadFlatpickr) {
+                try {
+                    await window.loadFlatpickr();
+                } catch (err) {
+                    console.warn("Failed to load flatpickr dynamically:", err);
                 }
             }
-        }) : null;
+
+            if (!isMounted || !inputRef.current) return;
+
+            if (window.flatpickr) {
+                fpRef.current = window.flatpickr(inputRef.current, {
+                    dateFormat: "d/m/Y",
+                    allowInput: true,
+                    clickOpens: true,
+                    onChange: (selectedDates, dateStr) => {
+                        if (selectedDates.length > 0) {
+                            const dateObj = selectedDates[0];
+                            const year = dateObj.getFullYear();
+                            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                            const day = String(dateObj.getDate()).padStart(2, '0');
+                            const isoDate = `${year}-${month}-${day}`;
+                            console.log(`[DateInputField Selected] Field: ${variable || 'date'}, Selected date value: "${isoDate}"`);
+                            onChangeRef.current(isoDate);
+                        } else {
+                            console.log(`[DateInputField Selected] Field: ${variable || 'date'}, Selected date value: "${dateStr}"`);
+                            onChangeRef.current(dateStr);
+                        }
+                    }
+                });
+
+                // Sync initial value once initialized
+                if (value && fpRef.current) {
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                        const dateObj = window.flatpickr.parseDate(value, "Y-m-d");
+                        if (dateObj) fpRef.current.setDate(dateObj, false);
+                    } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+                        const dateObj = window.flatpickr.parseDate(value, "d/m/Y");
+                        if (dateObj) fpRef.current.setDate(dateObj, false);
+                    }
+                }
+            }
+        };
+
+        initFp();
 
         return () => {
+            isMounted = false;
             if (fpRef.current) {
                 fpRef.current.destroy();
+                fpRef.current = null;
             }
         };
     }, [variable]); // Re-run only if field name changes
 
     // Sync external value with flatpickr selected date
     React.useEffect(() => {
-        if (fpRef.current) {
+        if (fpRef.current && window.flatpickr) {
             if (value) {
                 if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-                    const dateObj = window.flatpickr ? window.flatpickr.parseDate(value, "Y-m-d") : null;
+                    const dateObj = window.flatpickr.parseDate(value, "Y-m-d");
                     if (dateObj) fpRef.current.setDate(dateObj, false);
                 } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
-                    const dateObj = window.flatpickr ? window.flatpickr.parseDate(value, "d/m/Y") : null;
+                    const dateObj = window.flatpickr.parseDate(value, "d/m/Y");
                     if (dateObj) fpRef.current.setDate(dateObj, false);
                 }
             } else {

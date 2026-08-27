@@ -1,23 +1,30 @@
-const {
-    ResponsiveContainer,
-    AreaChart,
-    Area,
-    XAxis,
-    YAxis,
-    Tooltip,
-    PieChart,
-    Pie,
-    Cell,
-    CartesianGrid,
-    Legend,
-    LineChart,
-    BarChart
-} = window.Recharts || {};
-
 const AdminDashboard = ({ refreshTrigger }) => {
     const [stats, setStats] = React.useState(null);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState(null);
+    const [rechartsReady, setRechartsReady] = React.useState(!!window.Recharts?.ResponsiveContainer);
+
+    React.useEffect(() => {
+        if (!rechartsReady && window.loadRecharts) {
+            window.loadRecharts().then(() => setRechartsReady(true)).catch(console.error);
+        }
+    }, [rechartsReady]);
+
+    const {
+        ResponsiveContainer,
+        AreaChart,
+        Area,
+        XAxis,
+        YAxis,
+        Tooltip,
+        PieChart,
+        Pie,
+        Cell,
+        CartesianGrid,
+        Legend,
+        LineChart,
+        BarChart
+    } = window.Recharts || {};
 
     const loadStats = async () => {
         setLoading(true);
@@ -42,7 +49,7 @@ const AdminDashboard = ({ refreshTrigger }) => {
         loadStats();
     }, [refreshTrigger]);
 
-    if (loading) {
+    if (loading || !rechartsReady) {
         return (
             <div className="h-full flex flex-col items-center justify-center py-20">
                 <div className="w-12 h-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>

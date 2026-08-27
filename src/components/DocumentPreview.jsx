@@ -328,6 +328,9 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
 
         const renderPreview = async () => {
             try {
+                if (!window.docx && window.loadDocxPreview) {
+                    await window.loadDocxPreview();
+                }
                 if (!window.docx) {
                     throw new Error("docx-preview library is not loaded");
                 }
