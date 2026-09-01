@@ -266,7 +266,7 @@ const MenuBuilder = ({ onMenuUpdate, templates, dbTemplates, refreshTrigger }) =
                     templates={templates}
                     dbTemplates={dbTemplates}
                     onSave={async (form) => {
-                        const url = editItem ? `/api/menu/${editItem.id}/` : '/api/menu/';
+                        const url = editItem ? `/api/menu/${editItem.id}` : '/api/menu/';
                         await window.apiFetch(url, { method: editItem ? 'PUT' : 'POST', body: form });
                         setShowForm(false); reload();
                         if (onMenuUpdate) onMenuUpdate();
