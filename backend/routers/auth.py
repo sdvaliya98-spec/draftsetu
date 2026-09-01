@@ -8,7 +8,11 @@ import threading
 
 from backend import models, database
 from pydantic import BaseModel
-from backend.schemas.user import UserCreate, UserLogin, ForgotPasswordVerify, ForgotPasswordReset
+from backend.schemas.user import UserCreate, UserLogin, ForgotPasswordVerify, ForgotPasswordReset, GoogleAuthRequest
+from backend.core.config import settings
+import logging
+
+logger = logging.getLogger("backend.routers.auth")
 
 router = APIRouter(tags=["auth"])
 
@@ -152,6 +156,164 @@ async def login(request: Request, user: UserLogin, db: Session = Depends(databas
 
     return {"access_token": access_token, "token_type": "bearer", 
             "username": db_user.username, "is_admin": db_user.is_admin, "user_id": db_user.id}
+
+
+@router.post("/auth/google")
+@router.post("/google")
+async def google_login(
+    request: Request,
+    payload: GoogleAuthRequest,
+    db: Session = Depends(database.get_db)
+):
+    from backend.services.activity_service import log_activity
+    from backend.services.wallet_service import WalletService
+    from google.oauth2 import id_token
+    from google.auth.transport import requests as google_requests
+    import re
+
+    # 1. Client IP rate limiting
+    client_ip = request.headers.get("X-Forwarded-For") or (request.client.host if request.client else "127.0.0.1")
+    if client_ip and "," in client_ip:
+        client_ip = client_ip.split(",")[0].strip()
+
+    if check_login_rate_limit(client_ip):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many failed authentication attempts. Please try again after 1 minute."
+        )
+
+    token_str = payload.id_token.strip() if payload.id_token else ""
+    if not token_str:
+        record_failed_attempt(client_ip)
+        raise HTTPException(status_code=400, detail="Missing Google ID token")
+
+    # 2. Verify Google ID token server-side
+    google_client_id = settings.GOOGLE_CLIENT_ID.strip() if settings.GOOGLE_CLIENT_ID else None
+    
+    try:
+        id_info = id_token.verify_oauth2_token(
+            token_str,
+            google_requests.Request(),
+            audience=google_client_id
+        )
+    except Exception as e:
+        record_failed_attempt(client_ip)
+        logger.warning(f"Google ID token verification failed: {e}")
+        raise HTTPException(status_code=401, detail="Invalid or expired Google authentication token")
+
+    # 3. Validate issuer
+    issuer = id_info.get("iss")
+    if issuer not in ["accounts.google.com", "https://accounts.google.com"]:
+        record_failed_attempt(client_ip)
+        raise HTTPException(status_code=401, detail="Invalid token issuer")
+
+    # 4. Validate google_sub
+    google_sub = id_info.get("sub")
+    if not google_sub:
+        record_failed_attempt(client_ip)
+        raise HTTPException(status_code=400, detail="Invalid Google profile identifier")
+
+    # 5. Validate email and email_verified
+    email = id_info.get("email")
+    email_verified = id_info.get("email_verified", False)
+    if not email:
+        raise HTTPException(status_code=400, detail="Google account must provide an email address")
+    if not email_verified:
+        raise HTTPException(status_code=400, detail="Google email is not verified")
+
+    email = email.strip().lower()
+    avatar_url = id_info.get("picture")
+
+    # 6. Account Resolution & Linking Strategy
+    # Priority 1: Match by existing google_sub
+    db_user = db.query(models.User).filter(models.User.google_sub == google_sub).first()
+
+    if db_user:
+        if not db_user.is_active:
+            log_activity(db, db_user.username, "Google Login Blocked - Inactive Account")
+            raise HTTPException(status_code=403, detail="Account disabled. Contact administrator.")
+        
+        # Update email/avatar if needed
+        if email and db_user.email != email:
+            db_user.email = email
+            db_user.email_verified = True
+        if avatar_url and db_user.avatar_url != avatar_url:
+            db_user.avatar_url = avatar_url
+        db.commit()
+        db.refresh(db_user)
+    else:
+        # Priority 2: Match by verified email for safe account linking
+        db_user = db.query(models.User).filter(models.User.email == email).first()
+        if db_user:
+            if not db_user.is_active:
+                log_activity(db, db_user.username, "Google Login Blocked - Inactive Account")
+                raise HTTPException(status_code=403, detail="Account disabled. Contact administrator.")
+            
+            # Link Google sub to existing account (DO NOT grant duplicate bonus)
+            db_user.google_sub = google_sub
+            db_user.email_verified = True
+            db_user.auth_provider = "both"
+            if avatar_url and not db_user.avatar_url:
+                db_user.avatar_url = avatar_url
+            db.commit()
+            db.refresh(db_user)
+            log_activity(db, db_user.username, "Google Account Linked")
+        else:
+            # Priority 3: Create a new Google user
+            base_username = re.sub(r'[^a-zA-Z0-9_]', '_', email.split("@")[0]).strip("_")
+            if len(base_username) < 3:
+                base_username = f"user_{base_username}"
+            
+            unique_username = base_username
+            counter = 1
+            while db.query(models.User).filter(models.User.username == unique_username).first() is not None:
+                unique_username = f"{base_username}_{counter}"
+                counter += 1
+
+            new_user = models.User(
+                username=unique_username,
+                email=email,
+                google_sub=google_sub,
+                auth_provider="google",
+                email_verified=True,
+                avatar_url=avatar_url,
+                password_hash=None,
+                is_active=True
+            )
+            db.add(new_user)
+            db.flush()  # Generate new_user.id for wallet creation
+
+            try:
+                WalletService.grant_signup_bonus(db, new_user.id)
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to create user wallet and credit signup bonus: {str(e)}"
+                )
+
+            db.refresh(new_user)
+            db_user = new_user
+            log_activity(db, db_user.username, "Google Signup & Login Success")
+
+    # 7. Mint standard DraftSetu JWT
+    access_token = create_access_token(
+        data={"sub": db_user.username, "is_admin": db_user.is_admin},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+
+    log_activity(db, db_user.username, "Google Login Success")
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "username": db_user.username,
+        "is_admin": db_user.is_admin,
+        "user_id": db_user.id,
+        "email": db_user.email,
+        "avatar_url": db_user.avatar_url
+    }
 
 
 @router.post("/auth/logout")

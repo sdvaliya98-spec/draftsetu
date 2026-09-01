@@ -1,3 +1,5 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 
 const PreviewModal = ({ previewRef, previewLoading, previewError, onClose }) => {
 
@@ -40,7 +42,7 @@ const PreviewModal = ({ previewRef, previewLoading, previewError, onClose }) => 
         }
     };
 
-    return (
+    const modalMarkup = (
         <div
             className="preview-modal-backdrop"
             onClick={handleBackdropClick}
@@ -59,52 +61,45 @@ const PreviewModal = ({ previewRef, previewLoading, previewError, onClose }) => 
                         onClose();
                     }}
                     className="preview-modal-close-btn"
-                    title="બંધ કરો (Close) — ESC"
-                    aria-label="Close preview modal"
+                    title="Close preview (ESC)"
                     id="btn-preview-close"
                     type="button"
                 >
-                    <span aria-hidden="true">×</span>
+                    <svg className="w-5 h-5 text-gray-500 hover:text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                 </button>
 
-                {/* ── Modal Header ── */}
-                <div className="preview-modal-header">
-                    <div className="preview-modal-header-left">
-                        <span className="preview-modal-header-icon">👁️</span>
-                        <div>
-                            <h2 className="preview-modal-title">
-                                દસ્તાવેજ પૂર્વદર્શન
-                            </h2>
-                            <p className="preview-modal-subtitle">Document Preview</p>
-                        </div>
+                {/* ── Sticky Top Toolbar ── */}
+                <div className="preview-modal-toolbar">
+                    <div className="flex items-center gap-2">
+                        <span className="text-base">📄</span>
+                        <h2 className="font-bold text-gray-800 text-sm">
+                            દસ્તાવેજ પૂર્વદર્શન (Document Preview)
+                        </h2>
                     </div>
-                    <div className="preview-modal-header-hint">
-                        <kbd>ESC</kbd> to close
-                    </div>
+                    <span className="text-xs text-gray-400 font-normal">
+                        ESC દબાવીને બંધ કરો
+                    </span>
                 </div>
 
-                {/* ── Modal Content ── */}
-                <div className="preview-modal-body custom-scrollbar">
-                    {/* Loading Overlay */}
+                {/* ── Modal Body (Render Area) ── */}
+                <div className="preview-modal-body">
+                    {/* Loading State */}
                     {previewLoading && (
                         <div className="preview-modal-loading">
                             <div className="preview-modal-spinner"></div>
-                            <p className="preview-modal-loading-text">
-                                દસ્તાવેજ લોડ થઈ રહ્યો છે...
-                            </p>
-                            <p className="preview-modal-loading-subtext">
-                                Loading document preview...
-                            </p>
+                            <span className="text-sm font-semibold text-gray-600">
+                                પૂર્વદર્શન તૈયાર થઈ રહ્યું છે... (Rendering preview...)
+                            </span>
                         </div>
                     )}
 
-                    {/* Error Display */}
-                    {previewError && (
+                    {/* Error State */}
+                    {previewError && !previewLoading && (
                         <div className="preview-modal-error">
-                            <span className="preview-modal-error-icon">❌</span>
-                            <div>
-                                <p className="preview-modal-error-title">ભૂલ (Preview Error)</p>
-                                <p className="preview-modal-error-detail">{previewError}</p>
+                            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm max-w-md text-center">
+                                ❌ {previewError}
                             </div>
                         </div>
                     )}
@@ -120,7 +115,10 @@ const PreviewModal = ({ previewRef, previewLoading, previewError, onClose }) => 
             </div>
         </div>
     );
+
+    return typeof document !== 'undefined' ? createPortal(modalMarkup, document.body) : modalMarkup;
 };
 
 // Global backward compatibility
 window.PreviewModal = PreviewModal;
+export default PreviewModal;

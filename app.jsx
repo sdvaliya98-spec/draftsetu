@@ -1,6 +1,11 @@
-const { useState, useEffect, useMemo, useRef } = React;
+import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
+import GovHeader from './src/components/GovHeader.jsx';
+import UserMenu from './src/components/UserMenu.jsx';
+import AuthModal from './src/components/AuthModal.jsx';
+import HomePage from './src/pages/HomePage.jsx';
+import StaticPageView from './src/pages/StaticPageView.jsx';
 
-// ─── Global API Configuration and Helpers are now in index.html ───
+// ─── Global API Configuration and Helpers ───
 
 const getErrorMessage = async (res) => {
     try {
@@ -74,45 +79,13 @@ const LazyFallback = () => (
     </div>
 );
 
-const LazyAdminPanel = React.lazy(async () => {
-    return window.loadLazyModule([
-        'src/components/RichTextEditor.jsx',
-        'src/components/AdminSharedModals.jsx',
-        'src/components/StorageAnalytics.jsx',
-        'src/components/TemplateAnalytics.jsx',
-        'src/components/TemplateHealth.jsx',
-        'src/components/TemplateAnalyticsDetail.jsx',
-        'src/components/ActivityLogs.jsx',
-        'src/components/AdminDashboard.jsx',
-        'src/components/AdminWalletPanel.jsx',
-        'src/components/AdminPanel.jsx'
-    ], () => window.AdminPanel);
-});
-
-const LazyWalletDashboard = React.lazy(async () => {
-    return window.loadLazyModule([
-        'src/components/WalletDashboard.jsx'
-    ], () => window.WalletDashboard);
-});
-
-const LazyTemplateEditorModal = React.lazy(async () => {
-    return window.loadLazyModule([
-        'src/components/RichTextEditor.jsx',
-        'src/components/TemplateEditorModal.jsx'
-    ], () => window.TemplateEditorModal);
-});
-
-const LazyMyDocumentsModal = React.lazy(async () => {
-    return window.loadLazyModule([
-        'src/components/MyDocumentsModal.jsx'
-    ], () => window.MyDocumentsModal);
-});
-
-const LazyDocumentServicesPanel = React.lazy(async () => {
-    return window.loadLazyModule([
-        'src/components/DocumentServicesPanel.jsx'
-    ], () => window.DocumentServicesPanel);
-});
+const LazyAdminPanel = React.lazy(() => import('./src/components/AdminPanel.jsx'));
+const LazyWalletDashboard = React.lazy(() => import('./src/components/WalletDashboard.jsx'));
+const LazyTemplateEditorModal = React.lazy(() => import('./src/components/TemplateEditorModal.jsx'));
+const LazyMyDocumentsModal = React.lazy(() => import('./src/components/MyDocumentsModal.jsx'));
+const LazyDocumentServicesPanel = React.lazy(() => import('./src/components/DocumentServicesPanel.jsx'));
+const LazyFormPanel = React.lazy(() => import('./src/components/FormPanel.jsx'));
+const LazyDocumentPreview = React.lazy(() => import('./src/components/DocumentPreview.jsx'));
 
 const App = () => {
     const isInitialLoadRef = useRef(true);
@@ -130,6 +103,7 @@ const App = () => {
     const [role, setRole] = useState('user');
     const [isViewingDrafts, setIsViewingDrafts] = useState(false);
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+    window.openAuthModal = () => setIsAuthModalOpen(true);
 
     const [currentUser, setCurrentUser] = useState(() => localStorage.getItem('currentUser') || null);
     const [authToken, setAuthToken] = useState(() => localStorage.getItem('authToken') || null);
@@ -966,7 +940,7 @@ const App = () => {
 
     return (
         <div className="app-wrapper flex flex-col h-screen overflow-hidden bg-slate-50 font-gujarati">
-            <window.GovHeader
+            <GovHeader
                 menuItems={dynamicMenuItems}
                 currentUser={currentUser}
                 user={user}
@@ -994,7 +968,7 @@ const App = () => {
                 <div className="flex-1 flex overflow-hidden">
                     {currentView === 'home' && (
                         <div className="flex-1 overflow-y-auto">
-                            <window.HomePage
+                            <HomePage
                                 currentUser={currentUser}
                                 onNavigate={handleNavigate}
                                 onLogin={() => setIsAuthModalOpen(true)}
@@ -1004,52 +978,58 @@ const App = () => {
                     )}
                     {currentView === 'page' && (
                         <div className="flex-1 overflow-y-auto">
-                            <window.StaticPageView slug={currentPageSlug} onNavigate={handleNavigate} />
+                            <StaticPageView slug={currentPageSlug} onNavigate={handleNavigate} />
                         </div>
                     )}
                     {currentView === 'editor' && (
-                        <div className="flex flex-1 h-full overflow-hidden bg-slate-100">
-                            {/* Left: Form Panel */}
-                            <div className="w-[480px] flex-shrink-0 h-full bg-white shadow-xl z-20 overflow-y-auto custom-scrollbar flex flex-col border-r border-slate-200">
-                                <window.FormPanel
-                                    key={activeTemplateId}
-                                    templates={allTemplates}
-                                    activeTemplateId={activeTemplateId}
-                                    onTemplateChange={handleTemplateSelect}
-                                    data={data}
-                                    setData={setData}
-                                    onEditTemplate={() => { setEditingTemplate({ ...activeTemplate }); setIsTemplateEditorOpen(true); }}
-                                    onNewTemplate={openNewTemplateEditor}
-                                    role={role}
-                                    isLocked={isLocked}
-                                    trackingId={trackingId}
-                                    onSaveDraft={handleSaveDraft}
-                                    onFinalSubmit={handleFinalSubmit}
-                                    isSavingDraft={isSavingDraft}
-                                    draftError={draftError}
-                                    templateLoadError={templateLoadError}
-                                    isDownloading={isDownloading}
-                                    setIsDownloading={setIsDownloading}
-                                    isFinalizing={isFinalizing}
-                                    userCredits={userCredits}
-                                />
-                            </div>
+                        <React.Suspense fallback={<LazyFallback />}>
+                            <div className="flex flex-1 h-full overflow-hidden bg-slate-100">
+                                {/* Left: Form Panel */}
+                                <div className="w-[480px] flex-shrink-0 h-full bg-white shadow-xl z-20 overflow-y-auto custom-scrollbar flex flex-col border-r border-slate-200">
+                                    <LazyFormPanel
+                                        key={activeTemplateId}
+                                        templates={allTemplates}
+                                        activeTemplateId={activeTemplateId}
+                                        onTemplateChange={handleTemplateSelect}
+                                        data={data}
+                                        setData={setData}
+                                        onEditTemplate={() => { setEditingTemplate({ ...activeTemplate }); setIsTemplateEditorOpen(true); }}
+                                        onNewTemplate={openNewTemplateEditor}
+                                        role={role}
+                                        isLocked={isLocked}
+                                        trackingId={trackingId}
+                                        onSaveDraft={handleSaveDraft}
+                                        onFinalSubmit={handleFinalSubmit}
+                                        isSavingDraft={isSavingDraft}
+                                        draftError={draftError}
+                                        templateLoadError={templateLoadError}
+                                        isDownloading={isDownloading}
+                                        setIsDownloading={setIsDownloading}
+                                        isFinalizing={isFinalizing}
+                                        userCredits={userCredits}
+                                        isLoggedIn={Boolean(currentUser && authToken)}
+                                        onLogin={() => setIsAuthModalOpen(true)}
+                                    />
+                                </div>
 
-                            {/* Right: DOCX Preview Panel */}
-                            <div className="flex-1 h-full overflow-hidden">
-                                <window.DocumentPreview
-                                    key={activeTemplateId}
-                                    template={activeTemplate}
-                                    data={data}
-                                    printRef={printRef}
-                                    pageSize={activeTemplate?.pageSize || 'A4'}
-                                    templateId={activeTemplate?.template_id || activeTemplateId}
-                                    isDownloading={isDownloading}
-                                    setIsDownloading={setIsDownloading}
-                                    allTemplates={allTemplates}
-                                />
+                                {/* Right: DOCX Preview Panel */}
+                                <div className="flex-1 h-full overflow-hidden">
+                                    <LazyDocumentPreview
+                                        key={activeTemplateId}
+                                        template={activeTemplate}
+                                        data={data}
+                                        printRef={printRef}
+                                        pageSize={activeTemplate?.pageSize || 'A4'}
+                                        templateId={activeTemplate?.template_id || activeTemplateId}
+                                        isDownloading={isDownloading}
+                                        setIsDownloading={setIsDownloading}
+                                        allTemplates={allTemplates}
+                                        isLoggedIn={Boolean(currentUser && authToken)}
+                                        onLogin={() => setIsAuthModalOpen(true)}
+                                    />
+                                </div>
                             </div>
-                        </div>
+                        </React.Suspense>
                     )}
                 </div>
             </main>
@@ -1158,7 +1138,7 @@ const App = () => {
             </React.Suspense>
 
             {isAuthModalOpen && (
-                <window.AuthModal
+                <AuthModal
                     onClose={() => setIsAuthModalOpen(false)}
                     onLoginSuccess={(username, token, isAdmin) => {
                         setCurrentUser(username); setAuthToken(token); setIsAdminUser(isAdmin);
@@ -1221,11 +1201,5 @@ const App = () => {
     );
 };
 
-// Render
-setTimeout(() => {
-    const rootEl = document.getElementById('root');
-    if (rootEl) {
-        const root = ReactDOM.createRoot(rootEl);
-        root.render(<App />);
-    }
-}, 300);
+export default App;
+

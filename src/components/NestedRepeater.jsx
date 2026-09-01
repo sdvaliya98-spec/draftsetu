@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 const syncNestedIndices = (list, parentIndexStr = '') => {
     if (!Array.isArray(list)) return [];
@@ -360,3 +361,4 @@ const NestedRepeater = React.memo(({ name, fields, data, setData, isLocked, show
 
 // Global backward compatibility
 window.NestedRepeater = NestedRepeater;
+export default NestedRepeater;

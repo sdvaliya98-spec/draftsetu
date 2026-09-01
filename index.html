@@ -14,7 +14,7 @@
         rel="stylesheet">
 
     <!-- Custom Style Sheet -->
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/style.css">
 
     <style>
         /* CKEditor Custom Styling if referenced */
@@ -78,14 +78,14 @@
             <div
                 style="width: 240px; height: 5px; background: rgba(255, 255, 255, 0.08); border-radius: 9999px; overflow: hidden; margin-top: 2rem;">
                 <div id="splash-progress"
-                    style="width: 10%; height: 100%; background: linear-gradient(to right, #3b82f6, #6366f1); border-radius: 9999px; transition: width 0.3s ease;">
+                    style="width: 60%; height: 100%; background: linear-gradient(to right, #3b82f6, #6366f1); border-radius: 9999px; transition: width 0.3s ease;">
                 </div>
             </div>
 
             <!-- Telemetry Status Message -->
             <p id="splash-status"
                 style="font-size: 0.75rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; min-height: 1.5rem;">
-                Initializing components...</p>
+                Loading platform...</p>
         </div>
     </div>
     <style>
@@ -106,9 +106,6 @@
         (function () {
             const progressEl = document.getElementById('splash-progress');
             const statusEl = document.getElementById('splash-status');
-
-            if (progressEl) progressEl.style.width = '60%';
-            if (statusEl) statusEl.innerText = "Loading platform...";
 
             window.hideSplashScreen = function () {
                 if (progressEl) progressEl.style.width = '100%';
@@ -141,11 +138,11 @@
         // Force 127.0.0.1 for local development to avoid IPv6 resolution issues (localhost vs ::1)
         const hostname = window.location.hostname;
         const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
-        // window.API_BASE = isLocal ? "http://127.0.0.1:8000" : `http://${hostname}:8000`;
 
-        window.API_BASE = (isLocal && window.location.port && window.location.port !== '8080' && window.location.port !== '80')
+        window.API_BASE = (isLocal && window.location.port && window.location.port !== '8080' && window.location.port !== '80' && window.location.port !== '3000')
             ? "http://127.0.0.1:8000"
             : "";
+
         window.apiFetch = async (path, options = {}, retries = 2) => {
             const cleanPath = path.startsWith('/') ? path : `/${path}`;
             const url = `${window.API_BASE}${cleanPath}`;
@@ -209,45 +206,8 @@
                 return res.ok && (data.status === 'ok' || data.status === 'online');
             } catch (e) { return false; }
         };
-    </script>
 
-    <!-- React 18 & ReactDOM -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-
-    <!-- React 18 Compatibility Shim for Recharts / hoist-non-react-statics -->
-    <!-- hoist-non-react-statics (bundled in Recharts) accesses React.ForwardRef and React.Memo -->
-    <!-- as Symbol keys — these are internal in React 18 but must be shimmed for UMD compat -->
-    <script>
-        (function () {
-            if (!window.React) return;
-            try {
-                // Shim React internal Symbols that hoist-non-react-statics needs
-                if (!React.ForwardRef) React.ForwardRef = Symbol.for('react.forward_ref');
-                if (!React.Memo) React.Memo = Symbol.for('react.memo');
-                if (!React.Fragment) React.Fragment = Symbol.for('react.fragment');
-                if (!React.Portal) React.Portal = Symbol.for('react.portal');
-                if (!React.Profiler) React.Profiler = Symbol.for('react.profiler');
-                if (!React.StrictMode) React.StrictMode = Symbol.for('react.strict_mode');
-                if (!React.Suspense) React.Suspense = Symbol.for('react.suspense');
-                if (!React.ContextProvider) React.ContextProvider = Symbol.for('react.provider');
-                if (!React.ContextConsumer) React.ContextConsumer = Symbol.for('react.context');
-            } catch (e) {
-                console.warn('[Shim] React compat shim failed:', e.message);
-            }
-        })();
-    </script>
-
-    <!-- Safe initial stub for Recharts -->
-    <script>
-        window.Recharts = window.Recharts || {};
-    </script>
-
-    <!-- Babel Standalone (for in-browser transpilation of JSX) -->
-    <script src="https://unpkg.com/@babel/standalone@7.26.10/babel.min.js"></script>
-
-    <!-- Dynamic Script & Stylesheet Loaders for On-Demand Libraries -->
-    <script>
+        // Dynamic Script & Stylesheet Loaders for On-Demand Libraries
         window.loadScript = function (src) {
             if (document.querySelector(`script[src="${src}"]`)) return Promise.resolve();
             return new Promise((resolve, reject) => {
@@ -273,9 +233,12 @@
 
         // 1. On-Demand Docx Preview & JSZip Loader
         window.loadDocxPreview = async function () {
-            if (window.docx) return window.docx;
-            await window.loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");
-            await window.loadScript("https://cdn.jsdelivr.net/npm/docx-preview@0.1.15/dist/docx-preview.min.js");
+            if (!window.JSZip) {
+                await window.loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");
+            }
+            if (!window.docx) {
+                await window.loadScript("https://cdn.jsdelivr.net/npm/docx-preview@0.1.15/dist/docx-preview.min.js");
+            }
             return window.docx;
         };
 
@@ -294,102 +257,12 @@
             await window.loadScript("https://cdn.jsdelivr.net/npm/flatpickr");
             return window.flatpickr;
         };
+
+        window.Recharts = window.Recharts || {};
     </script>
 
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                        outfit: ['Outfit', 'sans-serif'],
-                        gujarati: ['"Noto Sans Gujarati"', 'sans-serif'],
-                    },
-                    colors: {
-                        primary: '#1e3a8a',
-                        secondary: '#2563EB',
-                        dark: '#0F172A',
-                    }
-                }
-            }
-        }
-    </script>
-
-    <!-- Core Constants & Utilities -->
-    <script type="text/babel" src="constants.jsx"></script>
-    <script type="text/babel" src="src/utils/maskAadhaar.js"></script>
-    <script type="text/babel" src="src/utils/gujarati_utils.jsx"></script>
-    <script type="text/babel" src="src/utils/draftCacheManager.js"></script>
-    <script type="text/babel" src="src/utils/formUtils.js"></script>
-    <script type="text/babel" src="src/services/sessionManager.js"></script>
-
-    <!-- Core App Shell Components -->
-    <script type="text/babel" src="src/components/Icons.jsx"></script>
-    <script type="text/babel" src="src/components/A4Page.jsx"></script>
-    <script type="text/babel" src="src/components/InputField.jsx"></script>
-    <script type="text/babel" src="src/components/HybridDropdownField.jsx"></script>
-    <script type="text/babel" src="src/components/NestedRepeater.jsx"></script>
-    <script type="text/babel" src="src/components/PartyManager.jsx"></script>
-    <script type="text/babel" src="src/components/DynamicFormRenderer.jsx"></script>
-    <script type="text/babel" src="src/components/UserMenu.jsx"></script>
-    <script type="text/babel" src="src/components/AuthModal.jsx"></script>
-    <script type="text/babel" src="src/components/GovHeader.jsx"></script>
-    <script type="text/babel" src="src/components/DocumentPreview.jsx"></script>
-    <script type="text/babel" src="src/components/FormPanel.jsx"></script>
-
-    <!-- Pages -->
-    <script type="text/babel" src="src/pages/HomePage.jsx"></script>
-    <script type="text/babel" src="src/pages/StaticPageView.jsx"></script>
-
-    <!-- Dynamic On-Demand Script & Component Loader -->
-    <script>
-        window._loadedLazyScripts = window._loadedLazyScripts || {};
-        window.loadLazyScript = async function(src) {
-            if (window._loadedLazyScripts[src]) {
-                return window._loadedLazyScripts[src];
-            }
-            window._loadedLazyScripts[src] = (async () => {
-                const res = await fetch(src);
-                if (!res.ok) throw new Error(`Failed to fetch ${src} (${res.status})`);
-                const code = await res.text();
-                if (window.Babel) {
-                    const transformed = window.Babel.transform(code, {
-                        presets: ['react']
-                    }).code;
-                    (0, eval)(transformed);
-                }
-            })();
-            return window._loadedLazyScripts[src];
-        };
-
-        window.loadLazyModule = async function(scripts, componentGetter) {
-            for (const src of scripts) {
-                await window.loadLazyScript(src);
-            }
-            return { default: componentGetter() };
-        };
-    </script>
-
-    <!-- Main React App component & bootstrap -->
-    <script type="text/babel" src="app.jsx"></script>
-
-    <script>
-        // Timeout if React fails to load
-        setTimeout(() => {
-            const root = document.getElementById('root');
-            if (root && root.innerHTML === '') {
-                root.innerHTML = `<div style="text-align: center; margin-top: 100px; font-family: sans-serif; color: white; background: #0f172a; padding: 2rem; border-radius: 1rem; max-width: 400px; margin-left: auto; margin-right: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.3);">
-                    <h2 style="color: #ef4444; margin-bottom: 1rem;">Failed to initialize application.</h2>
-                    <p style="color: #94a3b8; font-size: 0.875rem; margin-bottom: 1.5rem;">Please check your connection or refresh the page.</p>
-                    <button onclick="location.reload()" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">Retry</button>
-                </div>`;
-                const splash = document.getElementById('splash-screen');
-                if (splash) splash.remove();
-            }
-        }, 15000);
-    </script>
+    <!-- Vite compiled frontend entry point -->
+    <script type="module" src="/src/main.jsx"></script>
 </body>
 
 </html>

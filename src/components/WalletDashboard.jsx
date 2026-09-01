@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 const ensureRazorpayLoaded = () => {
     if (window.Razorpay) return Promise.resolve(true);
     if (window._razorpayLoadingPromise) return window._razorpayLoadingPromise;
@@ -685,3 +686,4 @@ const WalletDashboard = ({ onClose, token, userCredits, refreshCredits }) => {
 };
 
 window.WalletDashboard = WalletDashboard;
+export default WalletDashboard;

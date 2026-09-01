@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 const DateInputField = ({ value, onChange, disabled, borderClass, placeholder = "DD/MM/YYYY", className, onFocus, variable }) => {
     const inputRef = React.useRef(null);
@@ -284,4 +285,8 @@ const InputField = ({ label, value, onChange, type = "text", placeholder = "", d
 };
 
 // Global backward compatibility
+window.DateInputField = DateInputField;
 window.InputField = InputField;
+export { DateInputField };
+export default InputField;
+

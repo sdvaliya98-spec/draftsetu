@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 const PartyManager = ({ title, parties, onChange, disabled }) => {
     const addParty = () => {
@@ -45,3 +46,4 @@ const PartyManager = ({ title, parties, onChange, disabled }) => {
 
 // Global backward compatibility
 window.PartyManager = PartyManager;
+export default PartyManager;

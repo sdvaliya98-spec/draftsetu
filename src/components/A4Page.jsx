@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 const A4Page = ({ children, header, footer, pageNumber, totalPages, pageSize = 'A4' }) => {
     const dims = {
@@ -32,3 +33,4 @@ const A4Page = ({ children, header, footer, pageNumber, totalPages, pageSize = '
 
 // Global backward compatibility
 window.A4Page = A4Page;
+export default A4Page;

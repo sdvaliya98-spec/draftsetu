@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 /**
  * TemplateEditorModal — DOCX Template Management
  * ================================================
@@ -915,3 +916,4 @@ const TemplateEditorModal = ({ isOpen, token, template, onSave, onClose }) => {
 };
 
 window.TemplateEditorModal = TemplateEditorModal;
+export default TemplateEditorModal;

@@ -22,7 +22,7 @@ async function runBenchmark(label, isWarm = false, existingPage = null) {
 
     const requestListener = req => {
         const url = req.url();
-        const isExt = !url.includes('localhost:3000') && !url.includes('127.0.0.1:3000') && !url.includes('localhost:8000') && !url.includes('127.0.0.1:8000');
+        const isExt = !url.includes('localhost:5500') && !url.includes('127.0.0.1:5500') && !url.includes('localhost:8000') && !url.includes('127.0.0.1:8000');
         if (isExt) externalCount++;
         else localCount++;
     };
@@ -66,7 +66,7 @@ async function runBenchmark(label, isWarm = false, existingPage = null) {
     page.on('response', responseListener);
 
     const startTime = Date.now();
-    await page.goto('http://localhost:3000', { waitUntil: 'load', timeout: 30000 });
+    await page.goto('http://127.0.0.1:5500', { waitUntil: 'load', timeout: 30000 });
 
     // Wait for React initial render (e.g. splash screen detached or app rendered)
     await page.waitForSelector('#splash-screen', { state: 'detached', timeout: 30000 }).catch(() => {});

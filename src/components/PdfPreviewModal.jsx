@@ -1,3 +1,5 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 
 const PdfPreviewModal = ({ pdfUrl, onClose, activeTemplateId }) => {
     const [zoom, setZoom] = useState(100);
@@ -57,9 +59,9 @@ const PdfPreviewModal = ({ pdfUrl, onClose, activeTemplateId }) => {
         document.body.removeChild(a);
     };
 
-    return (
+    const modalMarkup = (
         <div
-            className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 md:p-6"
+            className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 md:p-6"
             onClick={handleBackdropClick}
             role="dialog"
             aria-modal="true"
@@ -150,20 +152,42 @@ const PdfPreviewModal = ({ pdfUrl, onClose, activeTemplateId }) => {
                             minHeight: '75vh',
                             transition: 'width 0.2s ease'
                         }}
-                        className="bg-white rounded-xl shadow-2xl overflow-hidden"
+                        className="bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col"
                     >
-                        <iframe
-                            src={pdfUrl}
-                            className="w-full h-full border-0 min-h-[75vh]"
-                            title="PDF Preview Viewer"
-                        />
+                        <object
+                            data={pdfUrl}
+                            type="application/pdf"
+                            className="w-full h-full min-h-[75vh] flex-1 rounded-xl"
+                            aria-label="PDF Document Preview"
+                        >
+                            <iframe
+                                src={`${pdfUrl}#toolbar=1`}
+                                className="w-full h-full border-0 min-h-[75vh]"
+                                title="PDF Preview Viewer"
+                            >
+                                <div className="p-8 text-center text-slate-700 font-sans">
+                                    <p className="mb-3 font-bold">
+                                        તમારું બ્રાઉઝર સીધું PDF પૂર્વદર્શન દર્શાવી શકતું નથી.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={handleDownload}
+                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-sm shadow-md"
+                                    >
+                                        📄 PDF ડાઉનલોડ કરો (Download PDF)
+                                    </button>
+                                </div>
+                            </iframe>
+                        </object>
                     </div>
                 </div>
-
             </div>
         </div>
     );
+
+    return typeof document !== 'undefined' ? createPortal(modalMarkup, document.body) : modalMarkup;
 };
 
 // Global backward compatibility
 window.PdfPreviewModal = PdfPreviewModal;
+export default PdfPreviewModal;

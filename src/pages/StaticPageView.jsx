@@ -1,3 +1,4 @@
+import React from 'react';
 
 const StaticPageView = ({ slug, onNavigate }) => {
     const [page, setPage] = React.useState(null);
@@ -92,4 +93,4 @@ const StaticPageView = ({ slug, onNavigate }) => {
 
 // Global backward compatibility
 window.StaticPageView = StaticPageView;
-
+export default StaticPageView;

@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 const ActivityLogs = ({ refreshTrigger }) => {
     const [logs, setLogs] = React.useState([]);
@@ -274,3 +275,4 @@ const ActivityLogs = ({ refreshTrigger }) => {
 
 // Register globally
 window.ActivityLogs = ActivityLogs;
+export default ActivityLogs;

@@ -1,3 +1,7 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { DateInputField } from './InputField.jsx';
+import PreviewModal from './PreviewModal.jsx';
+import PdfPreviewModal from './PdfPreviewModal.jsx';
 
 const {
     processFieldValue,
@@ -313,7 +317,11 @@ const FormPanel = ({
     setIsDownloading,
     isFinalizing,
     userCredits,
+    isLoggedIn,
+    onLogin
 }) => {
+    const hasAuthToken = Boolean(localStorage.getItem('authToken') || localStorage.getItem('token'));
+    const isVisitor = isLoggedIn !== undefined ? !isLoggedIn : !hasAuthToken;
 
     const activeTemplate = templates.find(t => t.id === activeTemplateId);
     const selectedTemplate = activeTemplate;
@@ -328,6 +336,52 @@ const FormPanel = ({
         }
         return activeTemplate?.fieldOrder || [];
     })();
+
+    // Auto-detect and structure variables (handles repeater blocks)
+    const structuredVariables = React.useMemo(() => {
+        if (!vars) return [];
+
+        if (typeof vars === 'object' && !Array.isArray(vars)) {
+            const result = [];
+            // Add groups as repeaters
+            if (vars.groups) {
+                Object.entries(vars.groups).forEach(([groupName, groupFields]) => {
+                    result.push({
+                        type: 'repeater',
+                        name: groupName,
+                        fields: (groupFields || []).map(f => ({ name: f }))
+                    });
+                });
+            }
+            // Add single variables as text inputs
+            if (vars.single_variables) {
+                vars.single_variables.forEach(v => {
+                    result.push({ type: 'text', name: v });
+                });
+            }
+            return result;
+        }
+
+        if (!Array.isArray(vars) || vars.length === 0) return [];
+
+        const result = [];
+        const stack = [];
+        let current = result;
+
+        vars.forEach(v => {
+            if (v.startsWith('#')) {
+                const repeater = { type: 'repeater', name: v.slice(1), fields: [] };
+                current.push(repeater);
+                stack.push(current);
+                current = repeater.fields;
+            } else if (v.startsWith('/')) {
+                current = stack.pop() || result;
+            } else {
+                current.push({ type: 'text', name: v });
+            }
+        });
+        return result;
+    }, [vars]);
 
     const [pdfStatus, setPdfStatus] = React.useState({ available: null, engine: null });
     const pdfAvailable = pdfStatus?.available;
@@ -625,6 +679,19 @@ const FormPanel = ({
     }, [previewBlob, previewOpen]);
 
     const handlePdfPreview = async () => {
+        if (isVisitor) {
+            if (typeof onLogin === 'function') {
+                onLogin();
+            } else if (typeof window.openAuthModal === 'function') {
+                window.openAuthModal();
+            } else {
+                const headerBtn = document.querySelector('header button:has-text("Log In / Register")');
+                if (headerBtn) headerBtn.click();
+            }
+            alert('PDF Preview માટે Login / Register કરો (Login / Register to generate PDF)');
+            return;
+        }
+
         if (!activeTemplateId || !activeTemplate) {
             setPdfPreviewError('Please select a template first.');
             alert('કૃપા કરીને પહેલા ટેમ્પલેટ પસંદ કરો (Please select a template first).');
@@ -645,6 +712,11 @@ const FormPanel = ({
         try {
             const token = localStorage.getItem('authToken') || localStorage.getItem('token');
             if (!token) {
+                if (typeof onLogin === 'function') {
+                    onLogin();
+                } else if (typeof window.openAuthModal === 'function') {
+                    window.openAuthModal();
+                }
                 throw new Error("સત્ર સમાપ્ત થઈ ગયું છે, કૃપા કરીને ફરીથી લોગિન કરો (Session expired. Please login again).");
             }
 
@@ -695,7 +767,8 @@ const FormPanel = ({
             }
 
             const blob = await pdfRes.blob();
-            const blobUrl = URL.createObjectURL(blob);
+            const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+            const blobUrl = URL.createObjectURL(pdfBlob);
             setPdfPreviewUrl(blobUrl);
             setPdfPreviewOpen(true);
 
@@ -720,52 +793,6 @@ const FormPanel = ({
         }
     };
 
-
-    // Auto-detect and structure variables (handles repeater blocks)
-    const structuredVariables = React.useMemo(() => {
-        if (!vars) return [];
-
-        if (typeof vars === 'object' && !Array.isArray(vars)) {
-            const result = [];
-            // Add groups as repeaters
-            if (vars.groups) {
-                Object.entries(vars.groups).forEach(([groupName, groupFields]) => {
-                    result.push({
-                        type: 'repeater',
-                        name: groupName,
-                        fields: (groupFields || []).map(f => ({ name: f }))
-                    });
-                });
-            }
-            // Add single variables as text inputs
-            if (vars.single_variables) {
-                vars.single_variables.forEach(v => {
-                    result.push({ type: 'text', name: v });
-                });
-            }
-            return result;
-        }
-
-        if (!Array.isArray(vars) || vars.length === 0) return [];
-
-        const result = [];
-        const stack = [];
-        let current = result;
-
-        vars.forEach(v => {
-            if (v.startsWith('#')) {
-                const repeater = { type: 'repeater', name: v.slice(1), fields: [] };
-                current.push(repeater);
-                stack.push(current);
-                current = repeater.fields;
-            } else if (v.startsWith('/')) {
-                current = stack.pop() || result;
-            } else {
-                current.push({ type: 'text', name: v });
-            }
-        });
-        return result;
-    }, [vars]);
 
     // ─── Document Generation (DOCX Engine) ────────────────────────────────
 
@@ -1197,9 +1224,6 @@ const FormPanel = ({
                                                             );
 
                                                             if (textFieldVar && !hasRepeaterGroup) {
-                                                                // Convert array of {text} objects to a single string
-                                                                // separated by double-newlines (matches the backend's
-                                                                // split logic in docx_engine.py)
                                                                 const combinedText = extraParas
                                                                     .map(p => (typeof p === 'string' ? p : (p?.text || '')))
                                                                     .filter(t => t.trim())
@@ -1221,108 +1245,144 @@ const FormPanel = ({
                                         >
                                             🧪 Load Demo Data
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={handlePdfPreview}
-                                            disabled={pdfPreviewLoading || isSavingDraft || isFinalizing || isGenerating || isPdfLoading}
-                                            className="w-full py-2.5 rounded font-black transition flex items-center justify-center gap-2 text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed shadow active:scale-[0.99]"
-                                            id="btn-pdf-preview-actions"
-                                        >
-                                            {pdfPreviewLoading ? (
-                                                <>
-                                                    <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                                    </svg>
-                                                    <span>લોડ થઈ રહ્યું છે (Loading Preview)...</span>
-                                                </>
-                                            ) : (
-                                                <>📄 PDF Preview (પૂર્વદર્શન)</>
-                                            )}
-                                        </button>
-                                        <button
-                                            onClick={onSaveDraft}
-                                            disabled={isSavingDraft || isFinalizing}
-                                            className={`w-full py-2.5 rounded font-bold transition border flex items-center justify-center gap-2 ${isSavingDraft || isFinalizing
-                                                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                                                : 'bg-white text-blue-600 border-blue-600 hover:bg-blue-50'
-                                                }`}
-                                            id="btn-save-draft"
-                                        >
-                                            {isSavingDraft ? (
-                                                <>
-                                                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                                                    <span>સેવ થઈ રહ્યું છે (Saving...)</span>
-                                                </>
-                                            ) : (
-                                                <span>સેવ ડ્રાફ્ટ (Save Draft)</span>
-                                            )}
-                                        </button>
-                                        {(() => {
-                                            const creditCost = activeTemplate ? (activeTemplate.credit_cost !== undefined ? activeTemplate.credit_cost : 10) : 10;
-                                            const hasInsufficientCredits = userCredits !== null && userCredits !== undefined && userCredits < creditCost;
-
-                                            return (
-                                                <>
-                                                    {userCredits !== null && userCredits !== undefined && (
-                                                        <div className={`p-3 rounded-lg border text-[11px] font-bold transition flex items-center gap-2 mb-1
-                                                            ${hasInsufficientCredits
-                                                                ? 'bg-rose-50 border-rose-200 text-rose-800'
-                                                                : 'bg-blue-50 border-blue-100 text-blue-800'
-                                                            }`}
-                                                        >
-                                                            <span>🪙</span>
-                                                            <div className="flex-1">
-                                                                આ ટેમ્પલેટ લોક કરવાની કિંમત: <span className="underline">{creditCost} ક્રેડિટ્સ</span>.
-                                                                {hasInsufficientCredits ? (
-                                                                    <div className="text-[10px] text-rose-600 mt-0.5 font-semibold">તમારી પાસે અપૂરતી ક્રેડિટ છે (Insufficient credits: {userCredits} available).</div>
-                                                                ) : (
-                                                                    <div className="text-[10px] text-blue-600 mt-0.5 font-semibold">તમારી વર્તમાન ક્રેડિટ: {userCredits} (Current credits: {userCredits}).</div>
-                                                                )}
-                                                            </div>
+                                        <div className="space-y-3 pt-2">
+                                            {isVisitor ? (
+                                                <div id="form-panel-visitor-cta" className="p-5 bg-gradient-to-br from-blue-900 via-indigo-900 to-slate-900 rounded-2xl text-white shadow-xl space-y-4 border border-blue-700/50">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-900 flex items-center justify-center font-bold text-xl shadow-md flex-shrink-0">
+                                                            🚀
                                                         </div>
-                                                    )}
+                                                        <div>
+                                                            <h4 className="font-bold text-sm text-white">દસ્તાવેજ બનાવવા માટે લૉગિન કરો</h4>
+                                                            <p className="text-blue-200 text-[11px]">Login / Register to Generate Document</p>
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-blue-100 text-xs leading-relaxed">
+                                                        ડ્રાફ્ટ સાચવવા, વિગતો સંપાદિત કરવા અને અધિકૃત DOCX/PDF ડાઉનલોડ કરવા માટે મફત એકાઉન્ટ બનાવો (૧૦૦ ફ્રી ક્રેડિટ મેળવો).
+                                                    </p>
                                                     <button
+                                                        type="button"
+                                                        id="btn-visitor-generate-login"
                                                         onClick={() => {
-                                                            if (hasInsufficientCredits) {
-                                                                alert(`આ દસ્તાવેજ લોક કરવા માટે અપૂરતી ક્રેડિટ. જરૂરી ક્રેડિટ: ${creditCost}, તમારી ક્રેડિટ: ${userCredits}. (Insufficient credits to lock. Required: ${creditCost}, Yours: ${userCredits}.)`);
-                                                                return;
+                                                            if (typeof onLogin === 'function') onLogin();
+                                                            else if (typeof window.openAuthModal === 'function') window.openAuthModal();
+                                                            else {
+                                                                const headerBtn = document.querySelector('header button:has-text("Log In / Register")');
+                                                                if (headerBtn) headerBtn.click();
                                                             }
-                                                            const isValid = validateRequiredFields();
-                                                            if (!isValid) {
-                                                                setShowRequiredErrors(true);
-                                                                setGenerateError("કૃપા કરીને બધી ફરજિયાત માહિતી ભરો (Please fill all required fields).");
-                                                                return;
-                                                            }
-                                                            const isFormatValid = validateFormatFields();
-                                                            if (!isFormatValid) {
-                                                                setGenerateError("કૃપા કરીને અમાન્ય આધાર, પાન અથવા મોબાઈલ વિગતો સુધારો (Please correct invalid Aadhaar, PAN, or Mobile details).");
-                                                                return;
-                                                            }
-                                                            onFinalSubmit();
                                                         }}
-                                                        disabled={isSavingDraft || isFinalizing || hasInsufficientCredits}
-                                                        className={`w-full py-2.5 rounded font-bold transition flex items-center justify-center gap-2 text-white shadow
-                                                        ${isSavingDraft || isFinalizing || hasInsufficientCredits
-                                                                ? 'bg-gray-400 cursor-not-allowed opacity-60'
-                                                                : 'bg-red-600 hover:bg-red-700'
-                                                            }`}
-                                                        id="btn-final-lock"
+                                                        className="w-full py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-900 font-black rounded-xl transition-all shadow-lg active:scale-95 text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer"
                                                     >
-                                                        {isFinalizing ? (
+                                                        <span>🚀 Login / Register → Generate Document</span>
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handlePdfPreview}
+                                                        disabled={pdfPreviewLoading || isSavingDraft || isFinalizing || isGenerating || isPdfLoading}
+                                                        className="w-full py-2.5 rounded font-black transition flex items-center justify-center gap-2 text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed shadow active:scale-[0.99]"
+                                                        id="btn-pdf-preview-actions"
+                                                    >
+                                                        {pdfPreviewLoading ? (
                                                             <>
-                                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                                                <span>લોક થઈ રહ્યું છે... (Finalizing...)</span>
+                                                                <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                                </svg>
+                                                                <span>લોડ થઈ રહ્યું છે (Loading Preview)...</span>
                                                             </>
                                                         ) : (
-                                                            <>
-                                                                <LockIcon /> ફાઈનલ લોક કરો (Final Lock - {creditCost} Credits)
-                                                            </>
+                                                            <>📄 PDF Preview (પૂર્વદર્શન)</>
                                                         )}
                                                     </button>
+                                                    <button
+                                                        onClick={onSaveDraft}
+                                                        disabled={isSavingDraft || isFinalizing}
+                                                        className={`w-full py-2.5 rounded font-bold transition border flex items-center justify-center gap-2 ${isSavingDraft || isFinalizing
+                                                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                                            : 'bg-white text-blue-600 border-blue-600 hover:bg-blue-50'
+                                                            }`}
+                                                        id="btn-save-draft"
+                                                    >
+                                                        {isSavingDraft ? (
+                                                            <>
+                                                                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                                                                <span>સેવ થઈ રહ્યું છે (Saving...)</span>
+                                                            </>
+                                                        ) : (
+                                                            <span>સેવ ડ્રાફ્ટ (Save Draft)</span>
+                                                        )}
+                                                    </button>
+                                                    {(() => {
+                                                        const creditCost = activeTemplate ? (activeTemplate.credit_cost !== undefined ? activeTemplate.credit_cost : 10) : 10;
+                                                        const hasInsufficientCredits = userCredits !== null && userCredits !== undefined && userCredits < creditCost;
+
+                                                        return (
+                                                            <>
+                                                                {userCredits !== null && userCredits !== undefined && (
+                                                                    <div className={`p-3 rounded-lg border text-[11px] font-bold transition flex items-center gap-2 mb-1
+                                                                        ${hasInsufficientCredits
+                                                                            ? 'bg-rose-50 border-rose-200 text-rose-800'
+                                                                            : 'bg-blue-50 border-blue-100 text-blue-800'
+                                                                        }`}
+                                                                    >
+                                                                        <span>🪙</span>
+                                                                        <div className="flex-1">
+                                                                            આ ટેમ્પલેટ લોક કરવાની કિંમત: <span className="underline">{creditCost} ક્રેડિટ્સ</span>.
+                                                                            {hasInsufficientCredits ? (
+                                                                                <div className="text-[10px] text-rose-600 mt-0.5 font-semibold">તમારી પાસે અપૂરતી ક્રેડિટ છે (Insufficient credits: {userCredits} available).</div>
+                                                                            ) : (
+                                                                                <div className="text-[10px] text-blue-600 mt-0.5 font-semibold">તમારી વર્તમાન ક્રેડિટ: {userCredits} (Current credits: {userCredits}).</div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (hasInsufficientCredits) {
+                                                                            alert(`આ દસ્તાવેજ લોક કરવા માટે અપૂરતી ક્રેડિટ. જરૂરી ક્રેડિટ: ${creditCost}, તમારી ક્રેડિટ: ${userCredits}. (Insufficient credits to lock. Required: ${creditCost}, Yours: ${userCredits}.)`);
+                                                                            return;
+                                                                        }
+                                                                        const isValid = validateRequiredFields();
+                                                                        if (!isValid) {
+                                                                            setShowRequiredErrors(true);
+                                                                            setGenerateError("કૃપા કરીને બધી ફરજિયાત માહિતી ભરો (Please fill all required fields).");
+                                                                            return;
+                                                                        }
+                                                                        const isFormatValid = validateFormatFields();
+                                                                        if (!isFormatValid) {
+                                                                            setGenerateError("કૃપા કરીને અમાન્ય આધાર, પાન અથવા મોબાઈલ વિગતો સુધારો (Please correct invalid Aadhaar, PAN, or Mobile details).");
+                                                                            return;
+                                                                        }
+                                                                        onFinalSubmit();
+                                                                    }}
+                                                                    disabled={isSavingDraft || isFinalizing || hasInsufficientCredits}
+                                                                    className={`w-full py-2.5 rounded font-bold transition flex items-center justify-center gap-2 text-white shadow
+                                                                    ${isSavingDraft || isFinalizing || hasInsufficientCredits
+                                                                            ? 'bg-gray-400 cursor-not-allowed opacity-60'
+                                                                            : 'bg-red-600 hover:bg-red-700'
+                                                                        }`}
+                                                                    id="btn-final-lock"
+                                                                >
+                                                                    {isFinalizing ? (
+                                                                        <>
+                                                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                                            <span>લોક થઈ રહ્યું છે... (Finalizing...)</span>
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <LockIcon /> ફાઈનલ લોક કરો (Final Lock - {creditCost} Credits)
+                                                                        </>
+                                                                    )}
+                                                                </button>
+                                                            </>
+                                                        );
+                                                    })()}
                                                 </>
-                                            );
-                                        })()}
+                                            )}
+                                        </div>
                                     </div>
                                 </>
                             )}
@@ -1358,3 +1418,4 @@ const FormPanel = ({
 };
 
 window.FormPanel = React.memo(FormPanel);
+export default FormPanel;

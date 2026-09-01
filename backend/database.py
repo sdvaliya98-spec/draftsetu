@@ -143,9 +143,9 @@ def ensure_schema_up_to_date():
         # Check users
         if "users" in table_names:
             columns = [col["name"] for col in inspector.get_columns("users")]
+            is_postgres = "postgresql" in settings.DATABASE_URL
             if "is_active" not in columns:
                 logger.info("🛠️ Adding missing column 'is_active' to users table...")
-                is_postgres = "postgresql" in settings.DATABASE_URL
                 col_type = "BOOLEAN DEFAULT TRUE" if is_postgres else "BOOLEAN DEFAULT 1"
                 with engine.begin() as conn:
                     conn.execute(text(f"ALTER TABLE users ADD COLUMN is_active {col_type}"))
@@ -157,6 +157,27 @@ def ensure_schema_up_to_date():
                 logger.info("🛠️ Adding missing column 'mobile_number' to users table...")
                 with engine.begin() as conn:
                     conn.execute(text("ALTER TABLE users ADD COLUMN mobile_number VARCHAR"))
+            if "email" not in columns:
+                logger.info("🛠️ Adding missing column 'email' to users table...")
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR"))
+            if "google_sub" not in columns:
+                logger.info("🛠️ Adding missing column 'google_sub' to users table...")
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN google_sub VARCHAR"))
+            if "auth_provider" not in columns:
+                logger.info("🛠️ Adding missing column 'auth_provider' to users table...")
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN auth_provider VARCHAR DEFAULT 'local'"))
+            if "avatar_url" not in columns:
+                logger.info("🛠️ Adding missing column 'avatar_url' to users table...")
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN avatar_url VARCHAR"))
+            if "email_verified" not in columns:
+                logger.info("🛠️ Adding missing column 'email_verified' to users table...")
+                col_type = "BOOLEAN DEFAULT FALSE" if is_postgres else "BOOLEAN DEFAULT 0"
+                with engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE users ADD COLUMN email_verified {col_type}"))
 
         # Check activity_logs
         if "activity_logs" in table_names:

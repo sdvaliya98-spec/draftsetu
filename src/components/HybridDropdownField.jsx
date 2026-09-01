@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 const HybridDropdownField = ({ 
     label,
@@ -58,3 +59,4 @@ const HybridDropdownField = ({
 
 // Global backward compatibility
 window.HybridDropdownField = HybridDropdownField;
+export default HybridDropdownField;

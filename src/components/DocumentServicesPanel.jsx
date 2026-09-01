@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 const DocumentServicesPanel = ({ isOpen, onClose, menuItem, onSelectTemplate }) => {
     const categories = React.useMemo(() => {
         return menuItem?.children || [];
@@ -159,3 +160,4 @@ const DocumentServicesPanel = ({ isOpen, onClose, menuItem, onSelectTemplate }) 
 };
 
 window.DocumentServicesPanel = DocumentServicesPanel;
+export default DocumentServicesPanel;

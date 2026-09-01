@@ -4,13 +4,12 @@ echo ========================================
 echo   Starting Frontend Development Server
 echo ========================================
 cd /d %~dp0
-echo [INFO] Starting simple HTTP server on port 3000...
-echo [INFO] Access the app at: http://localhost:3000
+echo [INFO] Starting Vite development server on port 5500...
+echo [INFO] Access the app at: http://localhost:5500
 echo.
-python -m http.server 3000
+npm run dev -- --port 5500
 if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Failed to start Python HTTP server. 
-    echo Make sure Python is in your PATH.
+    echo [ERROR] Failed to start Vite frontend dev server.
     pause
 )
 pause

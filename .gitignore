@@ -79,3 +79,4 @@ templates_out.json
 public/test.docx
 *_temp_check*
 scripts/test_*.py
+*.png

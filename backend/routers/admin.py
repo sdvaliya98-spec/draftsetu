@@ -280,6 +280,58 @@ def update_user_status(
 
 
 
+@router.delete("/users/{user_id}")
+def delete_user_permanently(
+    user_id: int,
+    db: Session = Depends(database.get_db),
+    admin: models.User = Depends(get_admin_user)
+):
+    """Permanently delete a user account and associated dependent records. Admin only."""
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.id == admin.id:
+        raise HTTPException(status_code=400, detail="Admins cannot delete their own account")
+
+    try:
+        username = user.username
+
+        # 1. Clean up Payment Orders
+        db.query(models.PaymentOrder).filter(models.PaymentOrder.user_id == user_id).delete(synchronize_session=False)
+
+        # 2. Clean up Wallet Transactions
+        db.query(models.WalletTransaction).filter(models.WalletTransaction.user_id == user_id).delete(synchronize_session=False)
+
+        # 3. Clean up Wallet
+        db.query(models.Wallet).filter(models.Wallet.user_id == user_id).delete(synchronize_session=False)
+
+        # 4. Clean up Document Submissions and remove generated files from disk
+        user_docs = db.query(models.DocumentSubmission).filter(models.DocumentSubmission.user_id == user_id).all()
+        for doc in user_docs:
+            for fpath in [doc.file_path, doc.final_pdf_path, doc.final_docx_path]:
+                if fpath and os.path.exists(fpath):
+                    try:
+                        os.remove(fpath)
+                    except OSError:
+                        pass
+        db.query(models.DocumentSubmission).filter(models.DocumentSubmission.user_id == user_id).delete(synchronize_session=False)
+
+        # 5. Delete User record
+        db.delete(user)
+        db.commit()
+
+        # 6. Log Activity
+        from backend.services.activity_service import log_activity
+        log_activity(db, admin.username, "User Permanently Deleted", "user", username)
+
+        return {"success": True, "message": f"User '{username}' was permanently deleted."}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to permanently delete user: {str(e)}")
+
+
+
 @router.get("/activity-logs")
 def get_admin_activity_logs(
     db: Session = Depends(database.get_db),

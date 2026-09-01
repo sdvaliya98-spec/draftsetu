@@ -1,3 +1,6 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { CopyIcon } from './Icons.jsx';
 
 const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templates = [], isDownloading, setIsDownloading }) => {
     const [drafts, setDrafts] = React.useState([]);
@@ -12,6 +15,53 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
         setToast(msg);
         setTimeout(() => setToast(''), 3000);
     };
+
+    const safeFormatDateTime = (dateStr) => {
+        if (typeof window.formatIndiaDateTime === 'function') {
+            return window.formatIndiaDateTime(dateStr);
+        }
+        if (typeof formatIndiaDateTime === 'function') {
+            return formatIndiaDateTime(dateStr);
+        }
+        if (!dateStr) return '—';
+        try {
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        } catch {
+            return dateStr;
+        }
+    };
+
+    // ESC key handler
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                if (previewDoc) {
+                    setPreviewDoc(null);
+                } else if (typeof onClose === 'function') {
+                    onClose();
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [previewDoc, onClose]);
+
+    // Body scroll lock
+    useEffect(() => {
+        const originalOverflow = document.body.style.overflow;
+        const originalPaddingRight = document.body.style.paddingRight;
+        const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+        document.body.style.overflow = 'hidden';
+        if (scrollbarWidth > 0) {
+            document.body.style.paddingRight = `${scrollbarWidth}px`;
+        }
+
+        return () => {
+            document.body.style.overflow = originalOverflow;
+            document.body.style.paddingRight = originalPaddingRight;
+        };
+    }, []);
 
     React.useEffect(() => {
         if (isDownloading) return;
@@ -257,47 +307,10 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
         }
     };
 
-    const getPreviewFields = (doc) => {
-        try {
-            const data = JSON.parse(doc.data_json || '{}');
-            const priorities = [
-                { key: 'APPLICANT_NAME', label: 'Applicant' },
-                { key: 'BUYER_NAME', label: 'Buyer' },
-                { key: 'SELLER_NAME', label: 'Seller' },
-                { key: 'DECEASED_PERSON_NAME', label: 'Deceased' },
-                { key: 'VILLAGE_NAME', label: 'Village' },
-                { key: 'SURVEY_NO', label: 'Survey' },
-                { key: 'ACCOUNT_NO', label: 'Account' }
-            ];
-
-            let found = [];
-            const keys = Object.keys(data);
-            for (let p of priorities) {
-                const keyMatch = keys.find(k => k.toLowerCase() === p.key.toLowerCase());
-                if (keyMatch && data[keyMatch]) {
-                    found.push({ label: p.label, value: data[keyMatch] });
-                }
-                if (found.length >= 2) break;
-            }
-
-            if (found.length === 0) {
-                return [{ label: 'Document', value: getDocumentTitle(doc) }];
-            }
-            return found;
-        } catch {
-            return [{ label: 'Document', value: getDocumentTitle(doc) }];
-        }
-    };
-
     const getTemplateForDoc = (doc) => {
         const templateId = doc.template_id;
         if (!templateId) return null;
         return templates.find(t => t.id === templateId || t.template_id === templateId) || null;
-    };
-
-    const hasIdentityConfig = (doc) => {
-        const tpl = getTemplateForDoc(doc);
-        return !!(tpl && (tpl.document_identity_field || tpl.document_secondary_field));
     };
 
     const getCardTemplateName = (doc) => {
@@ -348,85 +361,32 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
         return current;
     };
 
-    const getDocumentIdentity = (doc) => {
-        const tpl = getTemplateForDoc(doc);
-        const identityField = tpl ? tpl.document_identity_field : null;
-        if (identityField) {
-            try {
-                const data = JSON.parse(doc.data_json || '{}');
-                const val = resolveFieldValue(data, identityField);
-                if (val !== null && val !== undefined && String(val).trim() !== "") {
-                    return String(val).trim();
+    const modalContent = (
+        <div 
+            id="my-documents-modal-backdrop" 
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-3 sm:p-4"
+            onClick={(e) => {
+                if (e.target === e.currentTarget && typeof onClose === 'function') {
+                    onClose();
                 }
-            } catch (e) {}
-        }
-        return doc.document_identity || "";
-    };
-
-    const getDocumentSecondary = (doc) => {
-        const tpl = getTemplateForDoc(doc);
-        const secondaryField = tpl ? tpl.document_secondary_field : null;
-        if (secondaryField) {
-            try {
-                const data = JSON.parse(doc.data_json || '{}');
-                const val = resolveFieldValue(data, secondaryField);
-                if (val !== null && val !== undefined && String(val).trim() !== "") {
-                    return String(val).trim();
-                }
-            } catch (e) {}
-        }
-        return doc.document_secondary || "";
-    };
-
-    const getIdentityLabel = (doc) => {
-        const tpl = getTemplateForDoc(doc);
-        const field = tpl ? tpl.document_identity_field : null;
-        if (!field) return "Primary";
-        if (field.includes('.')) {
-            const parts = field.split('.');
-            const lastPart = parts[parts.length - 1];
-            const cleanKey = lastPart.toLowerCase();
-            if (window.REPEATER_FIELD_LABELS && window.REPEATER_FIELD_LABELS[cleanKey]) {
-                return window.REPEATER_FIELD_LABELS[cleanKey];
-            }
-            return lastPart.replace(/_/g, ' ');
-        }
-        const fieldConfig = tpl?.fields?.[field];
-        return fieldConfig?.label || field.replace(/_/g, ' ');
-    };
-
-    const getSecondaryLabel = (doc) => {
-        const tpl = getTemplateForDoc(doc);
-        const field = tpl ? tpl.document_secondary_field : null;
-        if (!field) return "Secondary";
-        if (field.includes('.')) {
-            const parts = field.split('.');
-            const lastPart = parts[parts.length - 1];
-            const cleanKey = lastPart.toLowerCase();
-            if (window.REPEATER_FIELD_LABELS && window.REPEATER_FIELD_LABELS[cleanKey]) {
-                return window.REPEATER_FIELD_LABELS[cleanKey];
-            }
-            return lastPart.replace(/_/g, ' ');
-        }
-        const fieldConfig = tpl?.fields?.[field];
-        return fieldConfig?.label || field.replace(/_/g, ' ');
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl h-[85vh] flex flex-col overflow-hidden">
+            }}
+        >
+            <div 
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] h-[88vh] flex flex-col overflow-hidden animate-fade-in"
+                onClick={e => e.stopPropagation()}
+            >
                 {/* Header */}
-                <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center flex-shrink-0 relative">
-                    <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/80 flex justify-between items-center flex-shrink-0 relative">
+                    <h2 className="text-lg sm:text-xl font-bold text-slate-800 flex items-center gap-2">
                         📂 My Documents
                     </h2>
                     {toast && (
-                        <div className="absolute left-1/2 -translate-x-1/2 top-4 bg-gray-800 text-white px-4 py-1.5 rounded-full text-xs font-semibold shadow-lg animate-fade-in-up">
+                        <div className="absolute left-1/2 -translate-x-1/2 top-3 sm:top-4 bg-slate-800 text-white px-4 py-1.5 rounded-full text-xs font-semibold shadow-lg animate-fade-in-up z-10">
                             {toast}
                         </div>
                     )}
-                    <div className="flex items-center gap-4">
-                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full border transition-all duration-300 ${
+                    <div className="flex items-center gap-3 sm:gap-4">
+                        <span className={`text-xs font-bold px-3 py-1 rounded-full border transition-all duration-300 ${
                             drafts.length >= 10
                                 ? 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse'
                                 : drafts.length >= 8
@@ -435,167 +395,227 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
                         }`}>
                             Documents: {drafts.length} / 10
                         </span>
-                        <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none bg-transparent border-0 cursor-pointer" type="button">&times;</button>
+                        <button 
+                            onClick={onClose} 
+                            className="text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 text-2xl leading-none p-1 rounded-lg transition bg-transparent border-0 cursor-pointer" 
+                            type="button"
+                            title="Close"
+                        >
+                            &times;
+                        </button>
                     </div>
                 </div>
+
                 {/* Warning Banner */}
                 {drafts.length >= 10 && (
                     <div className="bg-rose-50 border-b border-rose-100 px-5 py-2.5 flex items-center gap-2 text-rose-800 text-xs font-semibold flex-shrink-0 animate-fade-in">
                         <span>⚠️</span>
-                        <span>Storage limit reached. Delete old documents to save new ones.</span>
+                        <span>Storage limit reached (10/10). Delete old documents to save new ones.</span>
                     </div>
                 )}
+
                 {/* Load by Tracking ID */}
-                <div className="px-5 py-3 border-b border-gray-100 bg-blue-50 flex-shrink-0">
-                    <p className="text-xs font-semibold text-blue-700 mb-2">📌 Load Draft by Tracking ID</p>
+                <div className="px-4 sm:px-5 py-3 border-b border-slate-100 bg-blue-50/60 flex-shrink-0">
+                    <p className="text-xs font-semibold text-blue-800 mb-2">📌 Load Draft by Tracking ID</p>
                     <div className="flex gap-2">
                         <input
                             value={trackingInput}
                             onChange={e => { setTrackingInput(e.target.value); setTrackingError(''); }}
                             onKeyDown={e => e.key === 'Enter' && handleLoadById()}
                             placeholder="e.g. DOC-A1B2C3D4"
-                            className="flex-1 px-3 py-1.5 border border-blue-200 rounded-lg text-sm font-mono focus:outline-none focus:border-blue-500 bg-white"
+                            className="flex-1 px-3.5 py-2 border border-blue-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
                         />
-                        <button onClick={handleLoadById} disabled={loadingById}
-                            className="px-4 py-1.5 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition disabled:opacity-60"
+                        <button 
+                            onClick={handleLoadById} 
+                            disabled={loadingById}
+                            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition shadow-sm disabled:opacity-60 cursor-pointer border-0"
                             type="button"
                         >
                             {loadingById ? '...' : 'Load'}
                         </button>
                     </div>
-                    {trackingError && <p className="text-xs text-red-600 mt-1 font-semibold">{trackingError}</p>}
+                    {trackingError && <p className="text-xs text-red-600 mt-1.5 font-semibold">{trackingError}</p>}
                 </div>
+
                 {/* Draft List */}
-                <div className="flex-1 overflow-y-auto p-5 bg-gray-50 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-5 bg-slate-50/50 custom-scrollbar">
                     {loading ? (
-                        <div className="text-center text-gray-400 py-12">Loading documents...</div>
+                        <div className="text-center text-slate-400 py-16 flex flex-col items-center gap-2">
+                            <span className="text-2xl animate-spin">⏳</span>
+                            <span className="text-sm font-medium">Loading documents...</span>
+                        </div>
                     ) : drafts.length === 0 ? (
-                        <div className="text-center bg-white border border-dashed border-gray-200 rounded-xl p-12 text-gray-400">
-                            <div className="text-4xl mb-2">📄</div>
-                            No saved drafts found
+                        <div className="text-center bg-white border border-dashed border-slate-200 rounded-2xl p-12 sm:p-16 text-slate-400">
+                            <div className="text-5xl mb-3">📄</div>
+                            <h3 className="text-base font-bold text-slate-600 mb-1">No saved documents found</h3>
+                            <p className="text-xs text-slate-400">Create and save drafts to access them here anytime.</p>
                         </div>
                     ) : (
                         <div className="grid gap-3">
                             {drafts.map(d => (
-                                <div key={d.tracking_id}
-                                    className={`bg-white border rounded-xl p-4 flex justify-between items-center transition
+                                <div 
+                                    key={d.tracking_id}
+                                    className={`bg-white border rounded-xl p-4 sm:p-5 flex flex-col gap-3.5 transition-all shadow-sm
                                         ${d.is_locked
-                                            ? 'border-gray-200 opacity-70 cursor-not-allowed'
-                                            : 'border-gray-200 hover:border-blue-300 hover:shadow-md cursor-pointer group'}`}
-                                    onClick={() => !d.is_locked && onSelectDraft(d)}>
-                                    <div className="flex items-start gap-3">
-                                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-lg flex-shrink-0 mt-0.5
-                                            ${d.is_locked ? 'bg-gray-100' : 'bg-blue-50'}`}>
-                                            {d.is_locked ? '🔒' : '📝'}
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-2 mb-0.5">
-                                                <span className="font-bold text-sm text-gray-800">
-                                                    {getCardTemplateName(d)}
-                                                </span>
-                                                {d.is_locked
-                                                    ? (
-                                                        d.pdf_ready
-                                                            ? <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold border border-emerald-200 shadow-sm">✅ Verified PDF Ready</span>
-                                                            : d.pdf_generation_in_progress
-                                                                ? <span className="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-bold border border-blue-200 shadow-sm animate-pulse">⏳ Preparing Verified PDF...</span>
-                                                                : <span className="text-[10px] bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full font-bold border border-rose-200 shadow-sm">❌ PDF Generation Failed</span>
-                                                      )
-                                                    : <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold uppercase border border-amber-200">DRAFT</span>
-                                                }
+                                            ? 'border-slate-200 opacity-90 cursor-default'
+                                            : 'border-slate-200 hover:border-blue-400 hover:shadow-md cursor-pointer group'}`}
+                                    onClick={() => !d.is_locked && onSelectDraft(d)}
+                                >
+                                    {/* Top Row: Icon, Titles & Status (Left) and Date/Time (Right) */}
+                                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 min-w-0">
+                                        {/* Left Side: Icon + Title & Metadata */}
+                                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg sm:text-xl flex-shrink-0 mt-0.5 shadow-sm
+                                                ${d.is_locked ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
+                                                {d.is_locked ? '🔒' : '📝'}
                                             </div>
-                                            <div className="text-xs text-gray-500 font-mono mb-2 flex items-center gap-1">
-                                                <span className="font-semibold text-gray-700">ID:</span> {d.tracking_id}
-                                            </div>
-                                            
-                                            {/* Line 2: Identity Value */}
-                                            {(() => {
-                                                const identity = (d.document_identity && d.document_identity !== '-') ? d.document_identity.trim() : '';
-                                                const templateName = getCardTemplateName(d);
-                                                if (identity && identity !== templateName && identity.toLowerCase() !== 'draft document') {
-                                                    return (
-                                                        <div className="text-sm text-gray-700 font-semibold mt-1">
-                                                            {identity}
-                                                        </div>
-                                                    );
-                                                }
-                                                return null;
-                                            })()}
+                                            <div className="min-w-0 flex-1">
+                                                {/* Title + Status Badge */}
+                                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                                    <h3 
+                                                        className="font-bold text-sm sm:text-base text-slate-800 leading-snug break-words font-gujarati"
+                                                        style={{ overflowWrap: 'anywhere', wordBreak: 'normal' }}
+                                                    >
+                                                        {getCardTemplateName(d)}
+                                                    </h3>
+                                                    {d.is_locked ? (
+                                                        d.pdf_ready ? (
+                                                            <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full font-bold border border-emerald-200 shadow-sm">
+                                                                ✅ Verified PDF Ready
+                                                            </span>
+                                                        ) : d.pdf_generation_in_progress ? (
+                                                            <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full font-bold border border-blue-200 shadow-sm animate-pulse">
+                                                                ⏳ Preparing Verified PDF...
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] bg-rose-50 text-rose-700 px-2.5 py-0.5 rounded-full font-bold border border-rose-200 shadow-sm">
+                                                                ❌ PDF Generation Failed
+                                                            </span>
+                                                        )
+                                                    ) : (
+                                                        <span className="inline-flex items-center text-[10px] sm:text-[11px] bg-amber-50 text-amber-700 px-2.5 py-0.5 rounded-full font-bold uppercase border border-amber-200 shadow-sm">
+                                                            DRAFT
+                                                        </span>
+                                                    )}
+                                                </div>
 
-                                            {/* Line 3: Secondary Value */}
-                                            {(() => {
-                                                const secondary = (d.document_secondary && d.document_secondary !== '-') ? d.document_secondary.trim() : '';
-                                                const templateName = getCardTemplateName(d);
-                                                const identity = (d.document_identity && d.document_identity !== '-') ? d.document_identity.trim() : '';
-                                                const hasSec = d.has_secondary;
-                                                if (hasSec && secondary && secondary !== templateName && secondary !== identity && secondary.toLowerCase() !== 'draft document') {
-                                                    return (
-                                                        <div className="text-sm text-gray-500 mt-0.5">
-                                                            {secondary}
-                                                        </div>
-                                                    );
-                                                }
-                                                return null;
-                                            })()}
+                                                {/* Tracking ID */}
+                                                <div className="text-xs text-slate-500 font-mono mt-0.5">
+                                                    <span className="font-semibold text-slate-700">ID:</span> {d.tracking_id}
+                                                </div>
+                                                
+                                                {/* Line 2: Identity Value */}
+                                                {(() => {
+                                                    const identity = (d.document_identity && d.document_identity !== '-') ? d.document_identity.trim() : '';
+                                                    const templateName = getCardTemplateName(d);
+                                                    if (identity && identity !== templateName && identity.toLowerCase() !== 'draft document') {
+                                                        return (
+                                                            <div className="text-xs sm:text-sm text-slate-700 font-semibold mt-1 break-words">
+                                                                {identity}
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
+
+                                                {/* Line 3: Secondary Value */}
+                                                {(() => {
+                                                    const secondary = (d.document_secondary && d.document_secondary !== '-') ? d.document_secondary.trim() : '';
+                                                    const templateName = getCardTemplateName(d);
+                                                    const identity = (d.document_identity && d.document_identity !== '-') ? d.document_identity.trim() : '';
+                                                    const hasSec = d.has_secondary;
+                                                    if (hasSec && secondary && secondary !== templateName && secondary !== identity && secondary.toLowerCase() !== 'draft document') {
+                                                        return (
+                                                            <div className="text-xs sm:text-sm text-slate-500 mt-0.5 break-words">
+                                                                {secondary}
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
+                                            </div>
+                                        </div>
+
+                                        {/* Right Side: Created Date/Time */}
+                                        <div className="sm:text-right flex-shrink-0 self-start text-xs text-slate-500 font-sans font-medium bg-slate-50 sm:bg-transparent px-2.5 py-1 sm:p-0 rounded-lg sm:rounded-none">
+                                            <span className="sm:hidden text-slate-400 font-normal mr-1">Created: </span>
+                                            {safeFormatDateTime(d.created_at || d.updated_at)}
                                         </div>
                                     </div>
-                                    <div className="text-right flex-shrink-0 ml-3">
-                                        <div className="text-xs text-gray-400 mb-2 font-sans font-semibold">
-                                            {formatIndiaDateTime(d.created_at || d.updated_at)}
-                                        </div>
-                                        <div className="flex gap-1.5 justify-end">
-                                            <button onClick={e => { e.stopPropagation(); setPreviewDoc(d); }}
-                                                className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-lg font-bold hover:bg-gray-200 transition border-0 cursor-pointer" type="button">Preview</button>
-                                            <button onClick={e => { e.stopPropagation(); handleDuplicate(d); }}
-                                                className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-2.5 py-1 rounded-xl font-bold transition flex items-center gap-1 border-0 cursor-pointer"
+
+                                    {/* Bottom Row / Action Buttons Toolbar */}
+                                    <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <button 
+                                                onClick={e => { e.stopPropagation(); setPreviewDoc(d); }}
+                                                className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 border-0 cursor-pointer shadow-sm" 
+                                                type="button"
+                                            >
+                                                👁 Preview
+                                            </button>
+                                            <button 
+                                                onClick={e => { e.stopPropagation(); handleDuplicate(d); }}
+                                                className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 border-0 cursor-pointer shadow-sm"
                                                 type="button"
                                             >
                                                 <CopyIcon size={12} /> Duplicate
                                             </button>
-                                            {d.is_locked
-                                                ? (
-                                                    <>
-                                                        <button onClick={e => { e.stopPropagation(); !isDownloading && handleDownload(d.tracking_id, 'docx'); }}
-                                                            disabled={isDownloading}
-                                                            className={`text-xs px-3 py-1.5 rounded-lg font-bold transition shadow-sm flex items-center gap-1 border-0 cursor-pointer
-                                                                ${isDownloading
-                                                                    ? 'bg-gray-300 text-gray-400 cursor-not-allowed opacity-60' 
-                                                                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                                                                }`}
-                                                            type="button"
-                                                        >⬇ Download DOCX</button>
-                                                        <button onClick={e => { e.stopPropagation(); !isDownloading && d.pdf_ready && handleDownload(d.tracking_id, 'pdf'); }}
-                                                            disabled={isDownloading || !d.pdf_ready}
-                                                            className={`text-xs px-3 py-1.5 rounded-lg font-bold transition shadow-sm flex items-center gap-1 border-0 cursor-pointer
-                                                                ${isDownloading || !d.pdf_ready
-                                                                    ? 'bg-gray-300 text-gray-400 cursor-not-allowed opacity-60' 
-                                                                    : 'bg-green-600 text-white hover:bg-green-700'
-                                                                }`}
-                                                            type="button"
-                                                        >⬇ Download PDF</button>
-                                                        {!d.pdf_ready && !d.pdf_generation_in_progress && (
-                                                            <button onClick={e => { e.stopPropagation(); handleRetryPdf(d.tracking_id); }}
-                                                                className="text-xs bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded-lg font-bold transition shadow-sm flex items-center gap-1 border-0 cursor-pointer"
-                                                                type="button"
-                                                            >
-                                                                🔄 Retry PDF
-                                                            </button>
-                                                        )}
-                                                        <button onClick={e => handleDeleteDocument(e, d)}
-                                                            className="text-xs border border-red-500 text-red-500 px-2 py-1.5 rounded-lg font-bold hover:bg-red-50 transition flex items-center gap-1 bg-transparent cursor-pointer"
+                                            {!d.is_locked && (
+                                                <button 
+                                                    onClick={e => { e.stopPropagation(); onSelectDraft(d); }} 
+                                                    className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 border-0 cursor-pointer shadow-sm" 
+                                                    type="button"
+                                                >
+                                                    ✏️ Edit →
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            {d.is_locked && (
+                                                <>
+                                                    <button 
+                                                        onClick={e => { e.stopPropagation(); !isDownloading && handleDownload(d.tracking_id, 'docx'); }}
+                                                        disabled={isDownloading}
+                                                        className={`text-xs px-3 py-1.5 rounded-lg font-bold transition shadow-sm flex items-center gap-1 border-0 cursor-pointer
+                                                            ${isDownloading
+                                                                ? 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-60' 
+                                                                : 'bg-blue-600 text-white hover:bg-blue-700'
+                                                            }`}
+                                                        type="button"
+                                                    >
+                                                        ⬇ Download DOCX
+                                                    </button>
+                                                    <button 
+                                                        onClick={e => { e.stopPropagation(); !isDownloading && d.pdf_ready && handleDownload(d.tracking_id, 'pdf'); }}
+                                                        disabled={isDownloading || !d.pdf_ready}
+                                                        className={`text-xs px-3 py-1.5 rounded-lg font-bold transition shadow-sm flex items-center gap-1 border-0 cursor-pointer
+                                                            ${isDownloading || !d.pdf_ready
+                                                                ? 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-60' 
+                                                                : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                                                            }`}
+                                                        type="button"
+                                                    >
+                                                        ⬇ Download PDF
+                                                    </button>
+                                                    {!d.pdf_ready && !d.pdf_generation_in_progress && (
+                                                        <button 
+                                                            onClick={e => { e.stopPropagation(); handleRetryPdf(d.tracking_id); }}
+                                                            className="text-xs bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg font-bold transition shadow-sm flex items-center gap-1 border-0 cursor-pointer"
                                                             type="button"
                                                         >
-                                                            🗑 Delete
+                                                            🔄 Retry PDF
                                                         </button>
-                                                    </>
-                                                )
-                                                : (
-                                                    <>
-                                                        <button onClick={e => { e.stopPropagation(); onSelectDraft(d); }} className="text-xs bg-blue-600 text-white px-2 py-1 rounded-lg font-bold hover:bg-blue-700 transition opacity-0 group-hover:opacity-100 border-0 cursor-pointer" type="button">Edit →</button>
-                                                        <button onClick={e => handleDeleteDocument(e, d)} className="text-xs border border-red-500 text-red-500 px-2 py-1 rounded-lg font-bold hover:bg-red-50 transition opacity-0 group-hover:opacity-100 bg-transparent cursor-pointer" type="button">🗑 Delete</button>
-                                                    </>
-                                                )
-                                            }
+                                                    )}
+                                                </>
+                                            )}
+                                            <button 
+                                                onClick={e => handleDeleteDocument(e, d)}
+                                                className="text-xs border border-rose-300 text-rose-600 px-3 py-1.5 rounded-lg font-bold hover:bg-rose-50 hover:border-rose-400 transition flex items-center gap-1 bg-white cursor-pointer shadow-sm"
+                                                type="button"
+                                            >
+                                                🗑 Delete
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -604,11 +624,18 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
                     )}
                 </div>
             </div>
+
             {/* Preview Modal */}
             {previewDoc && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4" onClick={() => setPreviewDoc(null)}>
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100">
+                <div 
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[10000] p-4 animate-fade-in" 
+                    onClick={() => setPreviewDoc(null)}
+                >
+                    <div 
+                        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden" 
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-slate-50/80">
                             <div>
                                 <div className="flex items-center gap-2">
                                     <span className="font-mono text-sm font-bold text-blue-600">{previewDoc.tracking_id}</span>
@@ -623,54 +650,80 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
                                         : <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold uppercase">Draft</span>
                                     }
                                 </div>
-                                <div className="text-[11px] text-gray-500 mt-1">
-                                    Created: {formatIndiaDateTime(previewDoc.created_at || previewDoc.updated_at)}
+                                <div className="text-[11px] text-slate-500 mt-1">
+                                    Created: {safeFormatDateTime(previewDoc.created_at || previewDoc.updated_at)}
                                 </div>
                             </div>
-                            <button onClick={() => setPreviewDoc(null)} className="text-gray-400 text-2xl bg-transparent border-0 cursor-pointer" type="button">&times;</button>
+                            <button 
+                                onClick={() => setPreviewDoc(null)} 
+                                className="text-slate-400 hover:text-slate-700 text-2xl leading-none p-1 bg-transparent border-0 cursor-pointer" 
+                                type="button"
+                                title="Close"
+                            >
+                                &times;
+                            </button>
                         </div>
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                             {(() => {
                                 try {
                                     const fields = JSON.parse(previewDoc.data_json || '{}');
-                                    return (<table className="w-full text-sm"><tbody>{Object.entries(fields).filter(([k]) => k !== 'is_final').map(([k, v]) => (<tr key={k} className="border-b border-gray-50"><td className="py-2 pr-4 font-semibold text-gray-500 capitalize w-1/3">{k.replace(/_/g, ' ')}</td><td className="py-2 text-gray-800 font-medium">{Array.isArray(v) ? v.map(p => p.name).join(', ') : String(v || '—')}</td></tr>))}</tbody></table>);
-                                } catch { return <p className="text-gray-400">No data available</p>; }
+                                    return (
+                                        <table className="w-full text-sm">
+                                            <tbody>
+                                                {Object.entries(fields).filter(([k]) => k !== 'is_final').map(([k, v]) => (
+                                                    <tr key={k} className="border-b border-slate-50">
+                                                        <td className="py-2 pr-4 font-semibold text-slate-500 capitalize w-1/3">{k.replace(/_/g, ' ')}</td>
+                                                        <td className="py-2 text-slate-800 font-medium">{Array.isArray(v) ? v.map(p => p.name).join(', ') : String(v || '—')}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    );
+                                } catch { return <p className="text-slate-400">No data available</p>; }
                             })()}
                         </div>
                         {previewDoc.is_locked && (
-                            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+                            <div className="px-6 py-4 border-t border-slate-100 flex flex-wrap justify-end gap-2 bg-slate-50/50">
                                 {!previewDoc.pdf_ready && !previewDoc.pdf_generation_in_progress && (
-                                    <button onClick={() => handleRetryPdf(previewDoc.tracking_id)}
-                                        className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold shadow transition flex items-center gap-1 border-0 cursor-pointer"
+                                    <button 
+                                        onClick={() => handleRetryPdf(previewDoc.tracking_id)}
+                                        className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1 border-0 cursor-pointer"
                                         type="button"
                                     >
                                         🔄 Retry PDF
                                     </button>
                                 )}
-                                <button onClick={e => { handleDeleteDocument(e, previewDoc); setPreviewDoc(null); }}
-                                    className="px-4 py-2 border border-red-500 text-red-500 rounded-lg font-bold hover:bg-red-50 transition flex items-center gap-1 bg-transparent cursor-pointer"
+                                <button 
+                                    onClick={e => { handleDeleteDocument(e, previewDoc); setPreviewDoc(null); }}
+                                    className="px-3.5 py-2 border border-rose-300 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-50 transition flex items-center gap-1 bg-white cursor-pointer"
                                     type="button"
                                 >
                                     🗑 Delete
                                 </button>
-                                <button onClick={() => !isDownloading && handleDownload(previewDoc.tracking_id, 'docx')} 
+                                <button 
+                                    onClick={() => !isDownloading && handleDownload(previewDoc.tracking_id, 'docx')} 
                                     disabled={isDownloading}
-                                    className={`px-4 py-2 rounded-lg font-bold shadow transition border-0 cursor-pointer
+                                    className={`px-3.5 py-2 rounded-xl text-xs font-bold shadow-sm transition border-0 cursor-pointer
                                         ${isDownloading
-                                            ? 'bg-gray-300 text-gray-400 cursor-not-allowed opacity-60'
+                                            ? 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-60'
                                             : 'bg-blue-600 text-white hover:bg-blue-700'
                                         }`}
                                     type="button"
-                                >⬇ Download DOCX</button>
-                                <button onClick={() => !isDownloading && previewDoc.pdf_ready && handleDownload(previewDoc.tracking_id, 'pdf')} 
+                                >
+                                    ⬇ Download DOCX
+                                </button>
+                                <button 
+                                    onClick={() => !isDownloading && previewDoc.pdf_ready && handleDownload(previewDoc.tracking_id, 'pdf')} 
                                     disabled={isDownloading || !previewDoc.pdf_ready}
-                                    className={`px-4 py-2 rounded-lg font-bold shadow transition border-0 cursor-pointer
+                                    className={`px-3.5 py-2 rounded-xl text-xs font-bold shadow-sm transition border-0 cursor-pointer
                                         ${isDownloading || !previewDoc.pdf_ready
-                                            ? 'bg-gray-300 text-gray-400 cursor-not-allowed opacity-60'
+                                            ? 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-60'
                                             : 'bg-emerald-600 text-white hover:bg-emerald-700'
                                         }`}
                                     type="button"
-                                >⬇ Download PDF</button>
+                                >
+                                    ⬇ Download PDF
+                                </button>
                             </div>
                         )}
                     </div>
@@ -678,7 +731,13 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
             )}
         </div>
     );
+
+    if (typeof document !== 'undefined') {
+        return createPortal(modalContent, document.body);
+    }
+    return modalContent;
 };
 
 // Global backward compatibility
 window.MyDocumentsModal = MyDocumentsModal;
+export default MyDocumentsModal;

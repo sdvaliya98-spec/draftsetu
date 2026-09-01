@@ -4,10 +4,7 @@ FROM nginx:alpine
 # Copy custom Nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Copy static assets and React components into the Nginx public directory
-COPY index.html style.css constants.jsx app.jsx /usr/share/nginx/html/
-COPY public/ /usr/share/nginx/html/public/
-COPY public/logo.png /usr/share/nginx/html/logo.png
-COPY src/ /usr/share/nginx/html/src/
+# Copy compiled Vite production assets into the Nginx public directory
+COPY dist/ /usr/share/nginx/html/
 
 EXPOSE 80

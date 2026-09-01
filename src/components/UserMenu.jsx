@@ -1,3 +1,4 @@
+import React from 'react';
 
 const UserMenuNode = ({ item, level = 0, onNavigate }) => {
     const [open, setOpen] = React.useState(level < 1);
@@ -53,8 +54,14 @@ const UserMenuSidebar = ({ menuItems, isOpen, onToggle, onNavigate }) => {
     );
 };
 
+const UserMenu = UserMenuSidebar;
+
 // Global exports - expose the actual defined components
 window.UserMenuSidebar = UserMenuSidebar;
 window.UserMenuNode = UserMenuNode;
 // Backward-compat alias in case any code references window.UserMenu
 window.UserMenu = UserMenuSidebar;
+
+export { UserMenuSidebar, UserMenuNode, UserMenu };
+export default UserMenuSidebar;
+

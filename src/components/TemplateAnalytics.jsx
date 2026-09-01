@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 const TemplateAnalytics = ({ refreshTrigger }) => {
     const [data, setData] = React.useState(null);
@@ -193,3 +194,4 @@ const TemplateAnalytics = ({ refreshTrigger }) => {
 };
 
 window.TemplateAnalytics = TemplateAnalytics;
+export default TemplateAnalytics;

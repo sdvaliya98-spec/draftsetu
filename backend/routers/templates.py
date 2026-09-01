@@ -252,12 +252,141 @@ def restore_template(
         logger.error(f"Error restoring template: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.delete("/{template_id}")
+def delete_template_permanently(
+    template_id: str,
+    db: Session = Depends(database.get_db),
+    admin: models.User = Depends(get_admin_user)
+):
+    """
+    Permanently delete a template from the database. Admin only.
+    Checks for dependent records (e.g. generated document submissions).
+    If documents reference this template, prevent deletion with a clear safety warning.
+    """
+    from sqlalchemy import func
+    db_tpl = db.query(models.DBTemplate).filter(models.DBTemplate.template_id == template_id).first()
+    if not db_tpl:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    # 1. Dependency check: Document Submissions referencing this template_id
+    if db.bind.dialect.name == 'postgresql':
+        json_template_id = func.jsonb_extract_path_text(models.DocumentSubmission.data_json, 'template_id')
+    else:
+        json_template_id = func.json_extract(models.DocumentSubmission.data_json, '$.template_id')
+
+    resolved_template_id = func.coalesce(
+        func.nullif(models.DocumentSubmission.template_id, ''),
+        json_template_id
+    )
+
+    doc_count = db.query(models.DocumentSubmission).filter(
+        (models.DocumentSubmission.template_id == template_id) |
+        (resolved_template_id == template_id)
+    ).count()
+
+    if doc_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot permanently delete template '{db_tpl.name}': {doc_count} document submission(s) exist that reference this template. You can archive the template instead to prevent new documents from being generated while preserving existing document history."
+        )
+
+    try:
+        tpl_name = db_tpl.name
+        tpl_file_path = db_tpl.file_path
+        
+        # 2. Unbind any MenuItem referencing this template
+        menu_items = db.query(models.MenuItem).filter(models.MenuItem.template_id == template_id).all()
+        for m in menu_items:
+            m.template_id = None
+
+        # 3. Clean up physical file if not used by any other template
+        if tpl_file_path:
+            other_using = db.query(models.DBTemplate).filter(
+                models.DBTemplate.file_path == tpl_file_path,
+                models.DBTemplate.template_id != template_id
+            ).first()
+            if not other_using:
+                full_path = template_service.get_full_path(tpl_file_path)
+                if full_path and os.path.exists(full_path):
+                    try:
+                        os.remove(full_path)
+                    except OSError:
+                        pass
+
+        # 4. Delete the template from DB
+        db.delete(db_tpl)
+        db.commit()
+
+        # 5. Log Activity
+        from backend.services.activity_service import log_activity
+        log_activity(db, admin.username, "Template Permanently Deleted", "template", template_id, template_name=tpl_name)
+
+        logger.info(f"[TEMPLATE PERMANENTLY DELETED] Admin [{admin.username}] permanently deleted template {tpl_name} ({template_id})")
+        return {"success": True, "message": f"Template '{tpl_name}' was permanently deleted."}
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error permanently deleting template {template_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to delete template: {str(e)}")
+
+@router.get("/{template_id}/sample-docx")
+@router.get("/{template_id}/sample-preview")
+def get_sample_docx(template_id: str, db: Session = Depends(database.get_db)):
+    """
+    Public endpoint to get a safe sample DOCX rendered with generic demo/placeholder data.
+    Does NOT require authentication or expose any user data.
+    """
+    tpl = db.query(models.DBTemplate).filter(
+        (models.DBTemplate.template_id == template_id) | (models.DBTemplate.id == template_id)
+    ).first()
+    if not tpl or not tpl.is_active:
+        raise HTTPException(status_code=404, detail="Template not found or inactive")
+
+    if not tpl.file_path:
+        raise HTTPException(status_code=422, detail="No DOCX file attached to template")
+
+    full_tpl_path = template_service.get_full_path(tpl.file_path)
+    if not full_tpl_path or not os.path.exists(full_tpl_path):
+        raise HTTPException(status_code=404, detail="Template DOCX file not found on disk")
+
+    from backend.routers.demo_datasets import _generate_mock_data_for_template
+    sample_data = _generate_mock_data_for_template(tpl.fields_json, tpl.field_order_json)
+
+    temp_renders_dir = settings.TEMP_RENDERS_DIR
+    os.makedirs(temp_renders_dir, exist_ok=True)
+    sample_filename = f"sample_{tpl.template_id}_{uuid.uuid4().hex[:6]}.docx"
+    output_path = os.path.join(temp_renders_dir, sample_filename)
+
+    try:
+        from backend.services.docx_engine import render_docx_template
+        render_docx_template(
+            template_path=full_tpl_path,
+            data=sample_data,
+            output_path=output_path,
+            tracking_id="SAMPLE-PREVIEW"
+        )
+    except Exception as e:
+        logger.error(f"Sample DOCX render error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to generate sample preview: {str(e)}")
+
+    return FileResponse(
+        path=output_path,
+        filename=f"Sample_{tpl.name or 'Document'}.docx",
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+
 @router.get("/{template_id}")
 def get_template(template_id: str, db: Session = Depends(database.get_db)):
     """Get a single template by its unique template_id."""
     tpl = db.query(models.DBTemplate).filter(models.DBTemplate.template_id == template_id).first()
     if not tpl:
         raise HTTPException(status_code=404, detail="Template not found")
+    
+    fields = json.loads(tpl.fields_json) if tpl.fields_json else {}
+    field_order = json.loads(tpl.field_order_json) if tpl.field_order_json else []
+    variables = field_order if isinstance(field_order, list) and field_order else list(fields.keys())
     
     # Parse field_order_json for metadata keys
     fo = json.loads(tpl.field_order_json) if tpl.field_order_json else {}

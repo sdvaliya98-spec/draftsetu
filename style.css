@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 @media print {
     @page {
         margin: 10mm; /* Narrower margins for more content */

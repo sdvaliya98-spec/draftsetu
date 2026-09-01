@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 const AdminWalletPanel = ({ token, refreshTrigger }) => {
     const [wallets, setWallets] = React.useState([]);
@@ -365,3 +366,4 @@ const AdminWalletPanel = ({ token, refreshTrigger }) => {
 };
 
 window.AdminWalletPanel = AdminWalletPanel;
+export default AdminWalletPanel;

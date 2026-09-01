@@ -1,3 +1,4 @@
+import React from 'react';
 
 const HomePage = ({ currentUser, onNavigate, onLogin, templates = [] }) => {
     const [currentSlide, setCurrentSlide] = React.useState(0);
@@ -479,4 +480,4 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [] }) => {
 
 // Global backward compatibility
 window.HomePage = HomePage;
-
+export default HomePage;

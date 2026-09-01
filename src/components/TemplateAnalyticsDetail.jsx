@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 const TemplateAnalyticsDetail = ({ templateId, isOpen, onClose }) => {
     const [data, setData] = React.useState(null);
     const [allDocs, setAllDocs] = React.useState([]);
@@ -488,3 +489,4 @@ const TemplateAnalyticsDetail = ({ templateId, isOpen, onClose }) => {
 };
 
 window.TemplateAnalyticsDetail = TemplateAnalyticsDetail;
+export default TemplateAnalyticsDetail;

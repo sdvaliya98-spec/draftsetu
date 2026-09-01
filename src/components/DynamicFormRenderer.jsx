@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 const DynamicFormRenderer = ({ fields = [], data = {}, setData, isLocked = false, showRequiredErrors = false }) => {
     return (
@@ -50,3 +51,4 @@ const DynamicFormRenderer = ({ fields = [], data = {}, setData, isLocked = false
 
 // Global backward compatibility
 window.DynamicFormRenderer = DynamicFormRenderer;
+export default DynamicFormRenderer;

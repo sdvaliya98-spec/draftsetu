@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 const AdminDashboard = ({ refreshTrigger }) => {
     const [stats, setStats] = React.useState(null);
     const [loading, setLoading] = React.useState(true);
@@ -364,4 +365,4 @@ const AdminDashboard = ({ refreshTrigger }) => {
 
 // Global backward compatibility
 window.AdminDashboard = AdminDashboard;
-
+export default AdminDashboard;

@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 const AdminDocumentPreviewModal = ({ previewDoc, onClose }) => {
     if (!previewDoc) return null;
@@ -181,5 +182,15 @@ const AdminUserDetailModal = ({ userDetailDoc, onClose }) => {
     );
 };
 
+const AdminSharedModals = {
+    AdminDocumentPreviewModal,
+    AdminUserDetailModal
+};
+
 window.AdminDocumentPreviewModal = AdminDocumentPreviewModal;
 window.AdminUserDetailModal = AdminUserDetailModal;
+window.AdminSharedModals = AdminSharedModals;
+
+export { AdminDocumentPreviewModal, AdminUserDetailModal };
+export default AdminSharedModals;
+

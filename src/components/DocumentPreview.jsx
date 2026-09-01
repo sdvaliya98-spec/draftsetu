@@ -1,11 +1,15 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 /**
  * DocumentPreview — DOCX Template Engine Preview
  * ================================================
  * Architecture: DOCX → LibreOffice → PDF
  */
-const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId, isDownloading, setIsDownloading }) => {
+const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId, isDownloading, setIsDownloading, allTemplates, isLoggedIn, onLogin }) => {
     const [lastError, setLastError] = useState(null);
     const [pdfAvailable, setPdfAvailable] = useState(null);
+
+    const hasAuthToken = Boolean(localStorage.getItem('authToken') || localStorage.getItem('token'));
+    const isVisitor = isLoggedIn !== undefined ? !isLoggedIn : !hasAuthToken;
 
     // Live Preview state
     const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -255,21 +259,31 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
         setIsPreviewLoading(true);
         setPreviewError(null);
         try {
-            const previewData = preparePreviewData();
             const token = localStorage.getItem('authToken') || localStorage.getItem('token');
-            const res = await fetch(`${window.API_BASE || ''}/api/documents/generate?format=docx`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                },
-                body: JSON.stringify({
-                    template_id: activeTemplateId,
-                    data: previewData,
-                    format: 'docx'
-                }),
-                signal: fetchSignal
-            });
+            let res;
+
+            if (token) {
+                const previewData = preparePreviewData();
+                res = await fetch(`${window.API_BASE || ''}/api/documents/generate?format=docx`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        template_id: activeTemplateId,
+                        data: previewData,
+                        format: 'docx'
+                    }),
+                    signal: fetchSignal
+                });
+            } else {
+                // Unauthenticated visitor: load safe public template sample DOCX
+                res = await fetch(`${window.API_BASE || ''}/api/templates/${encodeURIComponent(activeTemplateId)}/sample-docx`, {
+                    method: 'GET',
+                    signal: fetchSignal
+                });
+            }
 
             if (!res.ok) {
                 let errMsg = `Preview generation failed (${res.status})`;
@@ -290,7 +304,10 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
             if (err.name === 'AbortError') return;
             console.error('[DocumentPreview] Live preview fetch error:', err);
             if (currentVersion === previewVersionRef.current && !fetchSignal.aborted) {
-                setPreviewError(err.message || 'Failed to generate live preview');
+                const msg = err.message || 'Failed to generate live preview';
+                if (!msg.toLowerCase().includes('authenticated') && !msg.toLowerCase().includes('login')) {
+                    setPreviewError(msg);
+                }
             }
         } finally {
             if (currentVersion === previewVersionRef.current && !fetchSignal.aborted) {
@@ -453,6 +470,49 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
 
             <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
 
+                {/* Public Visitor Sample Notice Banner */}
+                {isVisitor && (
+                    <div id="public-sample-preview-banner" className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-4 shadow-sm">
+                        <div className="flex items-start justify-between gap-4 flex-wrap sm:flex-nowrap">
+                            <div className="flex items-start gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center flex-shrink-0 shadow-md">
+                                    <span className="text-xl">📄</span>
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 bg-blue-100 text-blue-800 rounded-md">
+                                            નમૂનો / Sample
+                                        </span>
+                                        <h4 className="font-bold text-slate-800 text-sm">
+                                            આ દસ્તાવેજનો નમૂનો (Sample Document Preview)
+                                        </h4>
+                                    </div>
+                                    <p className="text-slate-600 text-xs mt-1 leading-relaxed">
+                                        Login વગર પૂર્વદર્શન જોઈ શકો છો. તમારી વિગતો સાથે સાચો દસ્તાવેજ બનાવવા અને ડાઉનલોડ કરવા માટે લૉગિન કરો.
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                id="btn-public-preview-login"
+                                onClick={() => {
+                                    if (typeof onLogin === 'function') {
+                                        onLogin();
+                                    } else if (typeof window.openAuthModal === 'function') {
+                                        window.openAuthModal();
+                                    } else {
+                                        const headerBtn = document.querySelector('header button:has-text("Log In / Register")');
+                                        if (headerBtn) headerBtn.click();
+                                    }
+                                }}
+                                className="whitespace-nowrap px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-1.5 flex-shrink-0 cursor-pointer"
+                            >
+                                <span>🚀 Login / Register to Generate</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Dashboard Card */}
                 <div className="dp-card p-5 space-y-4">
                     {/* Header Details */}
@@ -612,7 +672,7 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
                 <div className="space-y-2">
                     <div className="flex items-center justify-between">
                         <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            Document Preview (Live)
+                            {isVisitor ? "Document Preview (Sample / નમૂનો)" : "Document Preview (Live)"}
                         </h5>
                         {isPreviewLoading && (
                             <span className="text-[10px] font-bold text-blue-500 animate-pulse">
@@ -715,3 +775,4 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
 
 // Global backward compatibility
 window.DocumentPreview = DocumentPreview;
+export default DocumentPreview;

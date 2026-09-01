@@ -1,4 +1,15 @@
 
+import React from 'react';
+import './RichTextEditor.jsx';
+import './AdminSharedModals.jsx';
+import './StorageAnalytics.jsx';
+import './TemplateAnalytics.jsx';
+import './TemplateHealth.jsx';
+import './TemplateAnalyticsDetail.jsx';
+import './ActivityLogs.jsx';
+import AdminDashboard from './AdminDashboard.jsx';
+import AdminWalletPanel from './AdminWalletPanel.jsx';
+
 const {
     LayoutDashboardIcon,
     UserIcon,
@@ -806,6 +817,9 @@ const UserManagement = ({ currentAdminUsername, refreshTrigger }) => {
     }, [refreshTrigger]);
 
     // Debounced search effect
+    const [deleteTargetUser, setDeleteTargetUser] = React.useState(null);
+    const [isDeletingUser, setIsDeletingUser] = React.useState(false);
+
     React.useEffect(() => {
         if (searchRef.current) clearTimeout(searchRef.current);
         searchRef.current = setTimeout(() => {
@@ -842,6 +856,27 @@ const UserManagement = ({ currentAdminUsername, refreshTrigger }) => {
             }
         } catch (err) {
             alert(`Failed to ${actionStr} user: ` + err.message);
+        }
+    };
+
+    const handlePermanentDeleteUser = async () => {
+        if (!deleteTargetUser) return;
+        setIsDeletingUser(true);
+        try {
+            const res = await window.apiFetch(`/api/admin/users/${deleteTargetUser.id}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                setDeleteTargetUser(null);
+                loadUsers(search, sort, page);
+            } else {
+                alert(data.detail || 'Failed to permanently delete user.');
+            }
+        } catch (err) {
+            alert('Failed to permanently delete user: ' + err.message);
+        } finally {
+            setIsDeletingUser(false);
         }
     };
 
@@ -938,7 +973,7 @@ const UserManagement = ({ currentAdminUsername, refreshTrigger }) => {
                 ) : (
                     <div className="premium-card bg-white border border-slate-200/60 overflow-hidden">
                         {/* Table header */}
-                        <div className="grid grid-cols-[56px_1fr_120px_160px_100px_100px_130px] gap-4 px-6 py-3 bg-slate-50 border-b border-slate-100">
+                        <div className="grid grid-cols-[56px_1fr_110px_140px_80px_90px_160px] gap-4 px-6 py-3 bg-slate-50 border-b border-slate-100">
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ID</span>
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Username</span>
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Role</span>
@@ -953,7 +988,7 @@ const UserManagement = ({ currentAdminUsername, refreshTrigger }) => {
                             {users.map((u, idx) => (
                                 <div
                                     key={u.id}
-                                    className="grid grid-cols-[56px_1fr_120px_160px_100px_100px_130px] gap-4 px-6 py-4 items-center hover:bg-slate-50/60 transition-colors group animate-modal"
+                                    className="grid grid-cols-[56px_1fr_110px_140px_80px_90px_160px] gap-4 px-6 py-4 items-center hover:bg-slate-50/60 transition-colors group animate-modal"
                                     style={{ animationDelay: `${idx * 0.03}s` }}
                                 >
                                     {/* ID */}
@@ -1006,18 +1041,29 @@ const UserManagement = ({ currentAdminUsername, refreshTrigger }) => {
                                     </div>
 
                                     {/* Actions */}
-                                    <div className="flex items-center justify-center">
+                                    <div className="flex items-center justify-center gap-1.5">
                                         {u.username !== currentAdminUsername ? (
-                                            <button
-                                                onClick={() => handleToggleStatus(u.id, u.is_active, u.username)}
-                                                className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
-                                                    u.is_active
-                                                        ? 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white shadow-sm shadow-rose-100/50'
-                                                        : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-600 hover:text-white shadow-sm shadow-emerald-100/50'
-                                                }`}
-                                            >
-                                                {u.is_active ? 'Disable' : 'Enable'}
-                                            </button>
+                                            <>
+                                                <button
+                                                    onClick={() => handleToggleStatus(u.id, u.is_active, u.username)}
+                                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+                                                        u.is_active
+                                                            ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-600 hover:text-white shadow-sm'
+                                                            : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-600 hover:text-white shadow-sm'
+                                                    }`}
+                                                    title={u.is_active ? 'Disable user account' : 'Enable user account'}
+                                                >
+                                                    {u.is_active ? 'Disable' : 'Enable'}
+                                                </button>
+                                                <button
+                                                    onClick={() => setDeleteTargetUser(u)}
+                                                    className="px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white shadow-sm flex items-center gap-1"
+                                                    title="Permanently Delete User from Database"
+                                                >
+                                                    <TrashIcon size={12} />
+                                                    <span>Delete</span>
+                                                </button>
+                                            </>
                                         ) : (
                                             <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-1 bg-slate-100 text-slate-400 rounded-lg border border-slate-200">
                                                 Logged In
@@ -1030,6 +1076,60 @@ const UserManagement = ({ currentAdminUsername, refreshTrigger }) => {
                     </div>
                 )}
             </div>
+
+            {/* Permanent Delete Confirmation Modal */}
+            {deleteTargetUser && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[200] p-4 font-sans" onClick={() => !isDeletingUser && setDeleteTargetUser(null)}>
+                    <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-md overflow-hidden animate-modal border border-slate-100" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 text-center space-y-4">
+                            <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-2xl mx-auto flex items-center justify-center text-3xl font-black shadow-inner">
+                                ⚠️
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-slate-800 tracking-tight">Permanent User Deletion</h3>
+                                <p className="text-xs text-rose-600 font-black uppercase tracking-widest mt-1">Warning: Irreversible Action</p>
+                            </div>
+                            <div className="bg-rose-50/70 border border-rose-100 rounded-2xl p-4 text-left text-xs text-slate-700 space-y-2">
+                                <p className="font-bold">
+                                    Are you sure you want to permanently delete user <span className="font-black text-rose-700 font-mono">"{deleteTargetUser.username}"</span> (ID: #{deleteTargetUser.id})?
+                                </p>
+                                <ul className="list-disc list-inside text-[11px] text-slate-600 space-y-1">
+                                    <li>The user account will be permanently deleted from the database.</li>
+                                    <li>Associated wallet and credit balances will be removed.</li>
+                                    <li>User document submissions and files will be deleted.</li>
+                                    <li>This action <span className="font-black text-rose-600">CANNOT BE UNDONE</span>.</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div className="bg-slate-50 px-6 py-4 border-t border-slate-100 flex justify-end gap-3 rounded-b-[32px]">
+                            <button
+                                disabled={isDeletingUser}
+                                onClick={() => setDeleteTargetUser(null)}
+                                className="px-5 py-2.5 border border-slate-200 rounded-xl font-black text-xs text-slate-500 hover:bg-white transition-all uppercase tracking-widest disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                disabled={isDeletingUser}
+                                onClick={handlePermanentDeleteUser}
+                                className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-200 transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {isDeletingUser ? (
+                                    <>
+                                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        <span>Deleting...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <TrashIcon size={14} />
+                                        <span>Delete Permanently</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Pagination */}
             {!loading && !error && totalPages > 1 && (
@@ -1460,4 +1560,4 @@ const AdminPanel = ({ onClose, currentUser, templates, dbTemplates, onEditTempla
 
 // Global backward compatibility
 window.AdminPanel = AdminPanel;
-
+export default AdminPanel;

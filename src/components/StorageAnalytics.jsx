@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 const StorageAnalytics = ({ refreshTrigger }) => {
     const [data, setData] = React.useState(null);
@@ -190,3 +191,4 @@ const StorageAnalytics = ({ refreshTrigger }) => {
 };
 
 window.StorageAnalytics = StorageAnalytics;
+export default StorageAnalytics;

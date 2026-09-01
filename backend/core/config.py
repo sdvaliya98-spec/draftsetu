@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     SUPPORT_WHATSAPP_NUMBER: str = "919999999999"
     SUPPORT_UPI_ID: str = "legalsetu@upi"
 
+    # Google OAuth Configurations
+    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
+
     # Razorpay Payment Gateway Configurations
     RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "rzp_test_placeholder")
     RAZORPAY_KEY_SECRET: str = os.getenv("RAZORPAY_KEY_SECRET", "")

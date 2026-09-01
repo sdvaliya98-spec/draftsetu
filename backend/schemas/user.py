@@ -18,3 +18,7 @@ class ForgotPasswordVerify(BaseModel):
 class ForgotPasswordReset(BaseModel):
     token: str
     new_password: str
+
+class GoogleAuthRequest(BaseModel):
+    id_token: str
+

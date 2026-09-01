@@ -351,7 +351,8 @@ async def create_preview_pdf(
 
     # 1. Fetch template
     db_template = db.query(models.DBTemplate).filter(
-        models.DBTemplate.template_id == req.template_id,
+        (models.DBTemplate.template_id == str(req.template_id)) |
+        (models.DBTemplate.id == int(req.template_id) if str(req.template_id).isdigit() else False),
         models.DBTemplate.is_active == True
     ).first()
 
