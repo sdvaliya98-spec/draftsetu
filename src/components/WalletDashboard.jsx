@@ -215,7 +215,7 @@ const WalletDashboard = ({ onClose, token, userCredits, refreshCredits }) => {
                         });
 
                         // 5. Refresh wallet balance and transactions automatically
-                        await fetchWalletData();
+                        await fetchTransactions(1);
                         if (refreshCredits) refreshCredits();
 
                     } catch (vErr) {

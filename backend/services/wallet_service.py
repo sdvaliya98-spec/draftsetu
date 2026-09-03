@@ -288,6 +288,7 @@ class WalletService:
             order_payload = {
                 "amount": amount_in_paise,
                 "currency": "INR",
+                "payment_capture": 1,
                 "receipt": f"rcpt_{uuid.uuid4().hex[:10]}",
                 "notes": {
                     "user_id": str(user.id),
@@ -517,7 +518,11 @@ class WalletService:
         Verifies webhook signature using RAZORPAY_WEBHOOK_SECRET and fulfills payment if not yet processed.
         """
         webhook_secret = settings.RAZORPAY_WEBHOOK_SECRET or settings.RAZORPAY_KEY_SECRET
-        if webhook_secret and signature_header:
+        if webhook_secret:
+            if not signature_header:
+                logger.error("Missing X-Razorpay-Signature header for webhook.")
+                raise HTTPException(status_code=400, detail="Missing X-Razorpay-Signature header.")
+
             expected_signature = hmac.new(
                 webhook_secret.encode("utf-8"),
                 payload_bytes,
@@ -539,6 +544,8 @@ class WalletService:
         if event_type in ["payment.captured", "order.paid"]:
             payment_entity = event_data.get("payload", {}).get("payment", {}).get("entity", {})
             order_id = payment_entity.get("order_id")
+            if not order_id:
+                order_id = event_data.get("payload", {}).get("order", {}).get("entity", {}).get("id")
             payment_id = payment_entity.get("id")
 
             if order_id:
