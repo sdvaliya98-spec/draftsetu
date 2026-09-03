@@ -16,6 +16,8 @@ backend/.env
 *.dump
 database.db
 document_system.db
+backend/data/*
+!backend/data/.gitkeep
 postgres_data/
 postgres_bin/
 

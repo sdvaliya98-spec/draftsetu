@@ -76,6 +76,17 @@ except Exception as e:
 
 Base = declarative_base()
 
+def checkpoint_sqlite_wal():
+    """Checkpoints the SQLite WAL log, flushing all transactions to the main database file."""
+    try:
+        if "sqlite" in settings.DATABASE_URL:
+            with engine.connect() as conn:
+                conn.execute(text("PRAGMA wal_checkpoint(TRUNCATE);"))
+                conn.commit()
+            logger.info("✅ SQLite WAL checkpoint (TRUNCATE) completed successfully.")
+    except Exception as e:
+        logger.warning(f"⚠️ SQLite WAL checkpoint warning: {e}")
+
 def get_db():
     db = SessionLocal()
     try:

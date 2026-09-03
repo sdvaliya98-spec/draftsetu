@@ -245,6 +245,7 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("👋 Backend server shutting down gracefully...")
+    database.checkpoint_sqlite_wal()
     logger.info("-----------------------------")
 
 # Health & Debug Routes

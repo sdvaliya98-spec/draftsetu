@@ -32,7 +32,8 @@ RUN mkdir -p backend/uploads/templates_storage \
              backend/uploads/outputs \
              backend/uploads/temp_renders \
              backend/uploads/temp_previews \
-             backend/backups
+             backend/backups \
+             backend/data
 
 # Expose port
 EXPOSE 8000

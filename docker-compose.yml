@@ -10,7 +10,7 @@ services:
     volumes:
       - ./backend/uploads:/app/backend/uploads
       - ./backend/backups:/app/backend/backups
-      - ./backend/document_system.db:/app/backend/document_system.db
+      - ./backend/data:/app/backend/data
     env_file:
       - ./backend/.env
     environment:

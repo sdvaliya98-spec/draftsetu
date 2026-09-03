@@ -74,7 +74,8 @@ class Settings(BaseSettings):
 
     # Database
     BASE_DIR: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'document_system.db')}")
+    DATA_DIR: str = os.path.join(BASE_DIR, "data")
+    DATABASE_URL: Optional[str] = os.getenv("DATABASE_URL")
 
     # Storage & Backups
     UPLOAD_DIR: str = os.path.join(BASE_DIR, "uploads")
@@ -86,7 +87,7 @@ class Settings(BaseSettings):
 
     @property
     def ALL_DIRS(self):
-        dirs = [self.UPLOAD_DIR, self.TEMPLATE_STORAGE, self.OUTPUT_DIR, self.TEMP_RENDERS_DIR, self.TEMP_PREVIEWS_DIR]
+        dirs = [self.DATA_DIR, self.UPLOAD_DIR, self.TEMPLATE_STORAGE, self.OUTPUT_DIR, self.TEMP_RENDERS_DIR, self.TEMP_PREVIEWS_DIR]
         if self.BACKUP_DIR:
             dirs.append(self.BACKUP_DIR)
         return dirs
@@ -97,6 +98,17 @@ class Settings(BaseSettings):
             self.ENV = self.ENVIRONMENT
         if not self.ENVIRONMENT and self.ENV:
             self.ENVIRONMENT = self.ENV
+
+        # Resolve SQLite DATABASE_URL if not explicitly set
+        if not self.DATABASE_URL:
+            data_db = os.path.join(self.DATA_DIR, "document_system.db")
+            legacy_db = os.path.join(self.BASE_DIR, "document_system.db")
+            if os.path.exists(data_db):
+                self.DATABASE_URL = f"sqlite:///{data_db}"
+            elif os.path.exists(legacy_db):
+                self.DATABASE_URL = f"sqlite:///{legacy_db}"
+            else:
+                self.DATABASE_URL = f"sqlite:///{data_db}"
         return self
 
     model_config = SettingsConfigDict(

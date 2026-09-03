@@ -24,6 +24,13 @@ def backup_database():
     backup_path = os.path.join(backup_dir, f"document_system_{timestamp}.db")
     
     try:
+        # Checkpoint WAL to flush all transactions into main .db file before copying
+        try:
+            from backend import database
+            database.checkpoint_sqlite_wal()
+        except Exception as cp_err:
+            logger.warning(f"WAL checkpoint before backup warning: {cp_err}")
+
         shutil.copy2(db_path, backup_path)
         logger.info(f"✅ Database backup created: {backup_path}")
         
