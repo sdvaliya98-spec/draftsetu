@@ -69,7 +69,7 @@ const StaticPageView = ({ slug, onNavigate }) => {
                         <h1 className="text-2xl md:text-3xl font-black text-blue-900 tracking-tight leading-tight">
                             {page.title}
                         </h1>
-                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-2">
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-2">
                             ડ્રાફ્ટસેતુ પ્લેટફોર્મ માર્ગદર્શિકા • કાનૂની માહિતી પત્રક
                         </p>
                     </header>

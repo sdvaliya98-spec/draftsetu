@@ -4,11 +4,14 @@ import { CopyIcon } from './Icons.jsx';
 
 const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templates = [], isDownloading, setIsDownloading }) => {
     const [drafts, setDrafts] = React.useState([]);
+    const [docLimit, setDocLimit] = React.useState(10); // null means unlimited, positive int is limit
     const [loading, setLoading] = React.useState(true);
     const [trackingInput, setTrackingInput] = React.useState('');
     const [trackingError, setTrackingError] = React.useState('');
     const [loadingById, setLoadingById] = React.useState(false);
     const [previewDoc, setPreviewDoc] = React.useState(null);
+    const [docToDelete, setDocToDelete] = React.useState(null);
+    const [isDeleting, setIsDeleting] = React.useState(false);
     const [toast, setToast] = React.useState('');
 
     const showToast = (msg) => {
@@ -36,7 +39,9 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
-                if (previewDoc) {
+                if (docToDelete && !isDeleting) {
+                    setDocToDelete(null);
+                } else if (previewDoc) {
                     setPreviewDoc(null);
                 } else if (typeof onClose === 'function') {
                     onClose();
@@ -45,7 +50,7 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [previewDoc, onClose]);
+    }, [docToDelete, isDeleting, previewDoc, onClose]);
 
     // Body scroll lock
     useEffect(() => {
@@ -63,10 +68,35 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
         };
     }, []);
 
+    // Fetch user profile to read document_limit
+    React.useEffect(() => {
+        if (!token) return;
+        window.apiFetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } })
+            .then(res => res.ok ? res.json() : null)
+            .then(userData => {
+                if (userData && 'document_limit' in userData) {
+                    setDocLimit(userData.document_limit);
+                }
+            })
+            .catch(() => {});
+    }, [token]);
+
     React.useEffect(() => {
         if (isDownloading) return;
         window.apiFetch('/api/documents/', { headers: { 'Authorization': `Bearer ${token}` } })
-            .then(res => { if (!res.ok) throw new Error(); return res.json(); })
+            .then(res => {
+                const headerLimit = res.headers.get('X-Document-Limit');
+                if (headerLimit) {
+                    if (headerLimit.toLowerCase() === 'unlimited' || headerLimit === 'null' || headerLimit === 'None') {
+                        setDocLimit(null);
+                    } else {
+                        const parsed = parseInt(headerLimit, 10);
+                        if (!isNaN(parsed) && parsed > 0) setDocLimit(parsed);
+                    }
+                }
+                if (!res.ok) throw new Error();
+                return res.json();
+            })
             .then(data => { setDrafts(data); setLoading(false); })
             .catch(() => setLoading(false));
     }, [token, isDownloading]);
@@ -174,13 +204,18 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
         }
     };
 
-    const handleDeleteDocument = async (e, doc) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const confirmMsg = doc.is_locked
-            ? "Delete this finalized document permanently?"
-            : "Are you sure you want to permanently delete this draft?";
-        if (!window.confirm(confirmMsg)) return;
+    const promptDeleteDocument = (e, doc) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        setDocToDelete(doc);
+    };
+
+    const confirmDeleteDocument = async () => {
+        if (!docToDelete || isDeleting) return;
+        setIsDeleting(true);
+        const doc = docToDelete;
 
         try {
             const res = await window.apiFetch(`/api/documents/${doc.tracking_id}`, { 
@@ -203,14 +238,17 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
             setDrafts(prev => prev.filter(item => item.tracking_id !== doc.tracking_id));
             if (onDraftDeleted) onDraftDeleted(doc.tracking_id, templateId);
             showToast(doc.is_locked ? 'Document deleted successfully' : 'Draft deleted successfully');
+            setDocToDelete(null);
         } catch (err) {
             showToast(`Delete failed: ${err.message}`);
+        } finally {
+            setIsDeleting(false);
         }
     };
 
     const handleDuplicate = async (doc) => {
-        if (drafts.length >= 10) {
-            showToast("❌ Maximum document limit reached");
+        if (docLimit !== null && docLimit !== undefined && drafts.length >= docLimit) {
+            showToast(`❌ Maximum document limit (${docLimit}) reached`);
             return;
         }
 
@@ -223,11 +261,7 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
 
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
-                if (data.detail === "Maximum document limit reached") {
-                    showToast("❌ Maximum document limit reached");
-                } else {
-                    showToast(data.detail || "Failed to duplicate document.");
-                }
+                showToast(data.detail || "Failed to duplicate document.");
                 return;
             }
 
@@ -387,13 +421,13 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
                     )}
                     <div className="flex items-center gap-3 sm:gap-4">
                         <span className={`text-xs font-bold px-3 py-1 rounded-full border transition-all duration-300 ${
-                            drafts.length >= 10
+                            docLimit !== null && drafts.length >= docLimit
                                 ? 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse'
-                                : drafts.length >= 8
+                                : docLimit !== null && drafts.length >= Math.floor(docLimit * 0.8)
                                     ? 'bg-amber-50 text-amber-700 border-amber-200'
                                     : 'bg-blue-50 text-blue-700 border-blue-100'
                         }`}>
-                            Documents: {drafts.length} / 10
+                            Documents: {drafts.length} / {docLimit === null ? 'Unlimited' : docLimit}
                         </span>
                         <button 
                             onClick={onClose} 
@@ -407,10 +441,10 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
                 </div>
 
                 {/* Warning Banner */}
-                {drafts.length >= 10 && (
+                {docLimit !== null && drafts.length >= docLimit && (
                     <div className="bg-rose-50 border-b border-rose-100 px-5 py-2.5 flex items-center gap-2 text-rose-800 text-xs font-semibold flex-shrink-0 animate-fade-in">
                         <span>⚠️</span>
-                        <span>Storage limit reached (10/10). Delete old documents to save new ones.</span>
+                        <span>Storage limit reached ({drafts.length}/{docLimit}). Delete old documents to save new ones.</span>
                     </div>
                 )}
 
@@ -610,7 +644,7 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
                                                 </>
                                             )}
                                             <button 
-                                                onClick={e => handleDeleteDocument(e, d)}
+                                                onClick={e => promptDeleteDocument(e, d)}
                                                 className="text-xs border border-rose-300 text-rose-600 px-3 py-1.5 rounded-lg font-bold hover:bg-rose-50 hover:border-rose-400 transition flex items-center gap-1 bg-white cursor-pointer shadow-sm"
                                                 type="button"
                                             >
@@ -694,7 +728,7 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
                                     </button>
                                 )}
                                 <button 
-                                    onClick={e => { handleDeleteDocument(e, previewDoc); setPreviewDoc(null); }}
+                                    onClick={e => { promptDeleteDocument(e, previewDoc); setPreviewDoc(null); }}
                                     className="px-3.5 py-2 border border-rose-300 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-50 transition flex items-center gap-1 bg-white cursor-pointer"
                                     type="button"
                                 >
@@ -726,6 +760,70 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
                                 </button>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Custom Delete Confirmation Modal */}
+            {docToDelete && (
+                <div 
+                    className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[10001] p-4 font-sans animate-fade-in"
+                    onClick={() => !isDeleting && setDocToDelete(null)}
+                >
+                    <div 
+                        className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-modal border border-slate-100" 
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="p-6 text-center space-y-4">
+                            <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl mx-auto flex items-center justify-center text-2xl shadow-inner">
+                                🗑️
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-slate-800 tracking-tight">
+                                    {docToDelete.is_locked ? "Delete Document?" : "Delete Draft?"}
+                                </h3>
+                                {docToDelete.tracking_id && (
+                                    <span className="inline-block mt-1 font-mono text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                                        {docToDelete.tracking_id}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="bg-rose-50/70 border border-rose-100 rounded-2xl p-4 text-center text-xs text-slate-700 space-y-2">
+                                <p className="font-semibold text-slate-700">
+                                    {docToDelete.is_locked 
+                                        ? "Are you sure you want to permanently delete this document?"
+                                        : "Are you sure you want to permanently delete this draft?"}
+                                </p>
+                                <p className="text-[11px] font-bold text-rose-600">
+                                    ⚠️ This action cannot be undone.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="bg-slate-50 px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 rounded-b-3xl">
+                            <button
+                                type="button"
+                                disabled={isDeleting}
+                                onClick={() => setDocToDelete(null)}
+                                className="px-5 py-2.5 border border-slate-200 rounded-xl font-black text-xs text-slate-600 hover:bg-white hover:text-slate-800 transition-all uppercase tracking-widest disabled:opacity-50 cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                disabled={isDeleting}
+                                onClick={confirmDeleteDocument}
+                                className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-200 transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                            >
+                                {isDeleting ? (
+                                    <>
+                                        <span className="inline-block animate-spin text-xs">⏳</span>
+                                        <span>Deleting...</span>
+                                    </>
+                                ) : (
+                                    <span>{docToDelete.is_locked ? "Delete Document" : "Delete Draft"}</span>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

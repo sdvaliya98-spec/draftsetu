@@ -286,11 +286,15 @@ const GovHeader = ({
     onLoginClick,
     onLogout,
     onAdminPanelOpen,
+    onProfileOpen,
     onNavigate,
     userCredits,
-    refreshCredits
+    refreshCredits,
+    isAuthHydrated = true,
+    authLoading = false
 }) => {
     const [mobileOpen, setMobileOpen] = React.useState(false);
+    const isAuthLoading = !isAuthHydrated || authLoading;
 
     return (
         <header className="w-full bg-white border-b border-slate-200/80 no-print z-50 shadow-sm relative">
@@ -322,88 +326,101 @@ const GovHeader = ({
 
                     {/* 3. RIGHT CONTROLS (Right, shrink-0, static flow) */}
                     <div className="hidden md:flex items-center gap-1.5 xl:gap-2 shrink-0 ml-auto pl-2">
-                        {user && user.is_admin === true && (
-                            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-[9px] font-black tracking-wider gap-1 shrink-0">
-                                <button
-                                    onClick={() => onRoleChange('admin')}
-                                    className={`px-2.5 py-1 rounded-lg transition-all duration-200 font-black leading-tight flex flex-col items-center justify-center text-center ${role === 'admin'
-                                        ? 'bg-[#1E60FF] text-white shadow-sm'
-                                        : 'bg-transparent text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                                        }`}
-                                    type="button"
-                                >
-                                    <span>Admin</span>
-                                    <span>Mode</span>
-                                </button>
-                                <button
-                                    onClick={() => onRoleChange('user')}
-                                    className={`px-2.5 py-1 rounded-lg transition-all duration-200 font-black leading-tight flex flex-col items-center justify-center text-center ${role === 'user'
-                                        ? 'bg-[#1E60FF] text-white shadow-sm'
-                                        : 'bg-transparent text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                                        }`}
-                                    type="button"
-                                >
-                                    <span>User</span>
-                                    <span>Mode</span>
-                                </button>
-                            </div>
-                        )}
-
-                        {user && user.is_admin === true && role === 'admin' && (
-                            <button
-                                onClick={onAdminPanelOpen}
-                                className="bg-[#e67e00] hover:bg-[#d97706] text-white font-black text-[9px] uppercase px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm transition-all active:scale-95 whitespace-nowrap shrink-0"
-                                type="button"
-                            >
-                                <SettingsIcon size={14} />
-                                <div className="flex flex-col text-left font-black leading-tight">
-                                    <span>DRAFTSETU</span>
-                                    <span>ADMIN</span>
-                                </div>
-                            </button>
-                        )}
-
-                        {currentUser ? (
-                            <div className="flex items-center gap-1.5 xl:gap-2 shrink-0">
-                                {userCredits !== null && userCredits !== undefined && (
-                                    <button
-                                        onClick={() => onNavigate('wallet')}
-                                        className="text-[9px] bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 border border-blue-200 px-3 py-1.5 rounded-xl font-black flex items-center gap-1 uppercase tracking-wider transition cursor-pointer whitespace-nowrap shrink-0 shadow-sm"
-                                        type="button"
-                                        title="View Wallet Ledger"
-                                    >
-                                        🪙 {userCredits} Credits
-                                    </button>
-                                )}
-                                <span className="bg-white border border-gray-200 rounded-xl px-3 py-1.5 flex items-center gap-1.5 text-[9px] font-black text-slate-800 shadow-sm select-none whitespace-nowrap shrink-0">
-                                    <span className="bg-[#10b981] w-2 h-3.5 rounded-full animate-pulse"></span>
-                                    <span className="text-purple-700">👤</span>
-                                    <span className="font-extrabold text-slate-900">{currentUser}</span>
-                                </span>
-                                {role !== 'admin' && (
-                                    <button
-                                        onClick={onLogout}
-                                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-[9px] font-black tracking-wider uppercase transition border border-rose-200/60 whitespace-nowrap shrink-0 flex items-center justify-center"
-                                        type="button"
-                                    >
-                                        LOGOUT
-                                    </button>
-                                )}
+                        {isAuthLoading ? (
+                            <div className="flex items-center gap-2 shrink-0 animate-pulse" aria-hidden="true">
+                                <div className="h-9 w-28 bg-slate-100 border border-slate-200/60 rounded-xl"></div>
                             </div>
                         ) : (
-                            <button
-                                onClick={onLoginClick}
-                                className="px-3.5 xl:px-4 py-2 bg-[#1E60FF] hover:bg-blue-700 text-white rounded-xl text-[9px] font-black uppercase tracking-wider xl:tracking-widest transition-all shadow-md shadow-blue-600/10 hover:shadow-lg active:scale-95 whitespace-nowrap shrink-0 flex items-center justify-center"
-                                type="button"
-                            >
-                                Log In / Register
-                            </button>
+                            <>
+                                {user && user.is_admin === true && (
+                                    <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-[9px] font-black tracking-wider gap-1 shrink-0">
+                                        <button
+                                            onClick={() => onRoleChange('admin')}
+                                            className={`px-2.5 py-1 rounded-lg transition-all duration-200 font-black leading-tight flex flex-col items-center justify-center text-center ${role === 'admin'
+                                                ? 'bg-[#1E60FF] text-white shadow-sm'
+                                                : 'bg-transparent text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                                                }`}
+                                            type="button"
+                                        >
+                                            <span>Admin</span>
+                                            <span>Mode</span>
+                                        </button>
+                                        <button
+                                            onClick={() => onRoleChange('user')}
+                                            className={`px-2.5 py-1 rounded-lg transition-all duration-200 font-black leading-tight flex flex-col items-center justify-center text-center ${role === 'user'
+                                                ? 'bg-[#1E60FF] text-white shadow-sm'
+                                                : 'bg-transparent text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                                                }`}
+                                            type="button"
+                                        >
+                                            <span>User</span>
+                                            <span>Mode</span>
+                                        </button>
+                                    </div>
+                                )}
+
+                                {user && user.is_admin === true && role === 'admin' && (
+                                    <button
+                                        onClick={onAdminPanelOpen}
+                                        className="bg-[#e67e00] hover:bg-[#d97706] text-white font-black text-[9px] uppercase px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm transition-all active:scale-95 whitespace-nowrap shrink-0"
+                                        type="button"
+                                    >
+                                        <SettingsIcon size={14} />
+                                        <div className="flex flex-col text-left font-black leading-tight">
+                                            <span>DRAFTSETU</span>
+                                            <span>ADMIN</span>
+                                        </div>
+                                    </button>
+                                )}
+
+                                {currentUser ? (
+                                    <div className="flex items-center gap-1.5 xl:gap-2 shrink-0">
+                                        {userCredits !== null && userCredits !== undefined && (
+                                            <button
+                                                onClick={() => onNavigate('wallet')}
+                                                className="text-[9px] bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 border border-blue-200 px-3 py-1.5 rounded-xl font-black flex items-center gap-1 uppercase tracking-wider transition cursor-pointer whitespace-nowrap shrink-0 shadow-sm"
+                                                type="button"
+                                                title="View Wallet Ledger"
+                                            >
+                                                🪙 {userCredits} Credits
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={onProfileOpen}
+                                            className="bg-white hover:bg-slate-50 border border-gray-200 hover:border-[#1E60FF]/50 hover:shadow-md rounded-xl px-3 py-1.5 flex items-center gap-1.5 text-[9px] font-black text-slate-800 shadow-sm select-none whitespace-nowrap shrink-0 transition-all cursor-pointer group active:scale-95"
+                                            type="button"
+                                            title="View & Edit My Profile"
+                                        >
+                                            <span className="bg-[#10b981] w-2 h-3.5 rounded-full animate-pulse"></span>
+                                            <span className="text-purple-700">👤</span>
+                                            <span className="font-extrabold text-slate-900 group-hover:text-[#1E60FF] transition-colors">{currentUser}</span>
+                                        </button>
+                                        {role !== 'admin' && (
+                                            <button
+                                                onClick={onLogout}
+                                                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-[9px] font-black tracking-wider uppercase transition border border-rose-200/60 whitespace-nowrap shrink-0 flex items-center justify-center"
+                                                type="button"
+                                            >
+                                                LOGOUT
+                                            </button>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={onLoginClick}
+                                        className="px-3.5 xl:px-4 py-2 bg-[#1E60FF] hover:bg-blue-700 text-white rounded-xl text-[9px] font-black uppercase tracking-wider xl:tracking-widest transition-all shadow-md shadow-blue-600/10 hover:shadow-lg active:scale-95 whitespace-nowrap shrink-0 flex items-center justify-center"
+                                        type="button"
+                                    >
+                                        Log In / Register
+                                    </button>
+                                )}
+                            </>
                         )}
                     </div>
 
                     {/* 4. Mobile Hamburger Toggle (for smaller screens) */}
                     <div className="lg:hidden flex items-center gap-2 shrink-0">
-                        {user && user.is_admin === true && (
+                        {!isAuthLoading && user && user.is_admin === true && (
                             <button
                                 onClick={() => onRoleChange(role === 'admin' ? 'user' : 'admin')}
                                 className="text-[8px] font-black bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg text-slate-600 uppercase whitespace-nowrap md:hidden"
@@ -443,45 +460,55 @@ const GovHeader = ({
 
                     {/* Mobile login / credentials */}
                     <div className="pt-4 border-t border-slate-100 flex flex-col gap-2.5">
-                        {user && user.is_admin === true && role === 'admin' && (
-                            <button
-                                onClick={() => { onAdminPanelOpen(); setMobileOpen(false); }}
-                                className="w-full flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 text-white py-2.5 rounded-xl font-black text-[9px] uppercase tracking-wider shadow-sm"
-                                type="button"
-                            >
-                                <SettingsIcon size={12} /> DraftSetu Admin
-                            </button>
-                        )}
-                        {currentUser ? (
-                            <div className="space-y-2">
-                                {userCredits !== null && userCredits !== undefined && (
+                        {isAuthLoading ? (
+                            <div className="h-10 w-full bg-slate-100 border border-slate-200/60 rounded-xl animate-pulse"></div>
+                        ) : (
+                            <>
+                                {user && user.is_admin === true && role === 'admin' && (
                                     <button
-                                        onClick={() => { onNavigate('wallet'); setMobileOpen(false); }}
-                                        className="w-full py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-xl text-[9px] font-black uppercase text-center block cursor-pointer"
+                                        onClick={() => { onAdminPanelOpen(); setMobileOpen(false); }}
+                                        className="w-full flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 text-white py-2.5 rounded-xl font-black text-[9px] uppercase tracking-wider shadow-sm"
                                         type="button"
                                     >
-                                        🪙 Credits Balance: {userCredits}
+                                        <SettingsIcon size={12} /> DraftSetu Admin
                                     </button>
                                 )}
-                                <div className="text-[10px] text-slate-500 font-black uppercase text-center bg-slate-50 py-2 rounded-xl border border-slate-100">
-                                    👤 Signed In As: {currentUser}
-                                </div>
-                                <button
-                                    onClick={() => { onLogout(); setMobileOpen(false); }}
-                                    className="w-full py-2.5 bg-rose-50 text-rose-600 rounded-xl text-[9px] font-black tracking-widest uppercase text-center border border-rose-200"
-                                    type="button"
-                                >
-                                    Logout
-                                </button>
-                            </div>
-                        ) : (
-                            <button
-                                onClick={() => { onLoginClick(); setMobileOpen(false); }}
-                                className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest text-center shadow-md shadow-blue-600/10"
-                                type="button"
-                            >
-                                Log In / Register
-                            </button>
+                                {currentUser ? (
+                                    <div className="space-y-2">
+                                        {userCredits !== null && userCredits !== undefined && (
+                                            <button
+                                                onClick={() => { onNavigate('wallet'); setMobileOpen(false); }}
+                                                className="w-full py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-xl text-[9px] font-black uppercase text-center block cursor-pointer"
+                                                type="button"
+                                            >
+                                                🪙 Credits Balance: {userCredits}
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => { onProfileOpen && onProfileOpen(); setMobileOpen(false); }}
+                                            className="w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 font-black uppercase text-center rounded-xl border border-slate-200 text-[10px] flex items-center justify-center gap-1.5 transition cursor-pointer"
+                                            type="button"
+                                        >
+                                            👤 My Profile ({currentUser})
+                                        </button>
+                                        <button
+                                            onClick={() => { onLogout(); setMobileOpen(false); }}
+                                            className="w-full py-2.5 bg-rose-50 text-rose-600 rounded-xl text-[9px] font-black tracking-widest uppercase text-center border border-rose-200 cursor-pointer"
+                                            type="button"
+                                        >
+                                            Logout
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => { onLoginClick(); setMobileOpen(false); }}
+                                        className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest text-center shadow-md shadow-blue-600/10"
+                                        type="button"
+                                    >
+                                        Log In / Register
+                                    </button>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>

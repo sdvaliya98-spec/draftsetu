@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { ArrowLeftIcon, ArrowRightIcon } from './Icons.jsx';
 
 const ActivityLogs = ({ refreshTrigger }) => {
     const [logs, setLogs] = React.useState([]);
     const [total, setTotal] = React.useState(0);
     const [totalPages, setTotalPages] = React.useState(1);
     const [page, setPage] = React.useState(1);
-    const PAGE_SIZE = 20;
+    const [pageSize, setPageSize] = React.useState(20);
 
     const [search, setSearch] = React.useState('');
     const [action, setAction] = React.useState('');
@@ -15,15 +16,16 @@ const ActivityLogs = ({ refreshTrigger }) => {
     // Debounce search reference
     const searchRef = React.useRef(null);
 
-    const loadLogs = React.useCallback(async (searchVal, actionVal, pageVal) => {
+    const loadLogs = React.useCallback(async (searchVal, actionVal, pageVal, sizeVal) => {
         setLoading(true);
         setError(null);
+        const currentSize = sizeVal || pageSize;
         try {
             const params = new URLSearchParams({
                 search: searchVal || '',
                 action: actionVal || '',
                 page: pageVal || 1,
-                page_size: PAGE_SIZE
+                page_size: currentSize
             });
             const res = await window.apiFetch(`/api/admin/activity-logs?${params}`);
             const data = await res.json();
@@ -37,29 +39,51 @@ const ActivityLogs = ({ refreshTrigger }) => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [pageSize]);
 
     // Initial load & refresh trigger watch
     React.useEffect(() => {
-        loadLogs(search, action, page);
+        loadLogs(search, action, page, pageSize);
     }, [refreshTrigger]);
 
     // Debounced search on username change
     React.useEffect(() => {
         if (searchRef.current) clearTimeout(searchRef.current);
         searchRef.current = setTimeout(() => {
-            loadLogs(search, action, 1);
+            loadLogs(search, action, 1, pageSize);
         }, 350);
         return () => clearTimeout(searchRef.current);
-    }, [search]);
+    }, [search, pageSize]);
 
     const handleActionChange = (newAction) => {
         setAction(newAction);
-        loadLogs(search, newAction, 1);
+        loadLogs(search, newAction, 1, pageSize);
+    };
+
+    const handlePageSizeChange = (newSize) => {
+        const sizeNum = parseInt(newSize, 10) || 20;
+        setPageSize(sizeNum);
+        loadLogs(search, action, 1, sizeNum);
     };
 
     const handlePage = (newPage) => {
-        loadLogs(search, action, newPage);
+        if (newPage < 1 || newPage > totalPages || newPage === page) return;
+        loadLogs(search, action, newPage, pageSize);
+    };
+
+    const getPageNumbers = () => {
+        if (totalPages <= 7) {
+            return Array.from({ length: totalPages }, (_, i) => i + 1);
+        }
+        const pages = [];
+        if (page <= 4) {
+            pages.push(1, 2, 3, 4, 5, '...', totalPages);
+        } else if (page >= totalPages - 3) {
+            pages.push(1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+        } else {
+            pages.push(1, '...', page - 1, page, page + 1, '...', totalPages);
+        }
+        return pages;
     };
 
     // Format action badges
@@ -99,7 +123,7 @@ const ActivityLogs = ({ refreshTrigger }) => {
                     <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Read-only · {total} system events recorded</p>
                 </div>
                 <button
-                    onClick={() => loadLogs(search, action, page)}
+                    onClick={() => loadLogs(search, action, page, pageSize)}
                     className="p-3 bg-white text-slate-400 hover:text-slate-700 border border-slate-200 rounded-2xl transition hover:shadow-md active:scale-95 flex items-center justify-center font-bold text-xs gap-1 font-sans"
                 >
                     🔄 REFRESH
@@ -158,7 +182,7 @@ const ActivityLogs = ({ refreshTrigger }) => {
                             <div>
                                 <h4 className="font-black text-rose-800 text-sm mb-1">Error Loading Logs</h4>
                                 <p className="text-xs text-rose-600 font-semibold leading-relaxed mb-4">{error}</p>
-                                <button onClick={() => loadLogs(search, action, page)} className="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl shadow-md transition-all active:scale-95">Retry</button>
+                                <button onClick={() => loadLogs(search, action, page, pageSize)} className="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl shadow-md transition-all active:scale-95">Retry</button>
                             </div>
                         </div>
                     </div>
@@ -223,35 +247,55 @@ const ActivityLogs = ({ refreshTrigger }) => {
             </div>
 
             {/* Pagination */}
-            {!loading && !error && totalPages > 1 && (
-                <div className="flex items-center justify-between px-2 flex-shrink-0">
-                    <span className="text-xs font-bold text-slate-400">
-                        Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, total)} of {total} events
-                    </span>
-                    <div className="flex items-center gap-2">
+            {!loading && !error && total > 0 && (
+                <div className="bg-slate-50 px-5 py-3 border border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl shadow-xs flex-shrink-0">
+                    {/* Left: Info Label & Page Size Selector */}
+                    <div className="flex items-center gap-3.5 flex-wrap">
+                        <div className="text-xs font-bold text-slate-500">
+                            Showing <span className="font-black text-slate-800">{(page - 1) * pageSize + 1}</span>–<span className="font-black text-slate-800">{Math.min(page * pageSize, total)}</span> of <span className="font-black text-slate-800">{total}</span>
+                        </div>
+                        <div className="h-3.5 w-px bg-slate-200 hidden sm:block"></div>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold">
+                            <span>Per page:</span>
+                            <select
+                                value={pageSize}
+                                onChange={e => handlePageSizeChange(e.target.value)}
+                                className="px-2.5 py-1 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-700 outline-none focus:border-blue-500 transition cursor-pointer shadow-xs"
+                            >
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Right: Page Navigation Controls */}
+                    <div className="flex items-center gap-1">
                         <button
                             onClick={() => handlePage(page - 1)}
                             disabled={page <= 1}
-                            className="px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center gap-1"
+                            className="px-3 py-1.5 text-xs font-black uppercase tracking-wider rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center gap-1 active:scale-95 shadow-xs"
                         >
-                            Prev
+                            <ArrowLeftIcon size={12} />
+                            <span>Prev</span>
                         </button>
 
-                        {/* Page numbers */}
-                        {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                            let p;
-                            if (totalPages <= 5) p = i + 1;
-                            else if (page <= 3) p = i + 1;
-                            else if (page >= totalPages - 2) p = totalPages - 4 + i;
-                            else p = page - 2 + i;
+                        {getPageNumbers().map((p, idx) => {
+                            if (p === '...') {
+                                return (
+                                    <span key={`dots-${idx}`} className="w-8 h-8 flex items-center justify-center text-xs font-black text-slate-400">
+                                        ...
+                                    </span>
+                                );
+                            }
                             return (
                                 <button
                                     key={p}
                                     onClick={() => handlePage(p)}
-                                    className={`w-9 h-9 text-xs font-black rounded-xl transition-all ${
+                                    className={`w-8 h-8 text-xs font-black rounded-xl transition-all flex items-center justify-center ${
                                         p === page
-                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 scale-110'
-                                            : 'bg-white text-slate-400 border border-slate-200 hover:border-blue-300 hover:text-blue-600'
+                                            ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+                                            : 'bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-50 hover:border-slate-300'
                                     }`}
                                 >
                                     {p}
@@ -262,9 +306,10 @@ const ActivityLogs = ({ refreshTrigger }) => {
                         <button
                             onClick={() => handlePage(page + 1)}
                             disabled={page >= totalPages}
-                            className="px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center gap-1"
+                            className="px-3 py-1.5 text-xs font-black uppercase tracking-wider rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center gap-1 active:scale-95 shadow-xs"
                         >
-                            Next
+                            <span>Next</span>
+                            <ArrowRightIcon size={12} />
                         </button>
                     </div>
                 </div>

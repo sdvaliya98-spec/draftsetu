@@ -691,6 +691,7 @@ def get_user_documents(
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
+    response.headers["X-Document-Limit"] = str(current_user.document_limit) if current_user.document_limit is not None else "unlimited"
 
     docs = db.query(models.DocumentSubmission).filter(
         models.DocumentSubmission.user_id == current_user.id
@@ -747,14 +748,15 @@ async def create_draft(
     body = await request.json()
     
     # Limit check: count total documents for this user
-    count = db.query(models.DocumentSubmission).filter(
-        models.DocumentSubmission.user_id == current_user.id
-    ).count()
-    if count >= 10:
-        raise HTTPException(
-            status_code=400,
-            detail="Maximum 10 saved documents allowed. Please delete old documents before saving new ones."
-        )
+    if current_user.document_limit is not None:
+        count = db.query(models.DocumentSubmission).filter(
+            models.DocumentSubmission.user_id == current_user.id
+        ).count()
+        if count >= current_user.document_limit:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Maximum {current_user.document_limit} saved documents allowed. Please delete old documents before saving new ones."
+            )
 
     tracking_id = f"DOC-{uuid.uuid4().hex[:8].upper()}"
 
@@ -964,15 +966,16 @@ async def update_document(
                 raise HTTPException(status_code=403, detail="Finalized documents cannot be edited")
 
             # Limit check: count other documents for this user
-            other_docs_count = db.query(models.DocumentSubmission).filter(
-                models.DocumentSubmission.user_id == current_user.id,
-                models.DocumentSubmission.tracking_id != tracking_id
-            ).count()
-            if other_docs_count >= 10:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Maximum 10 saved documents allowed. Please delete old documents before saving new ones."
-                )
+            if current_user.document_limit is not None:
+                other_docs_count = db.query(models.DocumentSubmission).filter(
+                    models.DocumentSubmission.user_id == current_user.id,
+                    models.DocumentSubmission.tracking_id != tracking_id
+                ).count()
+                if other_docs_count >= current_user.document_limit:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Maximum {current_user.document_limit} saved documents allowed. Please delete old documents before saving new ones."
+                    )
 
             if "survey_no" in body: db_doc.survey_no = body["survey_no"]
             if "buyer_name" in body: db_doc.buyer_name = body["buyer_name"]
@@ -1390,14 +1393,15 @@ def duplicate_document(
                 raise HTTPException(status_code=403, detail="Not authorized")
                 
             # Limit check: count total documents for this user
-            count = db.query(models.DocumentSubmission).filter(
-                models.DocumentSubmission.user_id == current_user.id
-            ).count()
-            if count >= 10:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Maximum document limit reached"
-                )
+            if current_user.document_limit is not None:
+                count = db.query(models.DocumentSubmission).filter(
+                    models.DocumentSubmission.user_id == current_user.id
+                ).count()
+                if count >= current_user.document_limit:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Maximum {current_user.document_limit} saved documents allowed. Please delete old documents before saving new ones."
+                    )
                 
             # Deep copy and isolate data_json
             try:

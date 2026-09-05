@@ -1,7 +1,19 @@
 import os
 from typing import Optional, List
+from dotenv import load_dotenv
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BACKEND_ENV_PATH = os.path.join(BACKEND_DIR, ".env")
+ROOT_DIR = os.path.dirname(BACKEND_DIR)
+ROOT_ENV_PATH = os.path.join(ROOT_DIR, ".env")
+
+# Ensure backend/.env is loaded into environment variables
+if os.path.exists(BACKEND_ENV_PATH):
+    load_dotenv(BACKEND_ENV_PATH, override=True)
+if os.path.exists(ROOT_ENV_PATH):
+    load_dotenv(ROOT_ENV_PATH, override=False)
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "TheLegalSetu"
@@ -27,6 +39,15 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "rzp_test_placeholder")
     RAZORPAY_KEY_SECRET: str = os.getenv("RAZORPAY_KEY_SECRET", "")
     RAZORPAY_WEBHOOK_SECRET: str = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
+
+    # Zoho SMTP Email Configurations
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "smtppro.zoho.in")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "465"))
+    SMTP_SSL: bool = os.getenv("SMTP_SSL", "true").lower() in ("true", "1", "yes")
+    SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+    SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", "")
+    SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "DraftSetu")
 
     # Configurable Recharge Plans (Server-authoritative for pricing and credit values)
     RECHARGE_PLANS: list[dict] = [
@@ -113,8 +134,8 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_file=[
-            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "backend", ".env"),
-            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"),
+            BACKEND_ENV_PATH,
+            ROOT_ENV_PATH,
             ".env"
         ],
         case_sensitive=True,

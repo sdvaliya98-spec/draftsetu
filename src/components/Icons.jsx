@@ -97,6 +97,34 @@ window.UserIcon = UserIcon;
 window.ArrowUpIcon = ArrowUpIcon;
 window.ArrowDownIcon = ArrowDownIcon;
 window.LockIcon = LockIcon;
+const MailIcon = ({ size = 16, className = "" }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+);
+
+const PhoneIcon = ({ size = 16, className = "" }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+);
+
+const MapPinIcon = ({ size = 16, className = "" }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+);
+
+const KeyIcon = ({ size = 16, className = "" }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 2l-2 2m-1.5 1.5L16 7l-2 2-2-2-2 2 2 2-4 4a5.5 5.5 0 1 1-2-2l4-4 2 2 2-2-2-2 1.5-1.5z"></path></svg>
+);
+
+const XIcon = ({ size = 16, className = "" }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+);
+
+const CheckCircleIcon = ({ size = 16, className = "" }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+);
+
+const AlertCircleIcon = ({ size = 16, className = "" }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+);
+
 window.SettingsIcon = SettingsIcon;
 window.CloseIcon = CloseIcon;
 window.UploadIcon = UploadIcon;
@@ -109,15 +137,28 @@ window.MenuIcon = MenuIcon;
 window.FileTextIcon = FileTextIcon;
 window.EyeIcon = EyeIcon;
 window.LayoutDashboardIcon = LayoutDashboardIcon;
+const CreditCardIcon = ({ size = 16, className = "" }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+);
+
 window.CopyIcon = CopyIcon;
 window.DatabaseIcon = DatabaseIcon;
+window.MailIcon = MailIcon;
+window.PhoneIcon = PhoneIcon;
+window.MapPinIcon = MapPinIcon;
+window.KeyIcon = KeyIcon;
+window.XIcon = XIcon;
+window.CheckCircleIcon = CheckCircleIcon;
+window.AlertCircleIcon = AlertCircleIcon;
+window.CreditCardIcon = CreditCardIcon;
 
 export {
     PrinterIcon, DownloadIcon, EditIcon, ShieldIcon, UserIcon,
     ArrowUpIcon, ArrowDownIcon, LockIcon, SettingsIcon, CloseIcon,
     UploadIcon, VariableIcon, PlusIcon, TrashIcon, ArrowRightIcon,
     ArrowLeftIcon, MenuIcon, FileTextIcon, EyeIcon, LayoutDashboardIcon,
-    CopyIcon, DatabaseIcon
+    CopyIcon, DatabaseIcon, MailIcon, PhoneIcon, MapPinIcon, KeyIcon,
+    XIcon, CheckCircleIcon, AlertCircleIcon, CreditCardIcon
 };
 
 export default {
@@ -125,6 +166,8 @@ export default {
     ArrowUpIcon, ArrowDownIcon, LockIcon, SettingsIcon, CloseIcon,
     UploadIcon, VariableIcon, PlusIcon, TrashIcon, ArrowRightIcon,
     ArrowLeftIcon, MenuIcon, FileTextIcon, EyeIcon, LayoutDashboardIcon,
-    CopyIcon, DatabaseIcon
+    CopyIcon, DatabaseIcon, MailIcon, PhoneIcon, MapPinIcon, KeyIcon,
+    XIcon, CheckCircleIcon, AlertCircleIcon, CreditCardIcon
 };
+
 

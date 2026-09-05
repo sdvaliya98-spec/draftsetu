@@ -25,7 +25,8 @@ const {
     PlusIcon,
     TrashIcon,
     ArrowRightIcon,
-    ArrowLeftIcon
+    ArrowLeftIcon,
+    CreditCardIcon
 } = window;
 
 // ─── Menu Item Row ────────────────────────────────────────────────────────────
@@ -771,350 +772,1211 @@ const StaticPageManager = ({ refreshTrigger }) => {
     );
 };
 
-// ─── User Management ──────────────────────────────────────────────────────────
+// ─── Admin Edit User Modal ──────────────────────────────────────────────────
+const EditUserModal = ({ user, onClose, onSaved }) => {
+    const [form, setForm] = React.useState({
+        full_name: user?.full_name && user.full_name !== '—' ? user.full_name : '',
+        email: user?.email && user.email !== '—' ? user.email : '',
+        username: user?.username || '',
+        mobile_number: user?.mobile_number && user.mobile_number !== '—' ? user.mobile_number : '',
+        city: user?.city && user.city !== '—' ? user.city : '',
+        is_active: user?.is_active ?? true
+    });
+
+    // Document Limit state initialization
+    const getInitialLimit = () => {
+        if (user?.document_limit === null) return { type: 'unlimited', custom: '' };
+        if ([10, 50, 100, 500].includes(user?.document_limit)) return { type: String(user.document_limit), custom: '' };
+        if (typeof user?.document_limit === 'number' && user?.document_limit > 0) return { type: 'custom', custom: String(user.document_limit) };
+        return { type: '10', custom: '' };
+    };
+
+    const initial = getInitialLimit();
+    const [docLimitType, setDocLimitType] = React.useState(initial.type);
+    const [customDocLimit, setCustomDocLimit] = React.useState(initial.custom);
+    const [saving, setSaving] = React.useState(false);
+    const [error, setError] = React.useState(null);
+
+    const set = (k, v) => {
+        setForm(prev => ({ ...prev, [k]: v }));
+        if (error) setError(null);
+    };
+
+    const handleSave = async () => {
+        // Validation checks
+        const trimmedEmail = form.email ? form.email.trim() : '';
+        if (trimmedEmail) {
+            const emailRegex = /^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/;
+            if (!emailRegex.test(trimmedEmail)) {
+                setError('Please enter a valid email address format.');
+                return;
+            }
+        }
+
+        const trimmedUsername = form.username ? form.username.trim() : '';
+        if (!trimmedUsername) {
+            setError('Username cannot be empty.');
+            return;
+        }
+        if (trimmedUsername.length < 3) {
+            setError('Username must be at least 3 characters.');
+            return;
+        }
+
+        const trimmedMobile = form.mobile_number ? form.mobile_number.trim() : '';
+        if (trimmedMobile) {
+            const digitsOnly = /^\d{10}$/;
+            if (!digitsOnly.test(trimmedMobile)) {
+                setError('Mobile number must be exactly 10 digits (numbers only).');
+                return;
+            }
+        }
+
+        let finalDocLimit;
+        if (docLimitType === 'unlimited') {
+            finalDocLimit = null;
+        } else if (docLimitType === 'custom') {
+            const parsed = parseInt(customDocLimit, 10);
+            if (isNaN(parsed) || parsed < 1) {
+                setError('Please enter a valid positive integer (at least 1) for the custom document limit.');
+                return;
+            }
+            finalDocLimit = parsed;
+        } else {
+            finalDocLimit = parseInt(docLimitType, 10);
+        }
+
+        setSaving(true);
+        setError(null);
+        try {
+            const payload = {
+                full_name: form.full_name ? form.full_name.trim() : '',
+                email: trimmedEmail || '',
+                username: trimmedUsername,
+                mobile_number: trimmedMobile || '',
+                city: form.city ? form.city.trim() : '',
+                is_active: form.is_active,
+                document_limit: finalDocLimit
+            };
+
+            const res = await window.apiFetch(`/api/admin/users/${user.id}`, {
+                method: 'PUT',
+                body: payload
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                onSaved(data);
+            } else {
+                setError(data.detail || 'Failed to update user profile.');
+            }
+        } catch (err) {
+            setError(err.message || 'An unexpected error occurred while saving.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[200] p-4 font-sans" onClick={() => !saving && onClose()}>
+            <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-lg overflow-hidden animate-modal border border-slate-100 flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-black text-lg">
+                            ✏️
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-black text-slate-800 tracking-tight">Edit User Profile</h3>
+                            <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-xs font-mono font-bold text-slate-400">User #{user.id}</span>
+                                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-slate-200 text-slate-600">
+                                    {user.auth_provider || 'local'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        disabled={saving}
+                        className="text-slate-400 hover:text-slate-700 text-2xl leading-none transition-colors p-2"
+                    >
+                        &times;
+                    </button>
+                </div>
+
+                {/* Body Form */}
+                <div className="p-8 overflow-y-auto space-y-5 custom-scrollbar">
+                    {/* Document Safety Banner */}
+                    <div className="bg-blue-50/70 border border-blue-100 rounded-2xl p-4 flex gap-3 items-start text-xs text-blue-800">
+                        <span className="text-base">🛡</span>
+                        <div className="leading-relaxed">
+                            <span className="font-black">In-Place Update: </span>
+                            Editing this profile updates account metadata in-place. All existing documents, drafts, PDFs, and wallet balances remain permanently attached to User #{user.id}.
+                        </div>
+                    </div>
+
+                    {/* Error Banner */}
+                    {error && (
+                        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex gap-3 items-start text-xs text-rose-700 animate-modal">
+                            <span className="text-base">⚠️</span>
+                            <div className="font-bold leading-relaxed">{error}</div>
+                        </div>
+                    )}
+
+                    <div className="space-y-4">
+                        {/* 1. User ID & 2. Auth Provider (Read-Only) */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
+                                    1. User ID (Read-Only)
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        readOnly
+                                        disabled
+                                        value={`#${user?.id || '—'}`}
+                                        className="w-full px-4 py-3 bg-slate-100/90 border border-slate-200 rounded-2xl text-sm font-bold text-slate-600 font-mono cursor-not-allowed select-all"
+                                    />
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-slate-200 text-slate-500">
+                                        Fixed
+                                    </span>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
+                                    2. Auth Provider (Read-Only)
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        readOnly
+                                        disabled
+                                        value={String(user?.auth_provider || 'local').toUpperCase()}
+                                        className="w-full px-4 py-3 bg-slate-100/90 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 font-mono uppercase cursor-not-allowed select-all"
+                                    />
+                                    <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${
+                                        String(user?.auth_provider).toLowerCase() === 'google'
+                                            ? 'bg-emerald-100 text-emerald-700'
+                                            : String(user?.auth_provider).toLowerCase() === 'both'
+                                            ? 'bg-purple-100 text-purple-700'
+                                            : 'bg-blue-100 text-blue-700'
+                                    }`}>
+                                        {String(user?.auth_provider).toLowerCase() === 'google' ? '🌐 Google' : String(user?.auth_provider).toLowerCase() === 'both' ? '🔗 Both' : '🔑 Local'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 3. Full Name */}
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
+                                3. Full Name
+                            </label>
+                            <input
+                                type="text"
+                                value={form.full_name}
+                                onChange={e => set('full_name', e.target.value)}
+                                placeholder="Enter full name"
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all"
+                            />
+                        </div>
+
+                        {/* 4. Username */}
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
+                                4. Username
+                            </label>
+                            <input
+                                type="text"
+                                value={form.username}
+                                onChange={e => set('username', e.target.value)}
+                                placeholder="username"
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-mono"
+                            />
+                        </div>
+
+                        {/* 5. Email Address */}
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
+                                5. Email Address
+                            </label>
+                            <input
+                                type="email"
+                                value={form.email}
+                                onChange={e => set('email', e.target.value)}
+                                placeholder="user@example.com"
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-mono"
+                            />
+                            <p className="text-[11px] text-slate-400 font-medium mt-1 ml-1">
+                                Used for account identification, notifications, and password resets.
+                            </p>
+                        </div>
+
+                        {/* 6. Mobile Number */}
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
+                                6. Mobile Number
+                            </label>
+                            <input
+                                type="text"
+                                value={form.mobile_number}
+                                onChange={e => set('mobile_number', e.target.value)}
+                                placeholder="10-digit mobile number"
+                                maxLength={10}
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-mono"
+                            />
+                        </div>
+
+                        {/* 7. City */}
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
+                                7. City
+                            </label>
+                            <input
+                                type="text"
+                                value={form.city}
+                                onChange={e => set('city', e.target.value)}
+                                placeholder="e.g. Ahmedabad"
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all"
+                            />
+                        </div>
+
+                        {/* 8. Document Creation Limit */}
+                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                    8. 📄 Document Creation Limit
+                                </label>
+                                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                                    {docLimitType === 'unlimited' ? 'Unlimited' : `${docLimitType === 'custom' ? (customDocLimit || 'Custom') : docLimitType} Docs`}
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <select
+                                        value={docLimitType}
+                                        onChange={e => {
+                                            setDocLimitType(e.target.value);
+                                            if (error) setError(null);
+                                        }}
+                                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all cursor-pointer"
+                                    >
+                                        <option value="10">10 (Normal / Default)</option>
+                                        <option value="50">50 (Starter)</option>
+                                        <option value="100">100 (Premium)</option>
+                                        <option value="500">500 (Pro)</option>
+                                        <option value="unlimited">Unlimited</option>
+                                        <option value="custom">Custom number...</option>
+                                    </select>
+                                </div>
+                                {docLimitType === 'custom' && (
+                                    <div>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            step="1"
+                                            value={customDocLimit}
+                                            onChange={e => {
+                                                setCustomDocLimit(e.target.value);
+                                                if (error) setError(null);
+                                            }}
+                                            placeholder="Enter positive integer"
+                                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-mono"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                            <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
+                                Controls how many total draft/completed documents this account can hold. Unlimited allows unrestricted document generation.
+                            </p>
+                        </div>
+
+                        {/* 9. Account Active Status */}
+                        <div className="pt-2">
+                            <label className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-100 transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={form.is_active}
+                                    onChange={e => set('is_active', e.target.checked)}
+                                    className="w-5 h-5 rounded-lg border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer"
+                                />
+                                <div className="text-xs">
+                                    <span className="font-bold text-slate-700 block">9. Account Active Status</span>
+                                    <span className="text-slate-400 font-medium">When active, user can log in and generate documents.</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="bg-slate-50 px-8 py-5 border-t border-slate-100 flex justify-end gap-3 rounded-b-[32px]">
+                    <button
+                        disabled={saving}
+                        onClick={onClose}
+                        className="px-5 py-2.5 border border-slate-200 rounded-xl font-black text-xs text-slate-500 hover:bg-white transition-all uppercase tracking-widest disabled:opacity-50"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        disabled={saving}
+                        onClick={handleSave}
+                        className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all uppercase tracking-widest flex items-center gap-2 disabled:opacity-50"
+                    >
+                        {saving ? (
+                            <>
+                                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                <span>Saving...</span>
+                            </>
+                        ) : (
+                            <>
+                                <EditIcon size={14} />
+                                <span>Save Changes</span>
+                            </>
+                        )}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ─── User Management Panel ──────────────────────────────────────────────────
 const UserManagement = ({ currentAdminUsername, refreshTrigger }) => {
     const [users, setUsers] = React.useState([]);
     const [total, setTotal] = React.useState(0);
     const [totalPages, setTotalPages] = React.useState(1);
     const [page, setPage] = React.useState(1);
-    const PAGE_SIZE = 20;
+    const [pageSize, setPageSize] = React.useState(20);
 
+    // Filter states
     const [search, setSearch] = React.useState('');
+    const [userSearch, setUserSearch] = React.useState('');
+    const [emailFilter, setEmailFilter] = React.useState('');
+    const [contactFilter, setContactFilter] = React.useState('');
+    const [cityFilter, setCityFilter] = React.useState('');
+    const [roleFilter, setRoleFilter] = React.useState('all');
     const [sort, setSort] = React.useState('newest');
+    const [showAdvancedFilters, setShowAdvancedFilters] = React.useState(false);
+
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState(null);
+    const [togglingId, setTogglingId] = React.useState(null);
+    const [editingUser, setEditingUser] = React.useState(null);
+    const [userToDelete, setUserToDelete] = React.useState(null);
+    const [isSingleDeleting, setIsSingleDeleting] = React.useState(false);
 
-    // Debounce search so we don't fire on every keystroke
-    const searchRef = React.useRef(null);
-    const debouncedSearch = React.useRef(search);
+    // Test account detection matching backend conventions
+    const isTestAccount = React.useCallback((u) => {
+        if (!u) return false;
+        const uname = (u.username || '').toLowerCase();
+        const email = (u.email || '').toLowerCase();
+        const fullName = (u.full_name || '').toLowerCase();
+        const testKeywords = ['test', 'sample', 'temp', 'demo', 'mock', 'fake', 'dummy', 'pytest'];
+        const testDomains = ['@test.local', '@draftsetu.local', '@example.com', '@test.com', '@localhost'];
+        if (testKeywords.some(kw => uname.includes(kw) || email.includes(kw) || fullName.includes(kw))) return true;
+        if (testDomains.some(dom => email.endsWith(dom))) return true;
+        if (/^(loc_|goog_|usr_|u1|u2|adm_|admin_usr_|admin_pag_|admin_test_|sample_usr_|sample_bulk_|reg_usr_|other_admin_|test_)/i.test(uname)) return true;
+        return false;
+    }, []);
 
-    const loadUsers = React.useCallback(async (searchVal, sortVal, pageVal) => {
+    const isDeletable = React.useCallback((u) => {
+        if (!u) return false;
+        const activeAdmin = (currentAdminUsername || localStorage.getItem('currentUser') || '').trim();
+        if (activeAdmin && u.username && u.username.trim().toLowerCase() === activeAdmin.toLowerCase()) {
+            return false;
+        }
+        if (u.is_admin) return isTestAccount(u);
+        return true;
+    }, [currentAdminUsername, isTestAccount]);
+
+    // Checkbox selection for test users
+    const [selectedUserIds, setSelectedUserIds] = React.useState(new Set());
+    const [showBulkDeleteModal, setShowBulkDeleteModal] = React.useState(false);
+    const [isBulkDeleting, setIsBulkDeleting] = React.useState(false);
+    const [isExportingExcel, setIsExportingExcel] = React.useState(false);
+
+    const debounceTimerRef = React.useRef(null);
+
+    const loadUsers = React.useCallback(async (
+        searchVal,
+        sortVal,
+        pageVal,
+        roleVal,
+        userSearchVal,
+        emailVal,
+        contactVal,
+        cityVal,
+        sizeVal
+    ) => {
         setLoading(true);
         setError(null);
         try {
+            const effectiveSize = sizeVal || pageSize || 20;
             const params = new URLSearchParams({
                 search: searchVal || '',
                 sort: sortVal || 'newest',
                 page: pageVal || 1,
-                page_size: PAGE_SIZE
+                page_size: effectiveSize,
+                role: roleVal || 'all'
             });
+            if (userSearchVal && userSearchVal.trim()) params.set('user_search', userSearchVal.trim());
+            if (emailVal && emailVal.trim()) params.set('email', emailVal.trim());
+            if (contactVal && contactVal.trim()) params.set('mobile', contactVal.trim());
+            if (cityVal && cityVal.trim()) params.set('city', cityVal.trim());
+
             const res = await window.apiFetch(`/api/admin/users?${params}`);
             const data = await res.json();
             setUsers(data.users || []);
             setTotal(data.total || 0);
             setTotalPages(data.total_pages || 1);
             setPage(data.page || 1);
+            setSelectedUserIds(new Set());
         } catch (err) {
             setError(err.message || 'Failed to load users');
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [pageSize]);
 
-    // Initial load & refresh trigger watch
     React.useEffect(() => {
-        loadUsers(search, sort, page);
+        loadUsers(search, sort, page, roleFilter, userSearch, emailFilter, contactFilter, cityFilter, pageSize);
     }, [refreshTrigger]);
 
-    // Debounced search effect
-    const [deleteTargetUser, setDeleteTargetUser] = React.useState(null);
-    const [isDeletingUser, setIsDeletingUser] = React.useState(false);
-
+    // Debounced search & filter trigger (resets to page 1 on filter/search change)
     React.useEffect(() => {
-        if (searchRef.current) clearTimeout(searchRef.current);
-        searchRef.current = setTimeout(() => {
-            loadUsers(search, sort, 1);
-        }, 350);
-        return () => clearTimeout(searchRef.current);
-    }, [search]);
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = setTimeout(() => {
+            loadUsers(search, sort, 1, roleFilter, userSearch, emailFilter, contactFilter, cityFilter, pageSize);
+        }, 300);
+        return () => clearTimeout(debounceTimerRef.current);
+    }, [search, sort, roleFilter, userSearch, emailFilter, contactFilter, cityFilter, pageSize]);
 
-    const handleSort = (newSort) => {
-        setSort(newSort);
-        loadUsers(search, newSort, 1);
+    const isAnyFilterActive = Boolean(
+        search ||
+        userSearch ||
+        emailFilter ||
+        contactFilter ||
+        cityFilter ||
+        roleFilter !== 'all' ||
+        sort !== 'newest'
+    );
+
+    const handleClearFilters = () => {
+        setSearch('');
+        setUserSearch('');
+        setEmailFilter('');
+        setContactFilter('');
+        setCityFilter('');
+        setRoleFilter('all');
+        setSort('newest');
+        setPage(1);
+        loadUsers('', 'newest', 1, 'all', '', '', '', '', pageSize);
     };
 
-    const handlePage = (newPage) => {
-        loadUsers(search, sort, newPage);
+    const handlePageSizeChange = (newSize) => {
+        const size = parseInt(newSize, 10);
+        setPageSize(size);
+        setPage(1);
+        loadUsers(search, sort, 1, roleFilter, userSearch, emailFilter, contactFilter, cityFilter, size);
     };
 
-    const handleToggleStatus = async (userId, currentActive, username) => {
-        const actionStr = currentActive ? 'disable' : 'enable';
-        const confirmMsg = `Are you sure you want to ${actionStr} user '${username}'?`;
-        if (!window.confirm(confirmMsg)) return;
-
+    const handleToggleStatus = async (user) => {
+        setTogglingId(user.id);
         try {
-            const res = await window.apiFetch(`/api/admin/users/${userId}/status`, {
+            const res = await window.apiFetch(`/api/admin/users/${user.id}/status`, {
                 method: 'PUT',
-                body: { is_active: !currentActive }
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_active: !user.is_active })
             });
             if (res.ok) {
-                // Update local state
-                setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_active: !currentActive, status: !currentActive ? 'Active' : 'Disabled' } : u));
+                const updated = await res.json();
+                setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_active: updated.is_active } : u));
             } else {
-                const errData = await res.json().catch(() => ({}));
-                alert(errData.detail || `Failed to ${actionStr} user.`);
+                const err = await res.json().catch(() => ({}));
+                alert(err.detail || 'Failed to update user status');
             }
         } catch (err) {
-            alert(`Failed to ${actionStr} user: ` + err.message);
+            alert('Failed to update status: ' + err.message);
+        } finally {
+            setTogglingId(null);
         }
     };
 
-    const handlePermanentDeleteUser = async () => {
-        if (!deleteTargetUser) return;
-        setIsDeletingUser(true);
+    const handleUserSaved = (updatedUser) => {
+        setUsers(prev => prev.map(u => u.id === updatedUser.id ? { ...u, ...updatedUser } : u));
+        setEditingUser(null);
+    };
+
+    // Single User Deletion Handler
+    const handleSingleDelete = async () => {
+        if (!userToDelete || isSingleDeleting) return;
+        setIsSingleDeleting(true);
         try {
-            const res = await window.apiFetch(`/api/admin/users/${deleteTargetUser.id}`, {
+            const res = await window.apiFetch(`/api/admin/users/${userToDelete.id}`, {
                 method: 'DELETE'
             });
-            const data = await res.json().catch(() => ({}));
+            const data = await res.json();
             if (res.ok) {
-                setDeleteTargetUser(null);
-                loadUsers(search, sort, page);
+                const deletedName = userToDelete.username;
+                const wasAdmin = userToDelete.is_admin;
+                setUserToDelete(null);
+                setSelectedUserIds(prev => {
+                    const next = new Set(prev);
+                    next.delete(userToDelete.id);
+                    return next;
+                });
+                loadUsers(search, sort, page, roleFilter, userSearch, emailFilter, contactFilter, cityFilter, pageSize);
+                alert(data.message || `User '${deletedName}' (${wasAdmin ? 'Test Admin' : 'User'}) was permanently deleted.`);
             } else {
-                alert(data.detail || 'Failed to permanently delete user.');
+                alert(data.detail || 'Failed to delete user');
             }
         } catch (err) {
-            alert('Failed to permanently delete user: ' + err.message);
+            alert('Error deleting user: ' + err.message);
         } finally {
-            setIsDeletingUser(false);
+            setIsSingleDeleting(false);
         }
+    };
+
+    // Checkbox Handlers
+    const toggleSelectUser = (userId) => {
+        setSelectedUserIds(prev => {
+            const next = new Set(prev);
+            if (next.has(userId)) next.delete(userId);
+            else next.add(userId);
+            return next;
+        });
+    };
+
+    const selectableUsers = users.filter(isDeletable);
+    const isAllSelected = selectableUsers.length > 0 && selectableUsers.every(u => selectedUserIds.has(u.id));
+
+    const handleSelectAll = () => {
+        if (isAllSelected) {
+            setSelectedUserIds(new Set());
+        } else {
+            setSelectedUserIds(new Set(selectableUsers.map(u => u.id)));
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        if (selectedUserIds.size === 0 || isBulkDeleting) return;
+        setIsBulkDeleting(true);
+        try {
+            const res = await window.apiFetch('/api/admin/users/bulk-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_ids: Array.from(selectedUserIds) })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setShowBulkDeleteModal(false);
+                setSelectedUserIds(new Set());
+                loadUsers(search, sort, page, roleFilter, userSearch, emailFilter, contactFilter, cityFilter, pageSize);
+                alert(`Successfully deleted ${data.deleted_count} test user(s).`);
+            } else {
+                alert(data.detail || 'Failed to delete test users');
+            }
+        } catch (err) {
+            alert('Error deleting test users: ' + err.message);
+        } finally {
+            setIsBulkDeleting(false);
+        }
+    };
+
+    const handleExportExcel = async () => {
+        setIsExportingExcel(true);
+        try {
+            const res = await window.apiFetch('/api/admin/users/export-excel');
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                alert(err.detail || 'Failed to export Excel');
+                return;
+            }
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `DraftSetu_Users_Export_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (err) {
+            alert('Export failed: ' + err.message);
+        } finally {
+            setIsExportingExcel(false);
+        }
+    };
+
+    const handlePage = (p) => {
+        if (p < 1 || p > totalPages || p === page) return;
+        loadUsers(search, sort, p, roleFilter, userSearch, emailFilter, contactFilter, cityFilter, pageSize);
+    };
+
+    const getPageNumbers = () => {
+        if (totalPages <= 7) {
+            return Array.from({ length: totalPages }, (_, i) => i + 1);
+        }
+        const pages = [];
+        if (page <= 4) {
+            pages.push(1, 2, 3, 4, 5, '...', totalPages);
+        } else if (page >= totalPages - 3) {
+            pages.push(1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+        } else {
+            pages.push(1, '...', page - 1, page, page + 1, '...', totalPages);
+        }
+        return pages;
     };
 
     const formatDate = (iso) => {
         if (!iso) return '—';
         try {
             const d = new Date(iso);
-            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-            return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+            return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
         } catch { return '—'; }
     };
 
-    return (
-        <div className="h-full flex flex-col gap-6 animate-modal">
+    // Toggle column sorting
+    const toggleSort = (colKey) => {
+        if (colKey === 'user') {
+            setSort(prev => prev === 'username_asc' ? 'username_desc' : 'username_asc');
+        } else if (colKey === 'credits') {
+            setSort(prev => prev === 'credits_desc' ? 'credits_asc' : 'credits_desc');
+        } else if (colKey === 'docs') {
+            setSort(prev => (prev === 'docs_desc' || prev === 'most_docs') ? 'docs_asc' : 'docs_desc');
+        } else if (colKey === 'joined') {
+            setSort(prev => prev === 'newest' ? 'oldest' : 'newest');
+        }
+    };
 
-            {/* Header */}
-            <div className="flex items-end justify-between px-2">
+    const renderSortIndicator = (colKey) => {
+        if (colKey === 'user') {
+            if (sort === 'username_asc') return <span className="text-blue-600 font-black ml-1">↑</span>;
+            if (sort === 'username_desc') return <span className="text-blue-600 font-black ml-1">↓</span>;
+            return <span className="text-slate-300 ml-1 group-hover:text-slate-500">⇅</span>;
+        }
+        if (colKey === 'credits') {
+            if (sort === 'credits_desc') return <span className="text-blue-600 font-black ml-1">↓</span>;
+            if (sort === 'credits_asc') return <span className="text-blue-600 font-black ml-1">↑</span>;
+            return <span className="text-slate-300 ml-1 group-hover:text-slate-500">⇅</span>;
+        }
+        if (colKey === 'docs') {
+            if (sort === 'docs_desc' || sort === 'most_docs') return <span className="text-blue-600 font-black ml-1">↓</span>;
+            if (sort === 'docs_asc') return <span className="text-blue-600 font-black ml-1">↑</span>;
+            return <span className="text-slate-300 ml-1 group-hover:text-slate-500">⇅</span>;
+        }
+        if (colKey === 'joined') {
+            if (sort === 'newest') return <span className="text-blue-600 font-black ml-1">↓</span>;
+            if (sort === 'oldest') return <span className="text-blue-600 font-black ml-1">↑</span>;
+            return <span className="text-slate-300 ml-1 group-hover:text-slate-500">⇅</span>;
+        }
+        return null;
+    };
+
+    return (
+        <div className="flex flex-col gap-4 animate-modal">
+            {/* Top Bar */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 px-2">
                 <div>
-                    <h3 className="text-3xl font-black text-slate-800 tracking-tight">User Registry</h3>
-                    <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Status Control · {total} registered account{total !== 1 ? 's' : ''}</p>
+                    <h3 className="text-3xl font-black text-slate-800 tracking-tight">User Management</h3>
+                    <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">
+                        Registered Accounts, Permissions & Profiles
+                    </p>
                 </div>
-                <button
-                    onClick={() => loadUsers(search, sort, page)}
-                    className="p-3 bg-white text-slate-400 hover:text-slate-700 border border-slate-200 rounded-2xl transition hover:shadow-md active:scale-95 flex items-center justify-center font-bold text-xs gap-1 font-sans"
-                >
-                    🔄 REFRESH
-                </button>
+                <div className="flex items-center gap-3 self-stretch sm:self-auto">
+                    {/* Excel Download Button */}
+                    <button
+                        onClick={handleExportExcel}
+                        disabled={isExportingExcel || loading}
+                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-md shadow-emerald-500/20 hover:shadow-emerald-500/30 flex items-center gap-2 disabled:opacity-50 active:scale-95"
+                        title="Download complete user dataset as Excel (.xlsx)"
+                    >
+                        {isExportingExcel ? '⏳ Exporting...' : '📊 Download Excel'}
+                    </button>
+
+                    <button
+                        onClick={() => loadUsers(search, sort, page, roleFilter, userSearch, emailFilter, contactFilter, cityFilter, pageSize)}
+                        className="p-3 bg-white text-slate-400 hover:text-slate-700 border border-slate-200 rounded-2xl transition hover:shadow-md active:scale-95 flex items-center justify-center font-bold text-xs gap-1 font-sans"
+                        title="Refresh user list"
+                    >
+                        🔄
+                    </button>
+                </div>
             </div>
 
-            {/* Controls: Search + Sort */}
-            <div className="flex flex-col sm:flex-row gap-3 px-1">
-                {/* Search */}
-                <div className="relative flex-1">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 text-sm pointer-events-none">🔍</span>
-                    <input
-                        id="user-search-input"
-                        type="text"
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        placeholder="Search by username…"
-                        className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 placeholder-slate-300 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all shadow-sm"
-                    />
-                    {search && (
+            {/* Bulk Actions Banner (when 1+ users selected) */}
+            {selectedUserIds.size > 0 && (
+                <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-center justify-between text-xs text-rose-900 shadow-sm mx-1 animate-modal">
+                    <div className="flex items-center gap-3">
+                        <span className="text-xl">🗑️</span>
+                        <div>
+                            <span className="font-black block">{selectedUserIds.size} user(s) selected</span>
+                            <span className="text-rose-700 text-[11px]">Select test users for safe bulk cleanup. Administrator accounts are excluded.</span>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
                         <button
-                            onClick={() => setSearch('')}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 text-lg leading-none"
-                        >&times;</button>
+                            onClick={() => setSelectedUserIds(new Set())}
+                            className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-black text-slate-600 hover:bg-slate-50 uppercase text-[10px] tracking-wider transition"
+                        >
+                            Deselect All
+                        </button>
+                        <button
+                            onClick={() => setShowBulkDeleteModal(true)}
+                            className="bg-rose-600 hover:bg-rose-700 text-white font-black px-4 py-2 rounded-xl uppercase tracking-wider text-[10px] shadow-md shadow-rose-200 transition-all flex items-center gap-1.5"
+                        >
+                            <TrashIcon size={13} />
+                            <span>Delete Selected ({selectedUserIds.size})</span>
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Main Controls: Global Search + Role Filter + Column Filters toggle + Clear Filters */}
+            <div className="space-y-3 px-1">
+                <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center">
+                    {/* Global Search Input */}
+                    <div className="relative flex-1">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 text-sm pointer-events-none">🔍</span>
+                        <input
+                            type="text"
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            placeholder="Global Search (Name, Username, Email, Mobile, City)..."
+                            className="w-full pl-10 pr-10 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 placeholder-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all shadow-sm font-sans"
+                        />
+                        {search && (
+                            <button
+                                onClick={() => setSearch('')}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-600 text-lg leading-none p-1"
+                                title="Clear global search"
+                            >
+                                &times;
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Role Filter Pills */}
+                    <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200/80">
+                        {[
+                            ['all', 'All Roles'],
+                            ['user', 'Users'],
+                            ['admin', 'Admins']
+                        ].map(([val, label]) => (
+                            <button
+                                key={val}
+                                onClick={() => setRoleFilter(val)}
+                                className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                                    roleFilter === val
+                                        ? 'bg-white text-slate-800 shadow-sm'
+                                        : 'text-slate-400 hover:text-slate-600'
+                                }`}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Advanced Column Filters Toggle Button */}
+                    <button
+                        onClick={() => setShowAdvancedFilters(prev => !prev)}
+                        className={`px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all border flex items-center gap-2 whitespace-nowrap ${
+                            showAdvancedFilters || userSearch || emailFilter || contactFilter || cityFilter
+                                ? 'bg-blue-50 text-blue-700 border-blue-200 shadow-sm'
+                                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                        }`}
+                    >
+                        <span>⚙️ Column Filters</span>
+                        {(userSearch || emailFilter || contactFilter || cityFilter) && (
+                            <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
+                        )}
+                    </button>
+
+                    {/* Clear Filters Button (active when any filter is present) */}
+                    {isAnyFilterActive && (
+                        <button
+                            onClick={handleClearFilters}
+                            className="px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-wider text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-all flex items-center gap-1.5 whitespace-nowrap active:scale-95 animate-modal"
+                            title="Reset all search queries, column filters, role filters, and sorting"
+                        >
+                            <span>✕ Clear Filters</span>
+                        </button>
                     )}
                 </div>
 
-                {/* Sort */}
-                <div className="flex gap-2">
-                    {[['newest', '🕐 Newest'], ['oldest', '🕐 Oldest'], ['most_docs', '📄 Most Docs']].map(([val, label]) => (
-                        <button
-                            key={val}
-                            onClick={() => handleSort(val)}
-                            className={`px-4 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all border ${
-                                sort === val
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200'
-                                    : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'
-                            }`}
-                        >
-                            {label}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* Table */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar">
-                {loading ? (
-                    <div className="h-full flex flex-col items-center justify-center py-20">
-                        <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-                        <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Loading Users…</p>
-                    </div>
-                ) : error ? (
-                    <div className="flex items-center justify-center py-16 px-6">
-                        <div className="bg-rose-50 border border-rose-200 rounded-[24px] p-6 max-w-md w-full flex gap-4 items-start shadow-sm">
-                            <span className="text-3xl">⚠️</span>
+                {/* Advanced Column Filters Panel (Expandable) */}
+                {showAdvancedFilters && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 animate-modal shadow-sm">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">
+                                Specific Column Searches & Filters
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-bold">
+                                Search specifically across individual user fields
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            {/* User: Name & Username */}
                             <div>
-                                <h4 className="font-black text-rose-800 text-sm mb-1">Error Loading Users</h4>
-                                <p className="text-xs text-rose-600 font-semibold leading-relaxed mb-4">{error}</p>
-                                <button onClick={() => loadUsers(search, sort, page)} className="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl shadow-md transition-all active:scale-95">Retry</button>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">
+                                    User (Name / Username)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={userSearch}
+                                    onChange={e => setUserSearch(e.target.value)}
+                                    placeholder="Filter by name or username"
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 placeholder-slate-300 focus:border-blue-500 outline-none transition"
+                                />
                             </div>
-                        </div>
-                    </div>
-                ) : users.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full py-20 text-slate-300 grayscale opacity-50">
-                        <div className="text-8xl mb-6">👥</div>
-                        <p className="font-black uppercase tracking-widest text-sm">
-                            {search ? 'No users match your search' : 'No users registered yet'}
-                        </p>
-                    </div>
-                ) : (
-                    <div className="premium-card bg-white border border-slate-200/60 overflow-hidden">
-                        {/* Table header */}
-                        <div className="grid grid-cols-[56px_1fr_110px_140px_80px_90px_160px] gap-4 px-6 py-3 bg-slate-50 border-b border-slate-100">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ID</span>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Username</span>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Role</span>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Joined</span>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Docs</span>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</span>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Actions</span>
-                        </div>
 
-                        {/* Rows */}
-                        <div className="divide-y divide-slate-50">
-                            {users.map((u, idx) => (
-                                <div
-                                    key={u.id}
-                                    className="grid grid-cols-[56px_1fr_110px_140px_80px_90px_160px] gap-4 px-6 py-4 items-center hover:bg-slate-50/60 transition-colors group animate-modal"
-                                    style={{ animationDelay: `${idx * 0.03}s` }}
-                                >
-                                    {/* ID */}
-                                    <span className="text-xs font-black text-slate-300 font-mono">#{u.id}</span>
+                            {/* Email Filter */}
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">
+                                    Email
+                                </label>
+                                <input
+                                    type="text"
+                                    value={emailFilter}
+                                    onChange={e => setEmailFilter(e.target.value)}
+                                    placeholder="Filter by email"
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 placeholder-slate-300 focus:border-blue-500 outline-none transition font-mono"
+                                />
+                            </div>
 
-                                    {/* Username */}
-                                    <div className="flex items-center gap-3 min-w-0">
-                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black flex-shrink-0 ${
-                                            u.is_admin ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'
-                                        }`}>
-                                            {u.username.charAt(0).toUpperCase()}
-                                        </div>
-                                        <span className="font-bold text-sm text-slate-700 truncate group-hover:text-slate-900 transition">{u.username}</span>
-                                    </div>
+                            {/* Contact Filter */}
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">
+                                    Contact (Mobile)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={contactFilter}
+                                    onChange={e => setContactFilter(e.target.value)}
+                                    placeholder="Filter by mobile"
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 placeholder-slate-300 focus:border-blue-500 outline-none transition font-mono"
+                                />
+                            </div>
 
-                                    {/* Role */}
-                                    <span className={`inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full w-fit ${
-                                        u.is_admin
-                                            ? 'bg-amber-50 text-amber-600 border border-amber-100'
-                                            : 'bg-slate-100 text-slate-500 border border-slate-200'
-                                    }`}>
-                                        {u.is_admin ? '🛡 Admin' : '👤 User'}
-                                    </span>
-
-                                    {/* Joined date */}
-                                    <span className="text-xs font-bold text-slate-400 font-mono">{formatDate(u.created_at)}</span>
-
-                                    {/* Doc count */}
-                                    <div className="flex items-center justify-center">
-                                        <span className={`text-sm font-black font-mono px-3 py-1 rounded-xl ${
-                                            u.doc_count > 0 ? 'bg-blue-50 text-blue-600' : 'text-slate-300'
-                                        }`}>
-                                            {u.doc_count}
-                                        </span>
-                                    </div>
-
-                                    {/* Status */}
-                                    <div className="flex items-center justify-center">
-                                        {u.is_active ? (
-                                            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                                Active
-                                            </span>
-                                        ) : (
-                                            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 bg-rose-50 text-rose-600 rounded-full border border-rose-100">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
-                                                Disabled
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {/* Actions */}
-                                    <div className="flex items-center justify-center gap-1.5">
-                                        {u.username !== currentAdminUsername ? (
-                                            <>
-                                                <button
-                                                    onClick={() => handleToggleStatus(u.id, u.is_active, u.username)}
-                                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
-                                                        u.is_active
-                                                            ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-600 hover:text-white shadow-sm'
-                                                            : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-600 hover:text-white shadow-sm'
-                                                    }`}
-                                                    title={u.is_active ? 'Disable user account' : 'Enable user account'}
-                                                >
-                                                    {u.is_active ? 'Disable' : 'Enable'}
-                                                </button>
-                                                <button
-                                                    onClick={() => setDeleteTargetUser(u)}
-                                                    className="px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white shadow-sm flex items-center gap-1"
-                                                    title="Permanently Delete User from Database"
-                                                >
-                                                    <TrashIcon size={12} />
-                                                    <span>Delete</span>
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-1 bg-slate-100 text-slate-400 rounded-lg border border-slate-200">
-                                                Logged In
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
+                            {/* City Filter */}
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">
+                                    City
+                                </label>
+                                <input
+                                    type="text"
+                                    value={cityFilter}
+                                    onChange={e => setCityFilter(e.target.value)}
+                                    placeholder="Filter by city"
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 placeholder-slate-300 focus:border-blue-500 outline-none transition"
+                                />
+                            </div>
                         </div>
                     </div>
                 )}
             </div>
 
-            {/* Permanent Delete Confirmation Modal */}
-            {deleteTargetUser && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[200] p-4 font-sans" onClick={() => !isDeletingUser && setDeleteTargetUser(null)}>
+            {/* Table Area */}
+            <div className="w-full">
+                {loading ? (
+                    <div className="flex flex-col items-center justify-center py-20 bg-white border border-slate-200/60 rounded-2xl shadow-sm min-h-[360px]">
+                        <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+                        <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Loading Users…</p>
+                    </div>
+                ) : users.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 bg-white border border-slate-200/60 rounded-2xl shadow-sm min-h-[360px] text-slate-300 grayscale opacity-60">
+                        <div className="text-8xl mb-6">👥</div>
+                        <p className="font-black uppercase tracking-widest text-sm text-slate-500">No matching users found</p>
+                        {isAnyFilterActive && (
+                            <button
+                                onClick={handleClearFilters}
+                                className="mt-4 px-4 py-2 bg-blue-600 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition hover:bg-blue-700"
+                            >
+                                Clear All Filters
+                            </button>
+                        )}
+                    </div>
+                ) : (
+                    <div className="premium-card bg-white border border-slate-200/60 overflow-hidden shadow-sm min-h-[460px] flex flex-col">
+                        <div className="overflow-x-auto flex-1">
+                            {/* Table Header: 1.User 2.Email 3.Contact 4.City 5.Credits 6.Docs 7.Role 8.Joined 9.Actions */}
+                            <div className="grid grid-cols-[40px_1.4fr_1.3fr_115px_110px_90px_75px_80px_100px_135px] min-w-[1020px] gap-3 px-6 py-3.5 bg-slate-50 border-b border-slate-200/80 text-[10px] font-black text-slate-400 uppercase tracking-widest items-center select-none">
+                                {/* Select All Checkbox */}
+                                <div className="flex items-center justify-center">
+                                    <input
+                                        type="checkbox"
+                                        checked={isAllSelected}
+                                        onChange={handleSelectAll}
+                                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer"
+                                        title="Select all non-admin users on this page"
+                                    />
+                                </div>
+
+                                {/* 1. User (Sortable) */}
+                                <div
+                                    onClick={() => toggleSort('user')}
+                                    className="flex items-center gap-1 cursor-pointer hover:text-slate-700 transition group"
+                                    title="Sort by Username / Name"
+                                >
+                                    <span>User</span>
+                                    {renderSortIndicator('user')}
+                                </div>
+
+                                {/* 2. Email */}
+                                <div>
+                                    <span>Email</span>
+                                </div>
+
+                                {/* 3. Contact */}
+                                <div>
+                                    <span>Contact</span>
+                                </div>
+
+                                {/* 4. City */}
+                                <div>
+                                    <span>City</span>
+                                </div>
+
+                                {/* 5. Credits (Sortable) */}
+                                <div
+                                    onClick={() => toggleSort('credits')}
+                                    className="text-center flex items-center justify-center gap-1 cursor-pointer hover:text-slate-700 transition group"
+                                    title="Sort by Credit Balance"
+                                >
+                                    <span>Credits</span>
+                                    {renderSortIndicator('credits')}
+                                </div>
+
+                                {/* 6. Docs (Sortable) */}
+                                <div
+                                    onClick={() => toggleSort('docs')}
+                                    className="text-center flex items-center justify-center gap-1 cursor-pointer hover:text-slate-700 transition group"
+                                    title="Sort by Document Count"
+                                >
+                                    <span>Docs</span>
+                                    {renderSortIndicator('docs')}
+                                </div>
+
+                                {/* 7. Role */}
+                                <div className="text-center">
+                                    <span>Role</span>
+                                </div>
+
+                                {/* 8. Joined (Sortable) */}
+                                <div
+                                    onClick={() => toggleSort('joined')}
+                                    className="text-center flex items-center justify-center gap-1 cursor-pointer hover:text-slate-700 transition group"
+                                    title="Sort newest/oldest"
+                                >
+                                    <span>Joined</span>
+                                    {renderSortIndicator('joined')}
+                                </div>
+
+                                {/* 9. Actions */}
+                                <div className="text-center">
+                                    <span>Actions</span>
+                                </div>
+                            </div>
+
+                            {/* Table Body */}
+                            <div className="divide-y divide-slate-100 min-w-[1020px]">
+                                {users.map(u => {
+                                    const activeAdmin = (currentAdminUsername || localStorage.getItem('currentUser') || '').trim();
+                                    const isSelf = Boolean(activeAdmin && u.username && u.username.trim().toLowerCase() === activeAdmin.toLowerCase());
+                                    const deletable = isDeletable(u);
+                                    const isSelected = selectedUserIds.has(u.id);
+                                    return (
+                                        <div
+                                            key={u.id}
+                                            className={`grid grid-cols-[40px_1.4fr_1.3fr_115px_110px_90px_75px_80px_100px_135px] gap-3 px-6 py-4 items-center transition-colors hover:bg-slate-50/80 ${
+                                                isSelected ? 'bg-blue-50/40' : ''
+                                            }`}
+                                        >
+                                            {/* Selection Checkbox */}
+                                            <div className="flex items-center justify-center">
+                                                {!deletable ? (
+                                                    <span className="text-[10px] text-slate-300 font-mono" title={isSelf ? "Your account" : "Admin protected"}>—</span>
+                                                ) : (
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={() => toggleSelectUser(u.id)}
+                                                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer"
+                                                    />
+                                                )}
+                                            </div>
+
+                                            {/* 1. User Identity */}
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className={`w-9 h-9 rounded-2xl flex items-center justify-center text-sm font-black flex-shrink-0 shadow-sm ${
+                                                    u.is_admin
+                                                        ? 'bg-purple-100 text-purple-700'
+                                                        : 'bg-blue-100 text-blue-700'
+                                                }`}>
+                                                    {(u.full_name || u.username || '?')[0].toUpperCase()}
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-black text-slate-800 text-xs truncate">
+                                                            {u.full_name && u.full_name !== '—' ? u.full_name : u.username}
+                                                        </span>
+                                                        {isSelf && (
+                                                            <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-md">
+                                                                You
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        <span className="text-[10px] text-slate-400 font-mono font-bold">
+                                                            @{u.username}
+                                                        </span>
+                                                        <span className="text-[9px] text-slate-300 font-mono">
+                                                            #{u.id}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* 2. Email */}
+                                            <div className="min-w-0">
+                                                <span className="text-xs text-slate-700 font-medium block truncate font-mono" title={u.email || ''}>
+                                                    {u.email && u.email !== '—' ? u.email : <span className="text-slate-300 italic font-sans">No email</span>}
+                                                </span>
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                                                    {u.auth_provider === 'google' ? '🌐 Google' : '🔑 Password'}
+                                                </span>
+                                            </div>
+
+                                            {/* 3. Contact */}
+                                            <div className="text-xs text-slate-700 font-mono font-bold truncate">
+                                                {u.mobile_number && u.mobile_number !== '—' ? u.mobile_number : <span className="text-slate-300 font-sans font-normal">—</span>}
+                                            </div>
+
+                                            {/* 4. City */}
+                                            <div className="text-xs text-slate-600 font-medium truncate">
+                                                {u.city && u.city !== '—' ? u.city : <span className="text-slate-300 font-normal">—</span>}
+                                            </div>
+
+                                            {/* 5. Credits / Wallet */}
+                                            <div className="text-center">
+                                                <span className="inline-flex items-center gap-1 font-mono font-black text-xs px-2.5 py-1 bg-amber-50 text-amber-800 rounded-full border border-amber-200/80 shadow-xs">
+                                                    🪙 {u.credits ?? u.wallet_balance ?? 0}
+                                                </span>
+                                            </div>
+
+                                            {/* 6. Documents Count & Limit */}
+                                            <div className="text-center font-mono font-black text-xs text-slate-700">
+                                                <span>{u.documents_count ?? u.doc_count ?? 0}</span>
+                                                <span className="text-[10px] text-slate-400 font-normal"> / {u.document_limit === null ? '∞' : (u.document_limit ?? 10)}</span>
+                                            </div>
+
+                                            {/* 7. Role */}
+                                            <div className="text-center">
+                                                <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
+                                                    u.is_admin
+                                                        ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                                                        : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                                }`}>
+                                                    {u.is_admin ? 'Admin' : 'User'}
+                                                </span>
+                                            </div>
+
+                                            {/* 8. Joined */}
+                                            <div className="text-center text-[11px] text-slate-500 font-medium">
+                                                {formatDate(u.created_at)}
+                                            </div>
+
+                                            {/* 9. Actions */}
+                                            <div className="flex items-center justify-center gap-1.5">
+                                                <button
+                                                    onClick={() => setEditingUser(u)}
+                                                    className="px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-600 hover:text-white shadow-xs flex items-center gap-1 active:scale-95"
+                                                    title="Edit user details"
+                                                >
+                                                    <EditIcon size={12} />
+                                                    <span>Edit</span>
+                                                </button>
+
+                                                {!isSelf && !u.is_admin && (
+                                                    <button
+                                                        disabled={togglingId === u.id}
+                                                        onClick={() => handleToggleStatus(u)}
+                                                        className={`px-2 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border disabled:opacity-50 active:scale-95 ${
+                                                            u.is_active
+                                                                ? 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200'
+                                                                : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-600 hover:text-white'
+                                                        }`}
+                                                        title={u.is_active ? 'Disable user account' : 'Enable user account'}
+                                                    >
+                                                        {u.is_active ? 'Disable' : 'Enable'}
+                                                    </button>
+                                                )}
+
+                                                {deletable && (
+                                                    <button
+                                                        disabled={isSingleDeleting || isBulkDeleting}
+                                                        onClick={() => setUserToDelete(u)}
+                                                        className="px-2 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white shadow-xs flex items-center gap-1 disabled:opacity-50 active:scale-95"
+                                                        title={`Permanently delete ${u.is_admin ? 'test admin' : 'user'} account`}
+                                                    >
+                                                        <TrashIcon size={12} />
+                                                        <span>Delete</span>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Single Delete Confirmation Modal */}
+            {userToDelete && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[200] p-4 font-sans" onClick={() => !isSingleDeleting && setUserToDelete(null)}>
                     <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-md overflow-hidden animate-modal border border-slate-100" onClick={e => e.stopPropagation()}>
                         <div className="p-6 text-center space-y-4">
                             <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-2xl mx-auto flex items-center justify-center text-3xl font-black shadow-inner">
-                                ⚠️
+                                🗑️
                             </div>
                             <div>
-                                <h3 className="text-xl font-black text-slate-800 tracking-tight">Permanent User Deletion</h3>
-                                <p className="text-xs text-rose-600 font-black uppercase tracking-widest mt-1">Warning: Irreversible Action</p>
+                                <h3 className="text-xl font-black text-slate-800 tracking-tight">
+                                    Delete {userToDelete.is_admin ? 'Test Admin' : 'User'} Account
+                                </h3>
+                                <p className="text-xs text-rose-600 font-black uppercase tracking-widest mt-1">Irreversible Account Deletion</p>
                             </div>
                             <div className="bg-rose-50/70 border border-rose-100 rounded-2xl p-4 text-left text-xs text-slate-700 space-y-2">
                                 <p className="font-bold">
-                                    Are you sure you want to permanently delete user <span className="font-black text-rose-700 font-mono">"{deleteTargetUser.username}"</span> (ID: #{deleteTargetUser.id})?
+                                    Are you sure you want to permanently delete <span className="font-black text-rose-700">@{userToDelete.username}</span> (#{userToDelete.id})?
                                 </p>
                                 <ul className="list-disc list-inside text-[11px] text-slate-600 space-y-1">
-                                    <li>The user account will be permanently deleted from the database.</li>
-                                    <li>Associated wallet and credit balances will be removed.</li>
-                                    <li>User document submissions and files will be deleted.</li>
+                                    <li>User profile, credentials, and account records will be permanently removed.</li>
+                                    <li>Associated wallet balance, payment orders, and generated documents will be cleaned up.</li>
+                                    {userToDelete.is_admin && (
+                                        <li className="font-bold text-rose-700">Account identified as a test administrator account.</li>
+                                    )}
                                     <li>This action <span className="font-black text-rose-600">CANNOT BE UNDONE</span>.</li>
                                 </ul>
                             </div>
                         </div>
                         <div className="bg-slate-50 px-6 py-4 border-t border-slate-100 flex justify-end gap-3 rounded-b-[32px]">
                             <button
-                                disabled={isDeletingUser}
-                                onClick={() => setDeleteTargetUser(null)}
+                                disabled={isSingleDeleting}
+                                onClick={() => setUserToDelete(null)}
                                 className="px-5 py-2.5 border border-slate-200 rounded-xl font-black text-xs text-slate-500 hover:bg-white transition-all uppercase tracking-widest disabled:opacity-50"
                             >
                                 Cancel
                             </button>
                             <button
-                                disabled={isDeletingUser}
-                                onClick={handlePermanentDeleteUser}
+                                disabled={isSingleDeleting}
+                                onClick={handleSingleDelete}
                                 className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-200 transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
                             >
-                                {isDeletingUser ? (
+                                {isSingleDeleting ? (
                                     <>
                                         <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                                         <span>Deleting...</span>
@@ -1122,7 +1984,7 @@ const UserManagement = ({ currentAdminUsername, refreshTrigger }) => {
                                 ) : (
                                     <>
                                         <TrashIcon size={14} />
-                                        <span>Delete Permanently</span>
+                                        <span>Delete User</span>
                                     </>
                                 )}
                             </button>
@@ -1131,36 +1993,120 @@ const UserManagement = ({ currentAdminUsername, refreshTrigger }) => {
                 </div>
             )}
 
+            {/* Bulk Delete Confirmation Modal */}
+            {showBulkDeleteModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[200] p-4 font-sans" onClick={() => !isBulkDeleting && setShowBulkDeleteModal(false)}>
+                    <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-md overflow-hidden animate-modal border border-slate-100" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 text-center space-y-4">
+                            <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-2xl mx-auto flex items-center justify-center text-3xl font-black shadow-inner">
+                                ⚠️
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-slate-800 tracking-tight">Confirm Bulk User Deletion</h3>
+                                <p className="text-xs text-rose-600 font-black uppercase tracking-widest mt-1">Irreversible Test User Cleanup</p>
+                            </div>
+                            <div className="bg-rose-50/70 border border-rose-100 rounded-2xl p-4 text-left text-xs text-slate-700 space-y-2">
+                                <p className="font-bold">
+                                    Are you sure you want to permanently delete <span className="font-black text-rose-700">{selectedUserIds.size} selected user account(s)</span>?
+                                </p>
+                                <ul className="list-disc list-inside text-[11px] text-slate-600 space-y-1">
+                                    <li>Selected test user accounts and test administrator accounts will be permanently removed.</li>
+                                    <li>Associated test wallet balances and test documents will be cleaned up.</li>
+                                    <li>Your logged-in admin account and real administrators are protected.</li>
+                                    <li>This action <span className="font-black text-rose-600">CANNOT BE UNDONE</span>.</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div className="bg-slate-50 px-6 py-4 border-t border-slate-100 flex justify-end gap-3 rounded-b-[32px]">
+                            <button
+                                disabled={isBulkDeleting}
+                                onClick={() => setShowBulkDeleteModal(false)}
+                                className="px-5 py-2.5 border border-slate-200 rounded-xl font-black text-xs text-slate-500 hover:bg-white transition-all uppercase tracking-widest disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                disabled={isBulkDeleting}
+                                onClick={handleBulkDelete}
+                                className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-200 transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {isBulkDeleting ? (
+                                    <>
+                                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        <span>Deleting...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <TrashIcon size={14} />
+                                        <span>Delete {selectedUserIds.size} Users</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit User Modal */}
+            {editingUser && (
+                <EditUserModal
+                    user={editingUser}
+                    onClose={() => setEditingUser(null)}
+                    onSaved={handleUserSaved}
+                />
+            )}
+
             {/* Pagination */}
-            {!loading && !error && totalPages > 1 && (
-                <div className="flex items-center justify-between px-2 flex-shrink-0">
-                    <span className="text-xs font-bold text-slate-400">
-                        Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, total)} of {total} users
-                    </span>
-                    <div className="flex items-center gap-2">
+            {total > 0 && (
+                <div className="bg-slate-50 px-5 py-3 border border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl shadow-xs">
+                    {/* Left: Info Label & Page Size Selector */}
+                    <div className="flex items-center gap-3.5 flex-wrap">
+                        <div className="text-xs font-bold text-slate-500">
+                            Showing <span className="font-black text-slate-800">{(page - 1) * pageSize + 1}</span>–<span className="font-black text-slate-800">{Math.min(page * pageSize, total)}</span> of <span className="font-black text-slate-800">{total}</span>
+                        </div>
+                        <div className="h-3.5 w-px bg-slate-200 hidden sm:block"></div>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold">
+                            <span>Per page:</span>
+                            <select
+                                value={pageSize}
+                                onChange={e => handlePageSizeChange(e.target.value)}
+                                className="px-2.5 py-1 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-700 outline-none focus:border-blue-500 transition cursor-pointer shadow-xs"
+                            >
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Right: Page Navigation Controls */}
+                    <div className="flex items-center gap-1">
                         <button
                             onClick={() => handlePage(page - 1)}
                             disabled={page <= 1}
-                            className="px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center gap-1"
+                            className="px-3 py-1.5 text-xs font-black uppercase tracking-wider rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center gap-1 active:scale-95 shadow-xs"
                         >
-                            <ArrowLeftIcon size={12} /> Prev
+                            <ArrowLeftIcon size={12} />
+                            <span>Prev</span>
                         </button>
 
-                        {/* Page numbers */}
-                        {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                            let p;
-                            if (totalPages <= 7) p = i + 1;
-                            else if (page <= 4) p = i + 1;
-                            else if (page >= totalPages - 3) p = totalPages - 6 + i;
-                            else p = page - 3 + i;
+                        {getPageNumbers().map((p, idx) => {
+                            if (p === '...') {
+                                return (
+                                    <span key={`ellipsis-${idx}`} className="w-8 h-8 flex items-center justify-center text-xs font-black text-slate-300 select-none">
+                                        …
+                                    </span>
+                                );
+                            }
+                            const isCurrent = p === page;
                             return (
                                 <button
                                     key={p}
                                     onClick={() => handlePage(p)}
-                                    className={`w-9 h-9 text-xs font-black rounded-xl transition-all ${
-                                        p === page
-                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 scale-110'
-                                            : 'bg-white text-slate-400 border border-slate-200 hover:border-blue-300 hover:text-blue-600'
+                                    className={`w-8 h-8 text-xs font-black rounded-xl transition-all flex items-center justify-center active:scale-95 ${
+                                        isCurrent
+                                            ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20 scale-105'
+                                            : 'bg-white text-slate-600 border border-slate-200 hover:border-blue-300 hover:text-blue-600 shadow-xs'
                                     }`}
                                 >
                                     {p}
@@ -1171,9 +2117,443 @@ const UserManagement = ({ currentAdminUsername, refreshTrigger }) => {
                         <button
                             onClick={() => handlePage(page + 1)}
                             disabled={page >= totalPages}
-                            className="px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center gap-1"
+                            className="px-3 py-1.5 text-xs font-black uppercase tracking-wider rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center gap-1 active:scale-95 shadow-xs"
                         >
-                            Next <ArrowRightIcon size={12} />
+                            <span>Next</span>
+                            <ArrowRightIcon size={12} />
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ─── Admin Payments & Razorpay Monitoring Panel ─────────────────────────────
+const AdminPaymentsPanel = ({ refreshTrigger }) => {
+    const [payments, setPayments] = React.useState([]);
+    const [metrics, setMetrics] = React.useState({
+        total_orders: 0,
+        successful_orders: 0,
+        failed_orders: 0,
+        fulfillment_pending: 0,
+        total_revenue_inr: 0
+    });
+    const [total, setTotal] = React.useState(0);
+    const [totalPages, setTotalPages] = React.useState(1);
+    const [page, setPage] = React.useState(1);
+    const [pageSize, setPageSize] = React.useState(20);
+
+    const [search, setSearch] = React.useState('');
+    const [statusFilter, setStatusFilter] = React.useState('all');
+    const [loading, setLoading] = React.useState(true);
+    const [error, setError] = React.useState(null);
+    const [reconcilingId, setReconcilingId] = React.useState(null);
+
+    const searchRef = React.useRef(null);
+
+    const loadPayments = React.useCallback(async (searchVal, statusVal, pageVal, sizeVal) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const currentSize = sizeVal || pageSize;
+            const params = new URLSearchParams({
+                search: searchVal || '',
+                status: statusVal || 'all',
+                page: pageVal || 1,
+                page_size: currentSize
+            });
+            const res = await window.apiFetch(`/api/admin/payments?${params}`);
+            const data = await res.json();
+            setPayments(data.items || []);
+            setMetrics(data.metrics || {});
+            setTotal(data.total || 0);
+            setTotalPages(data.total_pages || 1);
+            setPage(data.page || 1);
+        } catch (err) {
+            setError(err.message || 'Failed to load payments');
+        } finally {
+            setLoading(false);
+        }
+    }, [pageSize]);
+
+    React.useEffect(() => {
+        loadPayments(search, statusFilter, page, pageSize);
+    }, [refreshTrigger]);
+
+    // Debounced search & filter trigger (resets to page 1 on filter/search/pageSize change)
+    React.useEffect(() => {
+        if (searchRef.current) clearTimeout(searchRef.current);
+        searchRef.current = setTimeout(() => {
+            loadPayments(search, statusFilter, 1, pageSize);
+        }, 300);
+        return () => clearTimeout(searchRef.current);
+    }, [search, statusFilter, pageSize]);
+
+    const handleStatusFilter = (st) => {
+        setStatusFilter(st);
+        setPage(1);
+        loadPayments(search, st, 1, pageSize);
+    };
+
+    const handlePageSizeChange = (newSize) => {
+        const size = parseInt(newSize, 10);
+        setPageSize(size);
+        setPage(1);
+        loadPayments(search, statusFilter, 1, size);
+    };
+
+    const handlePage = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setPage(newPage);
+            loadPayments(search, statusFilter, newPage, pageSize);
+        }
+    };
+
+    const getPageNumbers = () => {
+        if (totalPages <= 7) {
+            return Array.from({ length: totalPages }, (_, i) => i + 1);
+        }
+        const pages = [];
+        if (page <= 4) {
+            pages.push(1, 2, 3, 4, 5, '...', totalPages);
+        } else if (page >= totalPages - 3) {
+            pages.push(1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+        } else {
+            pages.push(1, '...', page - 1, page, page + 1, '...', totalPages);
+        }
+        return pages;
+    };
+
+    const handleReconcile = async (orderId) => {
+        if (!window.confirm(`Fulfill wallet credits for order ${orderId}?`)) return;
+        setReconcilingId(orderId);
+        try {
+            const res = await window.apiFetch(`/api/admin/payments/${orderId}/reconcile`, {
+                method: 'POST'
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                alert(data.message || 'Successfully credited user.');
+                loadPayments(search, statusFilter, page, pageSize);
+            } else {
+                alert(data.detail || 'Failed to reconcile payment.');
+            }
+        } catch (err) {
+            alert('Reconciliation failed: ' + err.message);
+        } finally {
+            setReconcilingId(null);
+        }
+    };
+
+    const formatDate = (iso) => {
+        if (!iso) return '—';
+        try {
+            const d = new Date(iso);
+            return d.toLocaleString('en-IN', {
+                day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', hour12: true
+            });
+        } catch { return '—'; }
+    };
+
+    return (
+        <div className="flex flex-col gap-4 animate-modal">
+            {/* Top Bar */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 px-2">
+                <div>
+                    <h3 className="text-3xl font-black text-slate-800 tracking-tight">Razorpay & Payments</h3>
+                    <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">
+                        Gateway Verification & Wallet Fulfillment Monitor
+                    </p>
+                </div>
+                <button
+                    onClick={() => loadPayments(search, statusFilter, page, pageSize)}
+                    className="p-3 bg-white text-slate-400 hover:text-slate-700 border border-slate-200 rounded-2xl transition hover:shadow-md active:scale-95 flex items-center justify-center font-bold text-xs gap-1 font-sans"
+                    title="Refresh payments"
+                >
+                    🔄
+                </button>
+            </div>
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 px-1">
+                <div className="bg-white border border-slate-200/60 p-3.5 rounded-2xl shadow-sm">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Total Revenue</span>
+                    <span className="text-xl font-black text-slate-800 font-mono mt-1 block">
+                        ₹{metrics.total_revenue_inr?.toLocaleString('en-IN') || 0}
+                    </span>
+                </div>
+                <div className="bg-white border border-slate-200/60 p-3.5 rounded-2xl shadow-sm">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 block">Successful Payments</span>
+                    <span className="text-xl font-black text-emerald-600 font-mono mt-1 block">
+                        {metrics.successful_orders || 0}
+                    </span>
+                </div>
+                <div className={`p-3.5 rounded-2xl border shadow-sm ${
+                    metrics.fulfillment_pending > 0
+                        ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-400/20'
+                        : 'bg-white border-slate-200/60'
+                }`}>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-700 block flex items-center gap-1">
+                        {metrics.fulfillment_pending > 0 && <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>}
+                        Fulfillment Pending
+                    </span>
+                    <span className="text-xl font-black text-amber-700 font-mono mt-1 block">
+                        {metrics.fulfillment_pending || 0}
+                    </span>
+                </div>
+                <div className="bg-white border border-slate-200/60 p-3.5 rounded-2xl shadow-sm">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-rose-500 block">Failed / Cancelled</span>
+                    <span className="text-xl font-black text-rose-600 font-mono mt-1 block">
+                        {metrics.failed_orders || 0}
+                    </span>
+                </div>
+            </div>
+
+            {/* Warning Banner if Fulfillment is Pending */}
+            {metrics.fulfillment_pending > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex items-center justify-between text-xs text-amber-900 shadow-sm mx-1 animate-modal">
+                    <div className="flex items-center gap-3">
+                        <span className="text-xl">⚠️</span>
+                        <div>
+                            <span className="font-black block">Action Required: {metrics.fulfillment_pending} payment(s) captured with pending credit fulfillment.</span>
+                            <span className="text-amber-700 text-[11px]">Payment succeeded on Razorpay, but wallet credit was delayed or interrupted. Click "⚡ Fulfill" to credit user.</span>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => handleStatusFilter('fulfillment_pending')}
+                        className="bg-amber-600 hover:bg-amber-700 text-white font-black px-3.5 py-1.5 rounded-xl uppercase tracking-wider text-[10px] shadow-sm transition-all shrink-0"
+                    >
+                        Filter Pending ({metrics.fulfillment_pending})
+                    </button>
+                </div>
+            )}
+
+            {/* Controls: Search + Filter */}
+            <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center px-1">
+                <div className="relative flex-1">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 text-sm pointer-events-none">🔍</span>
+                    <input
+                        type="text"
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        placeholder="Search by Order ID, Payment ID, user, email…"
+                        className="w-full pl-10 pr-10 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 placeholder-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all shadow-sm font-sans"
+                    />
+                    {search && (
+                        <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-600 text-lg leading-none p-1">&times;</button>
+                    )}
+                </div>
+
+                <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200/80 overflow-x-auto">
+                    {[
+                        ['all', 'All Orders'],
+                        ['success', '✅ Paid'],
+                        ['fulfillment_pending', '⚠️ Pending Credit'],
+                        ['created', '⏳ In Progress'],
+                        ['failed', '❌ Failed']
+                    ].map(([val, label]) => (
+                        <button
+                            key={val}
+                            onClick={() => handleStatusFilter(val)}
+                            className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap ${
+                                statusFilter === val
+                                    ? 'bg-white text-slate-800 shadow-sm'
+                                    : 'text-slate-400 hover:text-slate-600'
+                            }`}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Table Area */}
+            <div className="w-full">
+                {loading ? (
+                    <div className="flex flex-col items-center justify-center py-20 bg-white border border-slate-200/60 rounded-2xl shadow-sm min-h-[360px]">
+                        <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+                        <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Loading Payments…</p>
+                    </div>
+                ) : payments.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 bg-white border border-slate-200/60 rounded-2xl shadow-sm min-h-[360px] text-slate-300 grayscale opacity-60">
+                        <div className="text-8xl mb-6">💳</div>
+                        <p className="font-black uppercase tracking-widest text-sm text-slate-500">No payment records found</p>
+                    </div>
+                ) : (
+                    <div className="premium-card bg-white border border-slate-200/60 overflow-hidden shadow-sm min-h-[460px] flex flex-col">
+                        <div className="overflow-x-auto flex-1">
+                            {/* Table Header: Order ID | Payment ID | User | Amount | Gateway Status | Wallet Status | Date | Action */}
+                            <div className="grid grid-cols-[1.3fr_1.2fr_1.3fr_110px_120px_140px_130px_90px] min-w-[1020px] gap-3 px-6 py-3.5 bg-slate-50 border-b border-slate-200/80 text-[10px] font-black text-slate-400 uppercase tracking-widest items-center select-none">
+                                <span>Order ID</span>
+                                <span>Payment ID</span>
+                                <span>User</span>
+                                <span className="text-center">Amount</span>
+                                <span className="text-center">Gateway Status</span>
+                                <span className="text-center">Wallet Status</span>
+                                <span>Date</span>
+                                <span className="text-center">Action</span>
+                            </div>
+
+                            <div className="divide-y divide-slate-100">
+                                {payments.map((p, idx) => (
+                                    <div
+                                        key={p.id}
+                                        className="grid grid-cols-[1.3fr_1.2fr_1.3fr_110px_120px_140px_130px_90px] min-w-[1020px] gap-3 px-6 py-3 items-center hover:bg-slate-50/60 transition-colors animate-modal text-xs"
+                                        style={{ animationDelay: `${idx * 0.02}s` }}
+                                    >
+                                        {/* Order ID */}
+                                        <div className="min-w-0">
+                                            <div className="font-mono font-bold text-slate-800 text-[11px] truncate" title={p.order_id}>
+                                                {p.order_id}
+                                            </div>
+                                            <div className="text-[9px] text-slate-400 font-semibold truncate">{p.plan_id}</div>
+                                        </div>
+
+                                        {/* Payment ID */}
+                                        <div className="font-mono font-semibold text-slate-600 text-[11px] truncate" title={p.payment_id}>
+                                            {p.payment_id || '—'}
+                                        </div>
+
+                                        {/* User */}
+                                        <div className="min-w-0">
+                                            <div className="font-bold text-slate-800 truncate">@{p.username}</div>
+                                            <div className="text-[10px] text-slate-400 truncate" title={p.user_email || ''}>{p.user_email || '—'}</div>
+                                        </div>
+
+                                        {/* Amount & Credits */}
+                                        <div className="text-center">
+                                            <span className="font-black text-slate-800 font-mono block text-xs">₹{p.amount_inr}</span>
+                                            <span className="text-[10px] font-bold text-amber-700 font-mono">🪙 {p.credits} cr</span>
+                                        </div>
+
+                                        {/* Gateway Status */}
+                                        <div className="text-center">
+                                            {p.razorpay_payment_status === 'PAID' ? (
+                                                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-200">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                    PAID
+                                                </span>
+                                            ) : p.razorpay_payment_status === 'FAILED' ? (
+                                                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-rose-50 text-rose-700 rounded-full border border-rose-200" title={p.error_description || p.error_code || ''}>
+                                                    FAILED
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full border border-slate-200">
+                                                    PENDING
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {/* Wallet Fulfillment Status */}
+                                        <div className="text-center">
+                                            {p.fulfillment_status === 'CREDITED' ? (
+                                                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 bg-blue-50 text-blue-700 rounded-full border border-blue-200 font-mono" title={`Tx #${p.wallet_transaction_id}`}>
+                                                    🪙 CREDITED
+                                                </span>
+                                            ) : p.fulfillment_status === 'FULFILLMENT_PENDING' ? (
+                                                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 bg-amber-100 text-amber-800 rounded-full border border-amber-300 animate-pulse font-mono font-bold" title="Payment captured on Razorpay but credits not yet added to wallet">
+                                                    ⚠️ PENDING
+                                                </span>
+                                            ) : (
+                                                <span className="text-[10px] text-slate-300 font-mono">—</span>
+                                            )}
+                                        </div>
+
+                                        {/* Date */}
+                                        <div className="text-[11px] text-slate-500 font-medium">
+                                            {formatDate(p.created_at)}
+                                        </div>
+
+                                        {/* Action */}
+                                        <div className="text-center">
+                                            {p.fulfillment_status === 'FULFILLMENT_PENDING' ? (
+                                                <button
+                                                    disabled={reconcilingId === p.order_id}
+                                                    onClick={() => handleReconcile(p.order_id)}
+                                                    className="bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1.5 rounded-xl font-black text-[9px] uppercase tracking-wider transition shadow-sm disabled:opacity-50 flex items-center justify-center gap-1 mx-auto active:scale-95"
+                                                    title="Fulfill wallet credit for user"
+                                                >
+                                                    {reconcilingId === p.order_id ? '...' : '⚡ Fulfill'}
+                                                </button>
+                                            ) : (
+                                                <span className="text-slate-300 text-xs font-mono">—</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Pagination */}
+            {total > 0 && (
+                <div className="bg-slate-50 px-5 py-3 border border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl shadow-xs">
+                    {/* Left: Info Label & Page Size Selector */}
+                    <div className="flex items-center gap-3.5 flex-wrap">
+                        <div className="text-xs font-bold text-slate-500">
+                            Showing <span className="font-black text-slate-800">{(page - 1) * pageSize + 1}</span>–<span className="font-black text-slate-800">{Math.min(page * pageSize, total)}</span> of <span className="font-black text-slate-800">{total}</span>
+                        </div>
+                        <div className="h-3.5 w-px bg-slate-200 hidden sm:block"></div>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold">
+                            <span>Per page:</span>
+                            <select
+                                value={pageSize}
+                                onChange={e => handlePageSizeChange(e.target.value)}
+                                className="px-2.5 py-1 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-700 outline-none focus:border-blue-500 transition cursor-pointer shadow-xs"
+                            >
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Right: Page Navigation Controls */}
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => handlePage(page - 1)}
+                            disabled={page <= 1}
+                            className="px-3 py-1.5 text-xs font-black uppercase tracking-wider rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center gap-1 active:scale-95 shadow-xs"
+                        >
+                            <ArrowLeftIcon size={12} />
+                            <span>Prev</span>
+                        </button>
+
+                        {getPageNumbers().map((p, idx) => {
+                            if (p === '...') {
+                                return (
+                                    <span key={`ellipsis-${idx}`} className="w-8 h-8 flex items-center justify-center text-xs font-black text-slate-300 select-none">
+                                        …
+                                    </span>
+                                );
+                            }
+                            const isCurrent = p === page;
+                            return (
+                                <button
+                                    key={p}
+                                    onClick={() => handlePage(p)}
+                                    className={`w-8 h-8 text-xs font-black rounded-xl transition-all flex items-center justify-center active:scale-95 ${
+                                        isCurrent
+                                            ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20 scale-105'
+                                            : 'bg-white text-slate-600 border border-slate-200 hover:border-blue-300 hover:text-blue-600 shadow-xs'
+                                    }`}
+                                >
+                                    {p}
+                                </button>
+                            );
+                        })}
+
+                        <button
+                            onClick={() => handlePage(page + 1)}
+                            disabled={page >= totalPages}
+                            className="px-3 py-1.5 text-xs font-black uppercase tracking-wider rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center gap-1 active:scale-95 shadow-xs"
+                        >
+                            <span>Next</span>
+                            <ArrowRightIcon size={12} />
                         </button>
                     </div>
                 </div>
@@ -1184,11 +2564,11 @@ const UserManagement = ({ currentAdminUsername, refreshTrigger }) => {
 
 // ─── All Documents Panel (Admin View) ───────────────────────────────────────
 const AllDocumentsPanel = ({ refreshTrigger }) => {
-    const DOC_PAGE_SIZE = 20;
     const [docs, setDocs] = React.useState([]);
     const [total, setTotal] = React.useState(0);
     const [totalPages, setTotalPages] = React.useState(1);
     const [page, setPage] = React.useState(1);
+    const [pageSize, setPageSize] = React.useState(20);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState(null);
     const [search, setSearch] = React.useState('');
@@ -1197,13 +2577,14 @@ const AllDocumentsPanel = ({ refreshTrigger }) => {
     const [previewDoc, setPreviewDoc] = React.useState(null);
     const [userDetailDoc, setUserDetailDoc] = React.useState(null);   // doc row whose user we want
 
-    const fetchDocs = React.useCallback(async (pg, srch, sts) => {
+    const fetchDocs = React.useCallback(async (pg, srch, sts, sizeVal) => {
         setLoading(true);
         setError(null);
         try {
+            const currentSize = sizeVal || pageSize;
             const params = new URLSearchParams({
                 page: pg,
-                page_size: DOC_PAGE_SIZE,
+                page_size: currentSize,
                 search: srch || '',
                 status: sts || 'all',
             });
@@ -1220,11 +2601,11 @@ const AllDocumentsPanel = ({ refreshTrigger }) => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [pageSize]);
 
     React.useEffect(() => {
-        fetchDocs(page, search, statusFilter);
-    }, [page, search, statusFilter, refreshTrigger]);
+        fetchDocs(page, search, statusFilter, pageSize);
+    }, [page, search, statusFilter, pageSize, refreshTrigger]);
 
     const handleSearch = () => {
         setPage(1);
@@ -1236,8 +2617,30 @@ const AllDocumentsPanel = ({ refreshTrigger }) => {
         setStatusFilter(val);
     };
 
+    const handlePageSizeChange = (newSize) => {
+        const size = parseInt(newSize, 10);
+        setPageSize(size);
+        setPage(1);
+        fetchDocs(1, search, statusFilter, size);
+    };
+
     const handlePage = (p) => {
-        if (p >= 1 && p <= totalPages) setPage(p);
+        if (p >= 1 && p <= totalPages && p !== page) setPage(p);
+    };
+
+    const getPageNumbers = () => {
+        if (totalPages <= 7) {
+            return Array.from({ length: totalPages }, (_, i) => i + 1);
+        }
+        const pages = [];
+        if (page <= 4) {
+            pages.push(1, 2, 3, 4, 5, '...', totalPages);
+        } else if (page >= totalPages - 3) {
+            pages.push(1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+        } else {
+            pages.push(1, '...', page - 1, page, page + 1, '...', totalPages);
+        }
+        return pages;
     };
 
     const formatDateTime = (iso) => {
@@ -1400,32 +2803,70 @@ const AllDocumentsPanel = ({ refreshTrigger }) => {
             </div>
 
             {/* Pagination */}
-            {!loading && !error && totalPages > 1 && (
-                <div className="flex items-center justify-between flex-shrink-0">
-                    <span className="text-xs font-bold text-slate-400">
-                        Showing {((page - 1) * DOC_PAGE_SIZE) + 1}–{Math.min(page * DOC_PAGE_SIZE, total)} of {total} documents
-                    </span>
-                    <div className="flex items-center gap-2">
-                        <button onClick={() => handlePage(page - 1)} disabled={page <= 1}
-                            className="px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center gap-1">
-                            <ArrowLeftIcon size={12} /> Prev
+            {total > 0 && (
+                <div className="bg-slate-50 px-5 py-3 border border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl shadow-xs flex-shrink-0">
+                    {/* Left: Info Label & Page Size Selector */}
+                    <div className="flex items-center gap-3.5 flex-wrap">
+                        <div className="text-xs font-bold text-slate-500">
+                            Showing <span className="font-black text-slate-800">{(page - 1) * pageSize + 1}</span>–<span className="font-black text-slate-800">{Math.min(page * pageSize, total)}</span> of <span className="font-black text-slate-800">{total}</span>
+                        </div>
+                        <div className="h-3.5 w-px bg-slate-200 hidden sm:block"></div>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold">
+                            <span>Per page:</span>
+                            <select
+                                value={pageSize}
+                                onChange={e => handlePageSizeChange(e.target.value)}
+                                className="px-2.5 py-1 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-700 outline-none focus:border-blue-500 transition cursor-pointer shadow-xs"
+                            >
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Right: Page Navigation Controls */}
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => handlePage(page - 1)}
+                            disabled={page <= 1}
+                            className="px-3 py-1.5 text-xs font-black uppercase tracking-wider rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center gap-1 active:scale-95 shadow-xs"
+                        >
+                            <ArrowLeftIcon size={12} />
+                            <span>Prev</span>
                         </button>
-                        {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                            let p;
-                            if (totalPages <= 7) p = i + 1;
-                            else if (page <= 4) p = i + 1;
-                            else if (page >= totalPages - 3) p = totalPages - 6 + i;
-                            else p = page - 3 + i;
+
+                        {getPageNumbers().map((p, idx) => {
+                            if (p === '...') {
+                                return (
+                                    <span key={`ellipsis-${idx}`} className="w-8 h-8 flex items-center justify-center text-xs font-black text-slate-300 select-none">
+                                        …
+                                    </span>
+                                );
+                            }
+                            const isCurrent = p === page;
                             return (
-                                <button key={p} onClick={() => handlePage(p)}
-                                    className={`w-9 h-9 text-xs font-black rounded-xl transition-all ${
-                                        p === page ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 scale-110' : 'bg-white text-slate-400 border border-slate-200 hover:border-blue-300 hover:text-blue-600'
-                                    }`}>{p}</button>
+                                <button
+                                    key={p}
+                                    onClick={() => handlePage(p)}
+                                    className={`w-8 h-8 text-xs font-black rounded-xl transition-all flex items-center justify-center active:scale-95 ${
+                                        isCurrent
+                                            ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20 scale-105'
+                                            : 'bg-white text-slate-600 border border-slate-200 hover:border-blue-300 hover:text-blue-600 shadow-xs'
+                                    }`}
+                                >
+                                    {p}
+                                </button>
                             );
                         })}
-                        <button onClick={() => handlePage(page + 1)} disabled={page >= totalPages}
-                            className="px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center gap-1">
-                            Next <ArrowRightIcon size={12} />
+
+                        <button
+                            onClick={() => handlePage(page + 1)}
+                            disabled={page >= totalPages}
+                            className="px-3 py-1.5 text-xs font-black uppercase tracking-wider rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center gap-1 active:scale-95 shadow-xs"
+                        >
+                            <span>Next</span>
+                            <ArrowRightIcon size={12} />
                         </button>
                     </div>
                 </div>
@@ -1467,13 +2908,14 @@ const AdminPanel = ({ onClose, currentUser, templates, dbTemplates, onEditTempla
         { id: 'users', icon: <UserIcon />, label: 'Users' },
         { id: 'all-documents', icon: <FileTextIcon />, label: 'All Documents' },
         { id: 'templates', icon: <VariableIcon />, label: 'Templates' },
+        { id: 'payments', icon: <CreditCardIcon />, label: 'Payments' },
+        { id: 'wallets', icon: <DatabaseIcon />, label: 'Wallet Management' },
         { id: 'menu', icon: <MenuIcon />, label: 'Menu Builder' },
         { id: 'pages', icon: <FileTextIcon />, label: 'Static Pages' },
         { id: 'logs', icon: <FileTextIcon />, label: 'Activity Logs' },
         { id: 'storage', icon: <DatabaseIcon />, label: 'Storage Analytics' },
         { id: 'template-analytics', icon: <VariableIcon />, label: 'Template Analytics' },
         { id: 'template-health', icon: <VariableIcon />, label: 'Template Health' },
-        { id: 'wallets', icon: <DatabaseIcon />, label: 'Wallet Management' },
     ];
 
     return (
@@ -1517,8 +2959,8 @@ const AdminPanel = ({ onClose, currentUser, templates, dbTemplates, onEditTempla
                 </div>
             </div>
 
-            <div className="flex-1 overflow-hidden p-10 bg-slate-50/50">
-                <div className="max-w-6xl mx-auto h-full">
+            <div className="flex-1 overflow-y-auto p-6 sm:p-8 lg:p-10 bg-slate-50/50 custom-scrollbar">
+                <div className="max-w-6xl mx-auto min-h-full flex flex-col pb-8">
                     {tab === 'dashboard' && <AdminDashboard refreshTrigger={refreshTrigger} />}
                     {tab === 'users' && <UserManagement currentAdminUsername={currentUser} refreshTrigger={refreshTrigger} />}
                     {tab === 'all-documents' && <AllDocumentsPanel refreshTrigger={refreshTrigger} />}
@@ -1533,6 +2975,7 @@ const AdminPanel = ({ onClose, currentUser, templates, dbTemplates, onEditTempla
                             refreshTrigger={refreshTrigger}
                         />
                     )}
+                    {tab === 'payments' && <AdminPaymentsPanel refreshTrigger={refreshTrigger} />}
                     {tab === 'menu' && (
                         <MenuBuilder 
                             onMenuUpdate={onMenuUpdate} 

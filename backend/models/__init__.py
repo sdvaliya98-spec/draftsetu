@@ -20,6 +20,9 @@ class User(Base):
     is_active = Column(Boolean, default=True, index=True)
     birth_date = Column(String, nullable=True)
     mobile_number = Column(String, nullable=True)
+    full_name = Column(String, nullable=True)
+    city = Column(String, nullable=True)
+    document_limit = Column(Integer, default=10, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     documents = relationship("DocumentSubmission", back_populates="user")

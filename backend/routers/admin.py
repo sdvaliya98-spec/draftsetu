@@ -1,11 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import func, cast, Date
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func, cast, Date, or_
 from datetime import datetime, timedelta, time
 import json
 import os
+import io
 import shutil
 import math
+from typing import List, Optional
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
 
 from backend import models, database
 from backend.routers.auth import get_admin_user
@@ -175,12 +179,17 @@ def get_dashboard_stats(
 def get_admin_users(
     db: Session = Depends(database.get_db),
     admin: models.User = Depends(get_admin_user),
-    search: str = Query(default="", description="Filter by username (case-insensitive)"),
-    sort: str = Query(default="newest", description="Sort order: newest | oldest | most_docs"),
+    search: str = Query(default="", description="Global filter by username, name, email, mobile, or city"),
+    user_search: Optional[str] = Query(default=None, description="Filter specifically by username or full name"),
+    role: Optional[str] = Query(default="all", description="Filter by role: all | user | admin"),
+    email: Optional[str] = Query(default=None, description="Filter by email"),
+    mobile: Optional[str] = Query(default=None, description="Filter by mobile"),
+    city: Optional[str] = Query(default=None, description="Filter by city"),
+    sort: str = Query(default="newest", description="Sort order: newest | oldest | most_docs | docs_desc | docs_asc | credits_desc | credits_asc | username_asc | username_desc"),
     page: int = Query(default=1, ge=1, description="Page number"),
     page_size: int = Query(default=20, ge=1, le=100, description="Results per page"),
 ):
-    """Read-only paginated user list with aggregated document counts. No N+1 queries."""
+    """Read-only paginated user list with non-sensitive user metadata, wallet balance, and doc counts. No N+1 queries."""
 
     # ── 1. Aggregate subquery: doc count per user (single SQL round-trip) ──────
     doc_counts_sq = (
@@ -193,26 +202,69 @@ def get_admin_users(
         .subquery()
     )
 
-    # ── 2. Base query: outer-join so users with 0 docs are included ────────────
+    # ── 2. Base query: outer-join docs and wallet so all users are included ───
     query = (
         db.query(
             models.User,
-            func.coalesce(doc_counts_sq.c.doc_count, 0).label("doc_count")
+            func.coalesce(doc_counts_sq.c.doc_count, 0).label("doc_count"),
+            func.coalesce(models.Wallet.current_balance, 0).label("wallet_balance")
         )
         .outerjoin(doc_counts_sq, models.User.id == doc_counts_sq.c.user_id)
+        .outerjoin(models.Wallet, models.User.id == models.Wallet.user_id)
     )
 
-    # ── 3. Search filter ───────────────────────────────────────────────────────
+    # ── 3. Multi-field Search filter (Global Search) ──────────────────────────
     if search and search.strip():
+        term = f"%{search.strip()}%"
         query = query.filter(
-            models.User.username.ilike(f"%{search.strip()}%")
+            or_(
+                models.User.username.ilike(term),
+                models.User.full_name.ilike(term),
+                models.User.email.ilike(term),
+                models.User.mobile_number.ilike(term),
+                models.User.city.ilike(term)
+            )
         )
+
+    # ── 3.0 Specific User filter (Name / Username) ───────────────────────────
+    if user_search and user_search.strip():
+        u_term = f"%{user_search.strip()}%"
+        query = query.filter(
+            or_(
+                models.User.username.ilike(u_term),
+                models.User.full_name.ilike(u_term)
+            )
+        )
+
+    # ── 3.1 Role filter ───────────────────────────────────────────────────────
+    if role == "user":
+        query = query.filter(models.User.is_admin == False)
+    elif role == "admin":
+        query = query.filter(models.User.is_admin == True)
+
+    # ── 3.2 Specific Column Filters ───────────────────────────────────────────
+    if email and email.strip():
+        query = query.filter(models.User.email.ilike(f"%{email.strip()}%"))
+    if mobile and mobile.strip():
+        query = query.filter(models.User.mobile_number.ilike(f"%{mobile.strip()}%"))
+    if city and city.strip():
+        query = query.filter(models.User.city.ilike(f"%{city.strip()}%"))
 
     # ── 4. Sort ────────────────────────────────────────────────────────────────
     if sort == "oldest":
         query = query.order_by(models.User.created_at.asc())
-    elif sort == "most_docs":
-        query = query.order_by(func.coalesce(doc_counts_sq.c.doc_count, 0).desc())
+    elif sort in ["most_docs", "docs_desc"]:
+        query = query.order_by(func.coalesce(doc_counts_sq.c.doc_count, 0).desc(), models.User.id.desc())
+    elif sort == "docs_asc":
+        query = query.order_by(func.coalesce(doc_counts_sq.c.doc_count, 0).asc(), models.User.id.asc())
+    elif sort == "credits_desc":
+        query = query.order_by(func.coalesce(models.Wallet.current_balance, 0).desc(), models.User.id.desc())
+    elif sort == "credits_asc":
+        query = query.order_by(func.coalesce(models.Wallet.current_balance, 0).asc(), models.User.id.asc())
+    elif sort in ["username_asc", "username"]:
+        query = query.order_by(models.User.username.asc())
+    elif sort == "username_desc":
+        query = query.order_by(models.User.username.desc())
     else:  # default: newest
         query = query.order_by(models.User.created_at.desc())
 
@@ -225,17 +277,24 @@ def get_admin_users(
     offset = (page - 1) * page_size
     rows = query.offset(offset).limit(page_size).all()
 
-    # ── 7. Serialize (never include password_hash) ────────────────────────────
+    # ── 7. Serialize safely (NEVER include passwords, hashes, or tokens) ──────
     users_out = []
-    for user, doc_count in rows:
+    for user, doc_count, wallet_balance in rows:
         users_out.append({
             "id": user.id,
             "username": user.username,
+            "full_name": user.full_name or "—",
+            "email": user.email or "—",
+            "mobile_number": user.mobile_number or "—",
+            "city": user.city or "—",
+            "wallet_balance": int(wallet_balance or 0),
+            "auth_provider": user.auth_provider or "local",
             "is_admin": user.is_admin,
             "created_at": user.created_at.isoformat() if user.created_at else None,
             "doc_count": doc_count,
             "status": "Active" if user.is_active else "Disabled",
             "is_active": user.is_active,
+            "document_limit": user.document_limit,
         })
 
     return {
@@ -248,9 +307,133 @@ def get_admin_users(
 
 
 from pydantic import BaseModel
+import re
 
 class UserStatusUpdate(BaseModel):
     is_active: bool
+
+class AdminUserUpdate(BaseModel):
+    full_name: str | None = None
+    email: str | None = None
+    username: str | None = None
+    mobile_number: str | None = None
+    city: str | None = None
+    is_active: bool | None = None
+    document_limit: int | None = None
+
+@router.put("/users/{user_id}")
+def update_user_profile(
+    user_id: int,
+    payload: AdminUserUpdate,
+    db: Session = Depends(database.get_db),
+    admin: models.User = Depends(get_admin_user)
+):
+    """
+    In-place update of user metadata by Admin.
+    Preserves existing user ID, documents, wallet, transactions, and history.
+    """
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    fields_set = payload.model_fields_set if hasattr(payload, "model_fields_set") else getattr(payload, "__fields_set__", set())
+
+    # 1. Email validation & case-insensitive uniqueness
+    if "email" in fields_set:
+        raw_email = (payload.email or "").strip()
+        if raw_email:
+            cleaned_email = raw_email.lower()
+            if not re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", cleaned_email):
+                raise HTTPException(status_code=400, detail="Invalid email format")
+            
+            # Uniqueness check (case-insensitive) against other users
+            dup_email_user = db.query(models.User).filter(
+                func.lower(models.User.email) == cleaned_email,
+                models.User.id != user.id
+            ).first()
+            if dup_email_user:
+                raise HTTPException(status_code=400, detail="Email is already registered by another user")
+            
+            user.email = cleaned_email
+        else:
+            user.email = None
+
+    # 2. Username validation & uniqueness
+    if "username" in fields_set:
+        raw_username = (payload.username or "").strip()
+        if not raw_username:
+            raise HTTPException(status_code=400, detail="Username cannot be empty")
+        if len(raw_username) < 3:
+            raise HTTPException(status_code=400, detail="Username must be at least 3 characters long")
+        if not re.match(r"^[a-zA-Z0-9_.-]+$", raw_username):
+            raise HTTPException(status_code=400, detail="Username contains invalid characters")
+        
+        dup_username_user = db.query(models.User).filter(
+            func.lower(models.User.username) == raw_username.lower(),
+            models.User.id != user.id
+        ).first()
+        if dup_username_user:
+            raise HTTPException(status_code=400, detail="Username is already taken by another user")
+        
+        user.username = raw_username
+
+    # 3. Mobile validation
+    if "mobile_number" in fields_set:
+        raw_mobile = (payload.mobile_number or "").strip()
+        if raw_mobile:
+            digits_only = "".join(c for c in raw_mobile if c.isdigit())
+            if len(digits_only) != 10:
+                raise HTTPException(status_code=400, detail="Mobile number must be a valid 10-digit number")
+            user.mobile_number = digits_only
+        else:
+            user.mobile_number = None
+
+    # 4. Full Name
+    if "full_name" in fields_set:
+        raw_name = (payload.full_name or "").strip()
+        user.full_name = raw_name if raw_name else None
+
+    # 5. City
+    if "city" in fields_set:
+        raw_city = (payload.city or "").strip()
+        user.city = raw_city if raw_city else None
+
+    # 6. Active status
+    if "is_active" in fields_set and payload.is_active is not None:
+        if user.id == admin.id and payload.is_active is False:
+            raise HTTPException(status_code=400, detail="Admins cannot disable their own accounts")
+        user.is_active = payload.is_active
+
+    # 7. Document Limit (Positive int or None for Unlimited)
+    if "document_limit" in fields_set:
+        if payload.document_limit is not None:
+            if payload.document_limit <= 0:
+                raise HTTPException(status_code=400, detail="Document limit must be a positive integer or Unlimited")
+            user.document_limit = payload.document_limit
+        else:
+            user.document_limit = None  # Explicit NULL means Unlimited
+
+    db.commit()
+    db.refresh(user)
+
+    # Activity Log
+    from backend.services.activity_service import log_activity
+    log_activity(db, admin.username, "User Profile Updated", "user", user.username)
+
+    return {
+        "id": user.id,
+        "username": user.username,
+        "full_name": user.full_name or "—",
+        "email": user.email or "—",
+        "mobile_number": user.mobile_number or "—",
+        "city": user.city or "—",
+        "auth_provider": user.auth_provider or "local",
+        "is_admin": user.is_admin,
+        "is_active": user.is_active,
+        "status": "Active" if user.is_active else "Disabled",
+        "document_limit": user.document_limit,
+        "created_at": user.created_at.isoformat() if user.created_at else None
+    }
 
 @router.put("/users/{user_id}/status")
 def update_user_status(
@@ -280,6 +463,26 @@ def update_user_status(
 
 
 
+def is_test_account(user: models.User) -> bool:
+    """
+    Identifies whether an account is a test/demo account based on standard conventions.
+    """
+    uname = (user.username or "").lower()
+    email = (user.email or "").lower()
+    full_name = (user.full_name or "").lower()
+    test_keywords = ["test", "sample", "temp", "demo", "mock", "fake", "dummy", "pytest"]
+    test_email_domains = ["@test.local", "@draftsetu.local", "@example.com", "@test.com", "@localhost"]
+    for kw in test_keywords:
+        if kw in uname or kw in email or kw in full_name:
+            return True
+    for domain in test_email_domains:
+        if email.endswith(domain):
+            return True
+    if uname.startswith(("loc_", "goog_", "usr_", "u1", "u2", "adm_", "admin_usr_", "admin_pag_", "admin_test_", "sample_usr_", "sample_bulk_", "reg_usr_", "other_admin_", "test_")):
+        return True
+    return False
+
+
 @router.delete("/users/{user_id}")
 def delete_user_permanently(
     user_id: int,
@@ -293,6 +496,9 @@ def delete_user_permanently(
 
     if user.id == admin.id:
         raise HTTPException(status_code=400, detail="Admins cannot delete their own account")
+
+    if user.is_admin and not is_test_account(user):
+        raise HTTPException(status_code=400, detail="Cannot delete non-test administrator accounts")
 
     try:
         username = user.username
@@ -329,6 +535,365 @@ def delete_user_permanently(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to permanently delete user: {str(e)}")
+
+
+class BulkDeleteUsersRequest(BaseModel):
+    user_ids: List[int]
+
+
+@router.post("/users/bulk-delete")
+def bulk_delete_users(
+    payload: BulkDeleteUsersRequest,
+    db: Session = Depends(database.get_db),
+    admin: models.User = Depends(get_admin_user)
+):
+    """
+    Bulk delete selected users (e.g. test accounts) and clean up their records safely.
+    Current admin is strictly protected. Non-test admin accounts are protected.
+    Test admin accounts and test users can be safely bulk-deleted.
+    Uses efficient batch database operations within an atomic transaction.
+    """
+    if not payload.user_ids:
+        raise HTTPException(status_code=400, detail="No user IDs provided for deletion")
+
+    if admin.id in payload.user_ids:
+        raise HTTPException(status_code=400, detail="Cannot delete your own admin account")
+
+    users = db.query(models.User).filter(models.User.id.in_(payload.user_ids)).all()
+    if not users:
+        return {"success": True, "deleted_count": 0, "deleted_ids": [], "skipped_ids": []}
+
+    for u in users:
+        if u.id == admin.id:
+            raise HTTPException(status_code=400, detail="Cannot delete your own admin account")
+        if u.is_admin and not is_test_account(u):
+            raise HTTPException(status_code=400, detail=f"Cannot delete non-test administrator account '{u.username}'")
+
+    target_ids = [u.id for u in users]
+    target_usernames = [u.username for u in users]
+
+    try:
+        # 1. Batch delete Payment Orders
+        db.query(models.PaymentOrder).filter(models.PaymentOrder.user_id.in_(target_ids)).delete(synchronize_session=False)
+
+        # 2. Batch delete Wallet Transactions
+        db.query(models.WalletTransaction).filter(models.WalletTransaction.user_id.in_(target_ids)).delete(synchronize_session=False)
+
+        # 3. Batch delete Wallets
+        db.query(models.Wallet).filter(models.Wallet.user_id.in_(target_ids)).delete(synchronize_session=False)
+
+        # 4. Clean up Document files on disk & batch delete Document Submissions
+        user_docs = db.query(models.DocumentSubmission).filter(models.DocumentSubmission.user_id.in_(target_ids)).all()
+        for doc in user_docs:
+            for fpath in [doc.file_path, doc.final_pdf_path, doc.final_docx_path]:
+                if fpath and os.path.exists(fpath):
+                    try:
+                        os.remove(fpath)
+                    except OSError:
+                        pass
+        db.query(models.DocumentSubmission).filter(models.DocumentSubmission.user_id.in_(target_ids)).delete(synchronize_session=False)
+
+        # 5. Batch delete Users
+        db.query(models.User).filter(models.User.id.in_(target_ids)).delete(synchronize_session=False)
+
+        db.commit()
+
+        # 6. Log to Activity Logs
+        if target_ids:
+            from backend.services.activity_service import log_activity
+            log_activity(
+                db,
+                admin.username,
+                f"Bulk Deleted {len(target_ids)} users ({', '.join(target_usernames[:5])}{'...' if len(target_usernames) > 5 else ''})",
+                "user",
+                f"count:{len(target_ids)}"
+            )
+
+        return {
+            "success": True,
+            "deleted_count": len(target_ids),
+            "deleted_ids": target_ids,
+            "skipped_ids": []
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error during bulk user deletion: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to bulk delete users: {str(e)}")
+
+
+@router.get("/users/export-excel")
+def export_users_excel(
+    db: Session = Depends(database.get_db),
+    admin: models.User = Depends(get_admin_user)
+):
+    """
+    Export registered user records to a formatted Excel (.xlsx) spreadsheet.
+    Strictly includes only non-sensitive metadata. Admin only.
+    """
+    doc_counts_sq = (
+        db.query(
+            models.DocumentSubmission.user_id.label("user_id"),
+            func.count(models.DocumentSubmission.id).label("doc_count")
+        )
+        .filter(models.DocumentSubmission.user_id != None)
+        .group_by(models.DocumentSubmission.user_id)
+        .subquery()
+    )
+
+    query = (
+        db.query(
+            models.User,
+            func.coalesce(doc_counts_sq.c.doc_count, 0).label("doc_count"),
+            func.coalesce(models.Wallet.current_balance, 0).label("wallet_balance")
+        )
+        .outerjoin(doc_counts_sq, models.User.id == doc_counts_sq.c.user_id)
+        .outerjoin(models.Wallet, models.User.id == models.Wallet.user_id)
+        .order_by(models.User.id.asc())
+    )
+    rows = query.all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Users"
+
+    headers = [
+        "User ID",
+        "Full Name",
+        "Username",
+        "Email",
+        "Mobile",
+        "City",
+        "Credits / Wallet Balance",
+        "Documents Count",
+        "Auth Provider",
+        "Role",
+        "Status",
+        "Created Date/Time"
+    ]
+
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
+    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    ws.append(headers)
+
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+    ws.row_dimensions[1].height = 26
+
+    for user, doc_count, wallet_balance in rows:
+        created_str = user.created_at.strftime("%Y-%m-%d %H:%M:%S") if user.created_at else "—"
+        row_data = [
+            user.id,
+            user.full_name or "—",
+            user.username,
+            user.email or "—",
+            user.mobile_number or "—",
+            user.city or "—",
+            int(wallet_balance or 0),
+            int(doc_count or 0),
+            (user.auth_provider or "local").upper(),
+            "Admin" if user.is_admin else "User",
+            "Active" if user.is_active else "Disabled",
+            created_str
+        ]
+        ws.append(row_data)
+
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = col[0].column_letter
+        ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    filename = f"DraftSetu_Users_Export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return Response(
+        content=output.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
+
+
+@router.get("/payments")
+def get_payment_orders(
+    search: Optional[str] = Query(None, description="Search by order_id, payment_id, username, email"),
+    status: Optional[str] = Query("all", description="all, success, failed, created, fulfillment_pending"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=10, le=100),
+    db: Session = Depends(database.get_db),
+    admin: models.User = Depends(get_admin_user)
+):
+    """
+    Admin only: Paginated list and monitoring of Razorpay payment orders.
+    Distinguishes Razorpay payment status from DraftSetu wallet fulfillment status.
+    """
+    query = db.query(models.PaymentOrder).options(
+        joinedload(models.PaymentOrder.user),
+        joinedload(models.PaymentOrder.wallet_transaction)
+    )
+
+    # 1. Status filtering
+    if status == "success":
+        query = query.filter(models.PaymentOrder.status == "SUCCESS")
+    elif status == "failed":
+        query = query.filter(models.PaymentOrder.status.in_(["FAILED", "CANCELLED"]))
+    elif status == "created":
+        query = query.filter(models.PaymentOrder.status == "CREATED")
+    elif status == "fulfillment_pending":
+        query = query.filter(
+            models.PaymentOrder.status == "SUCCESS",
+            models.PaymentOrder.wallet_transaction_id == None
+        )
+
+    # 2. Search
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        query = query.join(models.User).filter(
+            or_(
+                models.PaymentOrder.order_id.ilike(term),
+                models.PaymentOrder.payment_id.ilike(term),
+                models.User.username.ilike(term),
+                models.User.email.ilike(term),
+                models.User.full_name.ilike(term)
+            )
+        )
+
+    # 3. Overall KPI Metrics (unpaginated)
+    total_orders = db.query(models.PaymentOrder).count()
+    successful_orders = db.query(models.PaymentOrder).filter(models.PaymentOrder.status == "SUCCESS").count()
+    failed_orders = db.query(models.PaymentOrder).filter(models.PaymentOrder.status.in_(["FAILED", "CANCELLED"])).count()
+    pending_fulfillment = db.query(models.PaymentOrder).filter(
+        models.PaymentOrder.status == "SUCCESS",
+        models.PaymentOrder.wallet_transaction_id == None
+    ).count()
+
+    total_revenue_paise = db.query(func.coalesce(func.sum(models.PaymentOrder.amount), 0)).filter(
+        models.PaymentOrder.status == "SUCCESS"
+    ).scalar() or 0
+    total_revenue_inr = round(total_revenue_paise / 100.0, 2)
+
+    # 4. Pagination
+    total = query.count()
+    total_pages = max(1, math.ceil(total / page_size)) if total > 0 else 1
+    page = min(page, total_pages)
+    offset = (page - 1) * page_size
+
+    orders = query.order_by(models.PaymentOrder.created_at.desc()).offset(offset).limit(page_size).all()
+
+    items = []
+    for o in orders:
+        if o.status == "SUCCESS":
+            rzp_status = "PAID"
+        elif o.status in ["FAILED", "CANCELLED"]:
+            rzp_status = "FAILED"
+        else:
+            rzp_status = "PENDING"
+
+        if o.status == "SUCCESS" and o.wallet_transaction_id:
+            fulfillment_status = "CREDITED"
+        elif o.status == "SUCCESS" and not o.wallet_transaction_id:
+            fulfillment_status = "FULFILLMENT_PENDING"
+        else:
+            fulfillment_status = "NOT_APPLICABLE"
+
+        items.append({
+            "id": o.id,
+            "order_id": o.order_id,
+            "payment_id": o.payment_id or "—",
+            "plan_id": o.plan_id,
+            "amount_inr": round(o.amount / 100.0, 2),
+            "credits": o.credits,
+            "currency": o.currency,
+            "user_id": o.user_id,
+            "username": o.user.username if o.user else "Unknown",
+            "user_full_name": o.user.full_name if o.user else "—",
+            "user_email": o.user.email if o.user else "—",
+            "user_mobile": o.user.mobile_number if o.user else "—",
+            "raw_status": o.status,
+            "razorpay_payment_status": rzp_status,
+            "fulfillment_status": fulfillment_status,
+            "error_code": o.error_code,
+            "error_description": o.error_description,
+            "wallet_transaction_id": o.wallet_transaction_id,
+            "created_at": o.created_at.isoformat() if o.created_at else None,
+            "updated_at": o.updated_at.isoformat() if o.updated_at else None
+        })
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+        "metrics": {
+            "total_orders": total_orders,
+            "successful_orders": successful_orders,
+            "failed_orders": failed_orders,
+            "fulfillment_pending": pending_fulfillment,
+            "total_revenue_inr": total_revenue_inr
+        }
+    }
+
+
+@router.post("/payments/{order_id}/reconcile")
+def reconcile_payment_order(
+    order_id: str,
+    db: Session = Depends(database.get_db),
+    admin: models.User = Depends(get_admin_user)
+):
+    """
+    Admin only: If a payment order is marked SUCCESS but wallet credit was not attached,
+    safely fulfills the credits to user's wallet idempotently.
+    """
+    order = db.query(models.PaymentOrder).filter(models.PaymentOrder.order_id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Payment order not found")
+
+    if order.status != "SUCCESS":
+        raise HTTPException(status_code=400, detail="Only successful payments can be fulfilled")
+
+    if order.wallet_transaction_id:
+        return {
+            "success": True,
+            "message": "Payment already fulfilled and credited.",
+            "wallet_transaction_id": order.wallet_transaction_id
+        }
+
+    from backend.services.wallet_service import WalletService
+    wallet = WalletService.adjust_balance(
+        db=db,
+        user_id=order.user_id,
+        credits=order.credits,
+        type="CREDIT",
+        source="PAYMENT",
+        remarks=f"Razorpay Order {order.order_id} (Manual Admin Reconciliation by {admin.username})"
+    )
+
+    tx = db.query(models.WalletTransaction).filter(
+        models.WalletTransaction.user_id == order.user_id,
+        models.WalletTransaction.source == "PAYMENT"
+    ).order_by(models.WalletTransaction.created_at.desc()).first()
+
+    if tx:
+        order.wallet_transaction_id = tx.id
+    db.commit()
+
+    from backend.services.activity_service import log_activity
+    log_activity(db, admin.username, f"Reconciled and fulfilled payment order {order.order_id}", "payment", order.order_id)
+
+    return {
+        "success": True,
+        "message": f"Successfully credited {order.credits} credits to user.",
+        "wallet_balance": wallet.current_balance,
+        "wallet_transaction_id": order.wallet_transaction_id
+    }
+
 
 
 
@@ -956,7 +1521,7 @@ def get_template_analytics_detail(
 @router.get("/template-analytics/{template_id}/documents")
 def get_template_analytics_documents(
     template_id: str,
-    status: str = Query("all", regex="^(all|draft|finalized)$"),
+    status: str = Query("all", pattern="^(all|draft|finalized)$"),
     db: Session = Depends(database.get_db),
     admin: models.User = Depends(get_admin_user)
 ):

@@ -1,6 +1,6 @@
 import React from 'react';
 
-const HomePage = ({ currentUser, onNavigate, onLogin, templates = [] }) => {
+const HomePage = ({ currentUser, onNavigate, onLogin, templates = [], isAuthHydrated = true }) => {
     const [currentSlide, setCurrentSlide] = React.useState(0);
     const [selectedCategory, setSelectedCategory] = React.useState('All');
 
@@ -187,7 +187,7 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [] }) => {
                                 >
                                     {slide.actionText}
                                 </button>
-                                {!currentUser && (
+                                {!currentUser && isAuthHydrated && (
                                     <button
                                         onClick={onLogin}
                                         className="bg-white/10 hover:bg-white/20 text-white border border-white/20 font-black text-xs md:text-sm uppercase tracking-widest px-6 py-3.5 rounded-xl transition font-sans"

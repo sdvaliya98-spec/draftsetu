@@ -168,6 +168,14 @@ def ensure_schema_up_to_date():
                 logger.info("🛠️ Adding missing column 'mobile_number' to users table...")
                 with engine.begin() as conn:
                     conn.execute(text("ALTER TABLE users ADD COLUMN mobile_number VARCHAR"))
+            if "full_name" not in columns:
+                logger.info("🛠️ Adding missing column 'full_name' to users table...")
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN full_name VARCHAR"))
+            if "city" not in columns:
+                logger.info("🛠️ Adding missing column 'city' to users table...")
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN city VARCHAR"))
             if "email" not in columns:
                 logger.info("🛠️ Adding missing column 'email' to users table...")
                 with engine.begin() as conn:
@@ -189,6 +197,11 @@ def ensure_schema_up_to_date():
                 col_type = "BOOLEAN DEFAULT FALSE" if is_postgres else "BOOLEAN DEFAULT 0"
                 with engine.begin() as conn:
                     conn.execute(text(f"ALTER TABLE users ADD COLUMN email_verified {col_type}"))
+            if "document_limit" not in columns:
+                logger.info("🛠️ Adding missing column 'document_limit' to users table...")
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN document_limit INTEGER DEFAULT 10"))
+                    conn.execute(text("UPDATE users SET document_limit = 10 WHERE document_limit IS NULL"))
 
         # Check activity_logs
         if "activity_logs" in table_names:

@@ -43,43 +43,11 @@ START_TIME = datetime.utcnow()
 models.Base.metadata.create_all(bind=database.engine)
 database.ensure_schema_up_to_date()
 
-app = FastAPI(title="Dynamic Document Generator API")
+from contextlib import asynccontextmanager
 
-# Middleware: Request Logging
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    client_host = request.client.host if request.client else "unknown"
-    start_time = datetime.utcnow()
-    try:
-        response = await call_next(request)
-        duration = (datetime.utcnow() - start_time).total_seconds()
-        logger.info(f"[{client_host}] {request.method} {request.url.path} -> {response.status_code} ({duration:.3f}s)")
-        return response
-    except Exception as e:
-        duration = (datetime.utcnow() - start_time).total_seconds()
-        logger.error(f"[{client_host}] {request.method} {request.url.path} -> ERROR: {e} ({duration:.3f}s)")
-        # We don't re-raise here; we let the global exception handler handle it or return a response
-        import traceback
-        logger.error(traceback.format_exc())
-        return JSONResponse(
-            status_code=500,
-            content={"success": False, "detail": "Internal Server Error", "error": str(e)}
-        )
-
-# Middleware: CORS
-# Hardened CORS: allow_credentials=True cannot be used with allow_origins=["*"]
-# Since we use Bearer tokens (Authorization header), we don't strictly need allow_credentials=True.
-# However, many browsers are sensitive to this.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"] if settings.CORS_ORIGINS == ["*"] else settings.CORS_ORIGINS,
-    allow_credentials=False if settings.CORS_ORIGINS == ["*"] else True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
     logger.info("🚀 Backend server starting up...")
     
     # 1. Automatic Backup
@@ -242,11 +210,47 @@ async def startup_event():
         logger.error(f"❌ Database connection failed: {e}")
     logger.info("-----------------------------")
 
-@app.on_event("shutdown")
-async def shutdown_event():
+    yield
+
+    # Shutdown logic
     logger.info("👋 Backend server shutting down gracefully...")
     database.checkpoint_sqlite_wal()
     logger.info("-----------------------------")
+
+app = FastAPI(title="Dynamic Document Generator API", lifespan=lifespan)
+
+# Middleware: Request Logging
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    client_host = request.client.host if request.client else "unknown"
+    start_time = datetime.utcnow()
+    try:
+        response = await call_next(request)
+        duration = (datetime.utcnow() - start_time).total_seconds()
+        logger.info(f"[{client_host}] {request.method} {request.url.path} -> {response.status_code} ({duration:.3f}s)")
+        return response
+    except Exception as e:
+        duration = (datetime.utcnow() - start_time).total_seconds()
+        logger.error(f"[{client_host}] {request.method} {request.url.path} -> ERROR: {e} ({duration:.3f}s)")
+        # We don't re-raise here; we let the global exception handler handle it or return a response
+        import traceback
+        logger.error(traceback.format_exc())
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": "Internal Server Error", "error": str(e)}
+        )
+
+# Middleware: CORS
+# Hardened CORS: allow_credentials=True cannot be used with allow_origins=["*"]
+# Since we use Bearer tokens (Authorization header), we don't strictly need allow_credentials=True.
+# However, many browsers are sensitive to this.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"] if settings.CORS_ORIGINS == ["*"] else settings.CORS_ORIGINS,
+    allow_credentials=False if settings.CORS_ORIGINS == ["*"] else True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Health & Debug Routes
 @app.get("/health")

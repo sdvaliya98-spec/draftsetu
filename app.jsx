@@ -86,6 +86,7 @@ const LazyMyDocumentsModal = React.lazy(() => import('./src/components/MyDocumen
 const LazyDocumentServicesPanel = React.lazy(() => import('./src/components/DocumentServicesPanel.jsx'));
 const LazyFormPanel = React.lazy(() => import('./src/components/FormPanel.jsx'));
 const LazyDocumentPreview = React.lazy(() => import('./src/components/DocumentPreview.jsx'));
+const LazyUserProfileModal = React.lazy(() => import('./src/components/UserProfileModal.jsx'));
 
 const App = () => {
     const isInitialLoadRef = useRef(true);
@@ -102,9 +103,17 @@ const App = () => {
     const [activeTemplateId, setActiveTemplateId] = useState('');
     const [role, setRole] = useState('user');
     const [isViewingDrafts, setIsViewingDrafts] = useState(false);
-    const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+    const [isAuthModalOpen, setIsAuthModalOpen] = useState(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            return !!(params.get('reset_token') || params.get('token'));
+        } catch {
+            return false;
+        }
+    });
     window.openAuthModal = () => setIsAuthModalOpen(true);
 
+    const [isAuthHydrated, setIsAuthHydrated] = useState(false);
     const [currentUser, setCurrentUser] = useState(() => localStorage.getItem('currentUser') || null);
     const [authToken, setAuthToken] = useState(() => localStorage.getItem('authToken') || null);
     const [isAdminUser, setIsAdminUser] = useState(() => localStorage.getItem('isAdminUser') === 'true');
@@ -119,6 +128,7 @@ const App = () => {
     const [adminPanelTab, setAdminPanelTab] = useState(() => localStorage.getItem('adminPanelTab') || 'templates');
     const [userCredits, setUserCredits] = useState(null);
     const [isViewingWallet, setIsViewingWallet] = useState(false);
+    const [isUserProfileOpen, setIsUserProfileOpen] = useState(false);
     const [menuOpen, setMenuOpen] = useState(true);
     const [menuItems, setMenuItems] = useState([]);
     const [dbTpls, setDbTpls] = useState([]);
@@ -126,6 +136,61 @@ const App = () => {
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
     const [templateLoadError, setTemplateLoadError] = useState(null);
     const [isDocServicesPanelOpen, setIsDocServicesPanelOpen] = useState(false);
+
+    // Global Auth Hydration on startup
+    useEffect(() => {
+        let isMounted = true;
+        const hydrateAuth = async () => {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                if (isMounted) {
+                    setIsAuthHydrated(true);
+                }
+                return;
+            }
+
+            try {
+                const res = await window.apiFetch('/api/auth/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (res.ok) {
+                    const userData = await res.json();
+                    if (isMounted) {
+                        const verifiedUsername = userData.username || localStorage.getItem('currentUser');
+                        const verifiedIsAdmin = Boolean(userData.is_admin);
+                        setCurrentUser(verifiedUsername);
+                        setIsAdminUser(verifiedIsAdmin);
+                        localStorage.setItem('currentUser', verifiedUsername);
+                        localStorage.setItem('isAdminUser', String(verifiedIsAdmin));
+                    }
+                } else if (res.status === 401 || res.status === 403) {
+                    // Stored token is invalid or expired
+                    if (isMounted) {
+                        setCurrentUser(null);
+                        setAuthToken(null);
+                        setIsAdminUser(false);
+                        setRole('user');
+                        localStorage.removeItem('currentUser');
+                        localStorage.removeItem('authToken');
+                        localStorage.removeItem('isAdminUser');
+                        localStorage.setItem('appRole', 'user');
+                    }
+                }
+            } catch (err) {
+                console.warn("Auth hydration verification network issue:", err);
+            } finally {
+                if (isMounted) {
+                    setIsAuthHydrated(true);
+                }
+            }
+        };
+
+        hydrateAuth();
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     const isFetchingTemplatesRef = useRef(false);
     const refreshTemplates = async () => {
@@ -308,9 +373,19 @@ const App = () => {
                     const countRes = await window.apiFetch('/api/documents/');
                     if (countRes.ok) {
                         const docs = await countRes.json();
-                        if (docs.length >= 10) {
+                        const headerLimit = countRes.headers.get('X-Document-Limit');
+                        let effectiveLimit = null;
+                        if (headerLimit) {
+                            if (headerLimit.toLowerCase() !== 'unlimited' && headerLimit !== 'null' && headerLimit !== 'none') {
+                                const parsed = parseInt(headerLimit, 10);
+                                if (!isNaN(parsed) && parsed > 0) effectiveLimit = parsed;
+                            }
+                        } else if (currentUser && typeof currentUser === 'object' && currentUser.document_limit !== undefined) {
+                            effectiveLimit = currentUser.document_limit;
+                        }
+                        if (effectiveLimit !== null && docs.length >= effectiveLimit) {
                             if (activeTemplateId === targetTemplateId) {
-                                const limitMsg = "Maximum 10 saved documents allowed. Please delete old documents before saving new ones.";
+                                const limitMsg = `Maximum ${effectiveLimit} saved documents allowed. Please delete old documents before saving new ones.`;
                                 setDraftError(limitMsg);
                                 showToast(limitMsg, "error");
                             }
@@ -413,9 +488,19 @@ const App = () => {
                     if (countRes.ok) {
                         const docs = await countRes.json();
                         const isNew = !docs.some(d => d.tracking_id === trackingId);
-                        if (isNew && docs.length >= 10) {
+                        const headerLimit = countRes.headers.get('X-Document-Limit');
+                        let effectiveLimit = null;
+                        if (headerLimit) {
+                            if (headerLimit.toLowerCase() !== 'unlimited' && headerLimit !== 'null' && headerLimit !== 'none') {
+                                const parsed = parseInt(headerLimit, 10);
+                                if (!isNaN(parsed) && parsed > 0) effectiveLimit = parsed;
+                            }
+                        } else if (currentUser && typeof currentUser === 'object' && currentUser.document_limit !== undefined) {
+                            effectiveLimit = currentUser.document_limit;
+                        }
+                        if (isNew && effectiveLimit !== null && docs.length >= effectiveLimit) {
                             if (activeTemplateId === targetTemplateId) {
-                                const limitMsg = "Maximum 10 saved documents allowed. Please delete old documents before saving new ones.";
+                                const limitMsg = `Maximum ${effectiveLimit} saved documents allowed. Please delete old documents before saving new ones.`;
                                 setDraftError(limitMsg);
                                 showToast(limitMsg, "error");
                             }
@@ -528,6 +613,10 @@ const App = () => {
         }
         if (url === 'wallet') {
             setIsViewingWallet(true);
+            return;
+        }
+        if (url === 'profile') {
+            setIsUserProfileOpen(true);
             return;
         }
         if (url.startsWith('page:')) {
@@ -955,13 +1044,17 @@ const App = () => {
                     }
                     setCurrentUser(null); setAuthToken(null); setIsAdminUser(false);
                     setRole('user');
+                    setIsAuthHydrated(true);
                     localStorage.removeItem('currentUser'); localStorage.removeItem('authToken'); localStorage.removeItem('isAdminUser');
                     localStorage.setItem('appRole', 'user');
                 }}
                 onAdminPanelOpen={() => setIsAdminPanelOpen(true)}
+                onProfileOpen={() => setIsUserProfileOpen(true)}
                 onNavigate={handleNavigate}
                 userCredits={userCredits}
                 refreshCredits={refreshCredits}
+                isAuthHydrated={isAuthHydrated}
+                authLoading={!isAuthHydrated}
             />
 
             <main className="flex flex-1 overflow-hidden bg-slate-100">
@@ -973,6 +1066,7 @@ const App = () => {
                                 onNavigate={handleNavigate}
                                 onLogin={() => setIsAuthModalOpen(true)}
                                 templates={allTemplates}
+                                isAuthHydrated={isAuthHydrated}
                             />
                         </div>
                     )}
@@ -1139,10 +1233,23 @@ const App = () => {
 
             {isAuthModalOpen && (
                 <AuthModal
+                    initialToken={(() => {
+                        try {
+                            const p = new URLSearchParams(window.location.search);
+                            return p.get('reset_token') || p.get('token') || '';
+                        } catch { return ''; }
+                    })()}
+                    initialView={(() => {
+                        try {
+                            const p = new URLSearchParams(window.location.search);
+                            return (p.get('reset_token') || p.get('token')) ? 'forgot-reset' : 'login';
+                        } catch { return 'login'; }
+                    })()}
                     onClose={() => setIsAuthModalOpen(false)}
                     onLoginSuccess={(username, token, isAdmin) => {
                         setCurrentUser(username); setAuthToken(token); setIsAdminUser(isAdmin);
                         setRole(isAdmin ? 'admin' : 'user');
+                        setIsAuthHydrated(true);
                         localStorage.setItem('currentUser', username);
                         localStorage.setItem('authToken', token);
                         localStorage.setItem('isAdminUser', String(isAdmin));
@@ -1181,6 +1288,21 @@ const App = () => {
                             setCurrentView('editor');
                             localStorage.setItem('currentView', 'editor');
                             handleTemplateSelect(templateId);
+                        }}
+                    />
+                )}
+            </React.Suspense>
+
+            <React.Suspense fallback={<LazyFallback />}>
+                {isUserProfileOpen && (
+                    <LazyUserProfileModal
+                        isOpen={isUserProfileOpen}
+                        onClose={() => setIsUserProfileOpen(false)}
+                        onUserUpdated={(updatedUser) => {
+                            if (updatedUser.username && updatedUser.username !== currentUser) {
+                                setCurrentUser(updatedUser.username);
+                            }
+                            showToast("પ્રોફાઇલ સફળતાપૂર્વક અપડેટ થઈ ગઈ છે (Profile updated successfully)", "success");
                         }}
                     />
                 )}
