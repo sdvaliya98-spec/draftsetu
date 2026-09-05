@@ -18,3 +18,4 @@ alembic
 razorpay
 pytest
 pytest-asyncio
+openpyxl>=3.1.5
