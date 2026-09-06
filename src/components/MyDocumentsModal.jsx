@@ -29,7 +29,7 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
         if (!dateStr) return '—';
         try {
             const d = new Date(dateStr);
-            return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            return d.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: '2-digit', year: 'numeric' }) + ', ' + d.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
         } catch {
             return dateStr;
         }

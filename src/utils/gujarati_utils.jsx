@@ -64,26 +64,67 @@ const extractVariables = (content) => {
     return matches;
 };
 
-function formatIndiaDateTime(dateString) {
-    if (!dateString) return "-";
+function formatIndiaDateTime(dateInput, options = {}) {
+    if (!dateInput) return "—";
 
-    let dateStr = dateString;
-    if (typeof dateStr === 'string') {
+    let dateStr = String(dateInput).trim();
+    if (!dateStr || dateStr === "null" || dateStr === "undefined") return "—";
+
+    if (dateStr.includes(' ') && !dateStr.includes('T')) {
         dateStr = dateStr.replace(' ', 'T');
-        if (!dateStr.endsWith('Z') && !dateStr.includes('+')) {
-            dateStr = dateStr + 'Z';
-        }
+    }
+    if (!dateStr.endsWith('Z') && !dateStr.includes('+') && !dateStr.includes('-T')) {
+        dateStr = dateStr + 'Z';
     }
 
-    return new Date(dateStr).toLocaleString("en-IN", {
-        timeZone: "Asia/Kolkata",
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true
-    }).replace("am", "AM").replace("pm", "PM");
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return String(dateInput);
+
+        const monthFormat = options.monthStyle || options.month || (options.dateStyle === 'medium' ? 'short' : '2-digit');
+
+        return d.toLocaleString("en-IN", {
+            timeZone: "Asia/Kolkata",
+            day: "2-digit",
+            month: monthFormat,
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true
+        }).replace("am", "AM").replace("pm", "PM");
+    } catch {
+        return String(dateInput);
+    }
+}
+
+function formatIndiaDate(dateInput, options = {}) {
+    if (!dateInput) return "—";
+
+    let dateStr = String(dateInput).trim();
+    if (!dateStr || dateStr === "null" || dateStr === "undefined") return "—";
+
+    if (dateStr.includes(' ') && !dateStr.includes('T')) {
+        dateStr = dateStr.replace(' ', 'T');
+    }
+    if (!dateStr.endsWith('Z') && !dateStr.includes('+')) {
+        dateStr = dateStr + 'Z';
+    }
+
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return String(dateInput);
+
+        const monthFormat = options.monthStyle || options.month || (options.dateStyle === 'short' ? '2-digit' : 'short');
+
+        return d.toLocaleDateString("en-IN", {
+            timeZone: "Asia/Kolkata",
+            day: "2-digit",
+            month: monthFormat,
+            year: "numeric"
+        });
+    } catch {
+        return String(dateInput);
+    }
 }
 
 const formatDateDDMMYYYY = (value) => {
@@ -125,15 +166,29 @@ const formatPreviewDate = (value) => {
     return formatDateDDMMYYYY(value);
 };
 
-// Backwards compatibility
+// Backwards compatibility & Global Exports
 window.gujarati99 = gujarati99;
 window.formatCurrency = formatCurrency;
 window.numberToGujaratiWords = numberToGujaratiWords;
 window.extractVariables = extractVariables;
 window.formatIndiaDateTime = formatIndiaDateTime;
+window.formatIndiaDate = formatIndiaDate;
 window.formatDateForDisplay = formatDateForDisplay;
 window.formatDateForStorage = formatDateForStorage;
 window.formatDateForDocument = formatDateForDocument;
 window.formatPreviewDate = formatPreviewDate;
 window.formatDateDDMMYYYY = formatDateDDMMYYYY;
+
+export {
+    formatIndiaDateTime,
+    formatIndiaDate,
+    formatDateDDMMYYYY,
+    formatDateForDisplay,
+    formatDateForStorage,
+    formatDateForDocument,
+    formatPreviewDate,
+    formatCurrency,
+    numberToGujaratiWords,
+    extractVariables
+};
 

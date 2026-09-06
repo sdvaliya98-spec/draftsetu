@@ -278,7 +278,7 @@ const MobileNavItem = ({ item, onNavigate }) => {
 };
 
 const GovHeader = ({
-    menuItems,
+    menuItems = [],
     currentUser,
     user,
     role,
@@ -319,7 +319,7 @@ const GovHeader = ({
 
                     {/* 2. NAVIGATION (Flexible middle region) */}
                     <nav className="hidden lg:flex items-center space-x-0.5 xl:space-x-0.5 h-full ml-1 lg:ml-1.5 xl:ml-2 mr-auto shrink min-w-0">
-                        {menuItems.map((item, idx) => (
+                        {(menuItems || []).map((item, idx) => (
                             <NavItem key={item.id || idx} item={item} onNavigate={onNavigate} />
                         ))}
                     </nav>
@@ -446,7 +446,7 @@ const GovHeader = ({
             {mobileOpen && (
                 <div className="lg:hidden border-t border-slate-200/80 bg-white px-4 py-4 space-y-3 shadow-xl max-h-[75vh] overflow-y-auto">
                     <div className="space-y-1.5">
-                        {menuItems.map((item, idx) => (
+                        {(menuItems || []).map((item, idx) => (
                             <MobileNavItem
                                 key={item.id || idx}
                                 item={item}

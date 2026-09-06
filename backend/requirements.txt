@@ -21,3 +21,4 @@ pytest-asyncio
 openpyxl>=3.1.5
 google-auth>=2.29.0
 requests>=2.31.0
+tzdata>=2024.1

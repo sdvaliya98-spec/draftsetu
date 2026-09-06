@@ -179,6 +179,18 @@ const App = () => {
                 }
             } catch (err) {
                 console.warn("Auth hydration verification network issue:", err);
+                if (err.status === 401 || err.status === 403) {
+                    if (isMounted) {
+                        setCurrentUser(null);
+                        setAuthToken(null);
+                        setIsAdminUser(false);
+                        setRole('user');
+                        localStorage.removeItem('currentUser');
+                        localStorage.removeItem('authToken');
+                        localStorage.removeItem('isAdminUser');
+                        localStorage.setItem('appRole', 'user');
+                    }
+                }
             } finally {
                 if (isMounted) {
                     setIsAuthHydrated(true);
@@ -242,7 +254,7 @@ const App = () => {
                 };
 
                 // Avoid duplicates if already in DB
-                const filteredData = data.filter(item => item.url !== 'documents');
+                const filteredData = Array.isArray(data) ? data.filter(item => item.url !== 'documents') : [];
                 setMenuItems([myDocsItem, ...filteredData]);
             })
             .catch(err => {

@@ -425,14 +425,10 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
     };
 
     const formatDate = (dateStr) => {
-        if (!dateStr) return '—';
-        try {
-            const d = new Date(dateStr);
-            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-            return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-        } catch {
-            return dateStr;
+        if (typeof window.formatIndiaDateTime === 'function') {
+            return window.formatIndiaDateTime(dateStr, { monthStyle: 'short' });
         }
+        return dateStr || '—';
     };
     
     const displayTemplates = activeSubTab === 'active' ? all : archivedTemplates;
@@ -1431,11 +1427,10 @@ const UserManagement = ({ currentAdminUsername, refreshTrigger }) => {
     };
 
     const formatDate = (iso) => {
-        if (!iso) return '—';
-        try {
-            const d = new Date(iso);
-            return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-        } catch { return '—'; }
+        if (typeof window.formatIndiaDate === 'function') {
+            return window.formatIndiaDate(iso, { monthStyle: 'short' });
+        }
+        return iso || '—';
     };
 
     // Toggle column sorting
@@ -2247,14 +2242,10 @@ const AdminPaymentsPanel = ({ refreshTrigger }) => {
     };
 
     const formatDate = (iso) => {
-        if (!iso) return '—';
-        try {
-            const d = new Date(iso);
-            return d.toLocaleString('en-IN', {
-                day: '2-digit', month: 'short', year: 'numeric',
-                hour: '2-digit', minute: '2-digit', hour12: true
-            });
-        } catch { return '—'; }
+        if (typeof window.formatIndiaDateTime === 'function') {
+            return window.formatIndiaDateTime(iso, { monthStyle: 'short' });
+        }
+        return iso || '—';
     };
 
     return (
@@ -2644,13 +2635,10 @@ const AllDocumentsPanel = ({ refreshTrigger }) => {
     };
 
     const formatDateTime = (iso) => {
-        if (!iso) return '—';
-        try {
-            return new Date(iso).toLocaleString('en-IN', {
-                day: '2-digit', month: 'short', year: 'numeric',
-                hour: '2-digit', minute: '2-digit', hour12: true
-            });
-        } catch { return iso; }
+        if (typeof window.formatIndiaDateTime === 'function') {
+            return window.formatIndiaDateTime(iso, { monthStyle: 'short' });
+        }
+        return iso || '—';
     };
 
     const getDocPreviewFields = (doc) => {

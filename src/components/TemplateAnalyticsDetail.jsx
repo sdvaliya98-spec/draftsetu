@@ -72,8 +72,12 @@ const TemplateAnalyticsDetail = ({ templateId, isOpen, onClose }) => {
 
     const formatDateTime = (iso) => {
         if (!iso) return 'Never';
+        if (typeof window.formatIndiaDateTime === 'function') {
+            return window.formatIndiaDateTime(iso, { monthStyle: 'short', nullText: 'Never' });
+        }
         try {
             return new Date(iso).toLocaleString('en-IN', {
+                timeZone: 'Asia/Kolkata',
                 day: '2-digit', month: 'short', year: 'numeric',
                 hour: '2-digit', minute: '2-digit', hour12: true
             });

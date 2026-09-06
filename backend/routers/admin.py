@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, cast, Date, or_
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time, timezone
 import json
 import os
 import io
@@ -14,6 +14,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from backend import models, database
 from backend.routers.auth import get_admin_user
 from backend.routers.documents import get_libreoffice_status
+from backend.utils.date_utils import to_ist, get_ist_now, get_ist_today_boundaries_in_utc, IST
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -26,10 +27,10 @@ def get_dashboard_stats(
     # 1. Total Documents
     total_documents = db.query(models.DocumentSubmission).count()
     
-    # 2. Today's Documents
-    today_start = datetime.combine(datetime.utcnow().date(), time.min)
+    # 2. Today's Documents (Calculated using Asia/Kolkata calendar day)
+    today_start_utc, _ = get_ist_today_boundaries_in_utc()
     today_documents = db.query(models.DocumentSubmission).filter(
-        models.DocumentSubmission.created_at >= today_start
+        models.DocumentSubmission.created_at >= today_start_utc
     ).count()
 
     # 3. Total Users
@@ -56,18 +57,18 @@ def get_dashboard_stats(
     # 7.5. Total Static Pages
     total_static_pages = db.query(models.StaticPage).count()
 
-    # 8. Today Activity Detail
+    # 8. Today Activity Detail (Calculated using Asia/Kolkata calendar day)
     today_generated = db.query(models.DocumentSubmission).filter(
-        models.DocumentSubmission.created_at >= today_start
+        models.DocumentSubmission.created_at >= today_start_utc
     ).count()
     
     today_drafts = db.query(models.DocumentSubmission).filter(
-        models.DocumentSubmission.created_at >= today_start,
+        models.DocumentSubmission.created_at >= today_start_utc,
         models.DocumentSubmission.is_locked == False
     ).count()
     
     today_locked = db.query(models.DocumentSubmission).filter(
-        models.DocumentSubmission.updated_at >= today_start,
+        models.DocumentSubmission.updated_at >= today_start_utc,
         models.DocumentSubmission.is_locked == True
     ).count()
 
@@ -109,36 +110,26 @@ def get_dashboard_stats(
     else:
         pdf_engine = "Not Available"
 
-    # 11. Documents Per Day (Last 7 Days)
-    days = []
-    today = datetime.utcnow().date()
-    for i in range(6, -1, -1):
-        d = today - timedelta(days=i)
-        days.append(d)
+    # 11. Documents Per Day (Last 7 Days in Asia/Kolkata calendar)
+    now_ist = get_ist_now()
+    today_ist = now_ist.date()
+    days = [today_ist - timedelta(days=i) for i in range(6, -1, -1)]
         
     day_counts = {d.isoformat(): 0 for d in days}
-    start_date = datetime.combine(today - timedelta(days=6), datetime.min.time())
+    start_window_ist = datetime.combine(days[0], time.min, tzinfo=IST)
+    start_date_utc = start_window_ist.astimezone(timezone.utc).replace(tzinfo=None)
     
-    # Aggregated in database to avoid loading all recent rows
-    if db.bind.dialect.name == 'postgresql':
-        day_expr = cast(models.DocumentSubmission.created_at, Date)
-    else:
-        day_expr = func.date(models.DocumentSubmission.created_at)
-
-    recent_stats = db.query(
-        day_expr.label("day"),
-        func.count(models.DocumentSubmission.id).label("count")
-    ).filter(
-        models.DocumentSubmission.created_at >= start_date
-    ).group_by(
-        day_expr
+    # Query timestamps for the 7-day window and bucket by Asia/Kolkata calendar date
+    recent_submissions = db.query(models.DocumentSubmission.created_at).filter(
+        models.DocumentSubmission.created_at >= start_date_utc
     ).all()
     
-    for day, count in recent_stats:
-        if day:
-            day_str = day.isoformat() if hasattr(day, "isoformat") else str(day)
-            if day_str in day_counts:
-                day_counts[day_str] = count
+    for (created_at,) in recent_submissions:
+        if created_at:
+            ist_dt = to_ist(created_at)
+            ist_day_str = ist_dt.date().isoformat()
+            if ist_day_str in day_counts:
+                day_counts[ist_day_str] += 1
             
     # Format date for charts: e.g. "23 May"
     months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -684,7 +675,7 @@ def export_users_excel(
     ws.row_dimensions[1].height = 26
 
     for user, doc_count, wallet_balance in rows:
-        created_str = user.created_at.strftime("%Y-%m-%d %H:%M:%S") if user.created_at else "—"
+        created_str = to_ist(user.created_at).strftime("%Y-%m-%d %H:%M:%S") if user.created_at else "—"
         row_data = [
             user.id,
             user.full_name or "—",
@@ -710,7 +701,7 @@ def export_users_excel(
     wb.save(output)
     output.seek(0)
 
-    filename = f"DraftSetu_Users_Export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    filename = f"DraftSetu_Users_Export_{get_ist_now().strftime('%Y%m%d_%H%M%S')}.xlsx"
     return Response(
         content=output.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1473,7 +1464,7 @@ def get_template_analytics_detail(
     else:
         month_expr = func.strftime('%Y-%m', models.DocumentSubmission.created_at)
 
-    today = datetime.utcnow().date()
+    today = get_ist_now().date()
     months_list = []
     for i in range(11, -1, -1):
         y = today.year
