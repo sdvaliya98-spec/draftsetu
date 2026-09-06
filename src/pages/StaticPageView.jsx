@@ -5,16 +5,46 @@ const StaticPageView = ({ slug, onNavigate }) => {
     const [loading, setLoading] = React.useState(true);
 
     React.useEffect(() => {
-        setLoading(true);
-        if (window.apiFetch) {
-            window.apiFetch(`/api/pages/${slug}`)
-                .then(r => r.ok ? r.json() : null)
-                .then(setPage)
-                .catch(() => setPage(null))
-                .finally(() => setLoading(false));
-        } else {
+        if (!slug) {
+            setPage(null);
             setLoading(false);
+            return;
         }
+
+        let isMounted = true;
+        setLoading(true);
+
+        const fetchPage = async () => {
+            try {
+                if (typeof window.apiFetch === 'function') {
+                    const r = await window.apiFetch(`/api/pages/${slug}`);
+                    if (r && r.ok) {
+                        const data = await r.json();
+                        if (isMounted) {
+                            if (data && typeof data === 'object' && !Array.isArray(data) && data.title) {
+                                setPage(data);
+                            } else {
+                                setPage(null);
+                            }
+                        }
+                    } else {
+                        if (isMounted) setPage(null);
+                    }
+                } else {
+                    if (isMounted) setPage(null);
+                }
+            } catch (err) {
+                if (isMounted) setPage(null);
+            } finally {
+                if (isMounted) setLoading(false);
+            }
+        };
+
+        fetchPage();
+
+        return () => {
+            isMounted = false;
+        };
     }, [slug]);
 
     if (loading) {

@@ -98,7 +98,7 @@ const App = () => {
         localStorage.getItem('currentView') || 'home'
     ); // 'home' | 'editor' | 'page'
     const [editingTemplate, setEditingTemplate] = useState(null); // null = closed, object = being edited
-    const [currentPageSlug, setCurrentPageSlug] = useState('');
+    const [currentPageSlug, setCurrentPageSlug] = useState(() => localStorage.getItem('currentPageSlug') || '');
     const [templates, setTemplates] = useState([]);
     const [activeTemplateId, setActiveTemplateId] = useState('');
     const [role, setRole] = useState('user');
@@ -607,6 +607,7 @@ const App = () => {
         if (url === 'home' || url === '/') {
             setCurrentView('home');
             localStorage.setItem('currentView', 'home');
+            localStorage.removeItem('currentPageSlug');
             return;
         }
         if (url.startsWith('editor')) {
@@ -632,9 +633,11 @@ const App = () => {
             return;
         }
         if (url.startsWith('page:')) {
+            const slug = url.slice(5).trim();
             setCurrentView('page');
             localStorage.setItem('currentView', 'page');
-            setCurrentPageSlug(url.slice(5));
+            setCurrentPageSlug(slug);
+            localStorage.setItem('currentPageSlug', slug);
             return;
         }
         window.open(url, '_blank');
