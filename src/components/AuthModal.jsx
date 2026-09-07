@@ -1,4 +1,5 @@
 import React from 'react';
+import { showAlertDialog } from './CustomDialog.jsx';
 
 const AuthModal = ({ onClose, onLoginSuccess, initialView = 'login', initialToken = '' }) => {
     const [view, setView] = React.useState(initialView); // 'login' | 'register' | 'forgot-request' | 'forgot-legacy' | 'forgot-reset'
@@ -416,7 +417,12 @@ const AuthModal = ({ onClose, onLoginSuccess, initialView = 'login', initialToke
                         new_password: newPassword
                     }
                 });
-                alert('Password reset successfully! Please log in with your new password.');
+                showAlertDialog({
+                    title: 'Success',
+                    subtitle: 'Password Reset',
+                    message: 'Password reset successfully! Please log in with your new password.',
+                    type: 'success'
+                });
                 cleanUrlResetToken();
                 setView('login');
                 setPassword('');

@@ -9,6 +9,7 @@ import './TemplateAnalyticsDetail.jsx';
 import './ActivityLogs.jsx';
 import AdminDashboard from './AdminDashboard.jsx';
 import AdminWalletPanel from './AdminWalletPanel.jsx';
+import { showConfirmDialog, showAlertDialog } from './CustomDialog.jsx';
 
 const {
     LayoutDashboardIcon,
@@ -183,7 +184,12 @@ const MenuItemFormModal = ({ item, parentId, allFlatItems, templates, dbTemplate
                         onClick={() => {
                             if (!form.label.trim()) return;
                             if (form.type === 'template' && !form.template_id) {
-                                alert('Please select a template');
+                                showAlertDialog({
+                                    title: 'Template Required',
+                                    subtitle: 'Menu Node',
+                                    message: 'Please select a template.',
+                                    type: 'warning'
+                                });
                                 return;
                             }
                             onSave(form);
@@ -250,7 +256,14 @@ const MenuBuilder = ({ onMenuUpdate, templates, dbTemplates, refreshTrigger }) =
                         level={0}
                         onEdit={i => { setEditItem(i); setChildParentId(null); setShowForm(true); }}
                         onDelete={async (id) => {
-                            if (!confirm('Delete this node and all descendants?')) return;
+                            const confirmed = await showConfirmDialog({
+                                title: 'Delete Menu Node',
+                                subtitle: 'Confirm Deletion',
+                                message: 'Delete this node and all descendants?',
+                                type: 'danger',
+                                isDestructive: true
+                            });
+                            if (!confirmed) return;
                             await window.apiFetch(`/api/menu/${id}`, { method: 'DELETE' });
                             reload();
                             if (onMenuUpdate) onMenuUpdate();
@@ -327,42 +340,84 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
     }, [refreshTrigger]);
 
     const handleArchiveTemplate = async (templateId) => {
-        const confirmMsg = "Are you sure you want to archive this template? It will be hidden from users but remain available to admins.";
-        if (!window.confirm(confirmMsg)) return;
+        const confirmed = await showConfirmDialog({
+            title: 'Archive Template',
+            subtitle: 'Confirmation',
+            message: 'Are you sure you want to archive this template? It will be hidden from users but remain available to admins.',
+            confirmText: 'Archive',
+            type: 'warning'
+        });
+        if (!confirmed) return;
 
         try {
             const res = await window.apiFetch(`/api/templates/${templateId}/archive`, { method: 'POST' });
             const data = await res.json();
             if (res.ok) {
-                alert("✅ Template archived successfully!");
+                showAlertDialog({
+                    title: 'Success',
+                    subtitle: 'Template Archived',
+                    message: 'Template archived successfully!',
+                    type: 'success'
+                });
                 if (onTemplatesUpdate) onTemplatesUpdate();
                 if (activeSubTab === 'archived') loadArchived();
             } else {
-                alert(`Error archiving template: ${data.detail || 'Unknown error'}`);
+                showAlertDialog({
+                    title: 'Archive Error',
+                    subtitle: 'Template Action',
+                    message: `Error archiving template: ${data.detail || 'Unknown error'}`,
+                    type: 'danger'
+                });
             }
         } catch (err) {
             console.error(err);
-            alert(`Error: ${err.message || 'Failed to archive template'}`);
+            showAlertDialog({
+                title: 'Error',
+                subtitle: 'Template Action',
+                message: `Error: ${err.message || 'Failed to archive template'}`,
+                type: 'danger'
+            });
         }
     };
 
     const handleRestoreTemplate = async (templateId) => {
-        const confirmMsg = "Are you sure you want to restore this template to active use?";
-        if (!window.confirm(confirmMsg)) return;
+        const confirmed = await showConfirmDialog({
+            title: 'Restore Template',
+            subtitle: 'Confirmation',
+            message: 'Are you sure you want to restore this template to active use?',
+            confirmText: 'Restore',
+            type: 'info'
+        });
+        if (!confirmed) return;
 
         try {
             const res = await window.apiFetch(`/api/templates/${templateId}/restore`, { method: 'POST' });
             const data = await res.json();
             if (res.ok) {
-                alert("✅ Template restored successfully!");
+                showAlertDialog({
+                    title: 'Success',
+                    subtitle: 'Template Restored',
+                    message: 'Template restored successfully!',
+                    type: 'success'
+                });
                 if (onTemplatesUpdate) onTemplatesUpdate();
                 if (activeSubTab === 'archived') loadArchived();
             } else {
-                alert(`Error restoring template: ${data.detail || 'Unknown error'}`);
+                showAlertDialog({
+                    title: 'Restore Error',
+                    subtitle: 'Template Action',
+                    message: `Error restoring template: ${data.detail || 'Unknown error'}`,
+                    type: 'danger'
+                });
             }
         } catch (err) {
             console.error(err);
-            alert(`Error: ${err.message || 'Failed to restore template'}`);
+            showAlertDialog({
+                title: 'Error',
+                subtitle: 'Template Action',
+                message: `Error: ${err.message || 'Failed to restore template'}`,
+                type: 'danger'
+            });
         }
     };
 
@@ -389,17 +444,37 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
             const data = await res.json();
             if (data.success) {
                 if (data.variables_changed) {
-                    alert("Template variables changed. Forms regenerated.");
+                    showAlertDialog({
+                        title: 'Variables Changed',
+                        subtitle: 'DOCX Replacement',
+                        message: 'Template variables changed. Forms regenerated.',
+                        type: 'info'
+                    });
                 } else {
-                    alert("✅ DOCX template replaced successfully!");
+                    showAlertDialog({
+                        title: 'Success',
+                        subtitle: 'DOCX Replaced',
+                        message: 'DOCX template replaced successfully!',
+                        type: 'success'
+                    });
                 }
                 if (onTemplatesUpdate) onTemplatesUpdate();
             } else {
-                alert(`Error replacing DOCX: ${data.error || 'Unknown error'}`);
+                showAlertDialog({
+                    title: 'DOCX Error',
+                    subtitle: 'Replacement Failed',
+                    message: `Error replacing DOCX: ${data.error || 'Unknown error'}`,
+                    type: 'danger'
+                });
             }
         } catch (err) {
             console.error(err);
-            alert(`Error: ${err.message || 'Failed to replace DOCX'}`);
+            showAlertDialog({
+                title: 'Error',
+                subtitle: 'Replacement Failed',
+                message: `Error: ${err.message || 'Failed to replace DOCX'}`,
+                type: 'danger'
+            });
         } finally {
             setReplacingTemplateId(null);
         }
@@ -420,7 +495,12 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
             window.URL.revokeObjectURL(url);
         } catch (err) {
             console.error("Download failed:", err);
-            alert(`Download failed: ${err.message || 'Unable to download DOCX'}`);
+            showAlertDialog({
+                title: 'Download Failed',
+                subtitle: 'Template DOCX',
+                message: `Download failed: ${err.message || 'Unable to download DOCX'}`,
+                type: 'danger'
+            });
         }
     };
 
@@ -561,7 +641,14 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
                             {activeSubTab === 'active' && t._source === 'db' && (
                                 <button 
                                     onClick={async () => {
-                                        if (!confirm('Destroy this blueprint?')) return;
+                                        const confirmed = await showConfirmDialog({
+                                            title: 'Destroy Blueprint',
+                                            subtitle: 'Permanent Action',
+                                            message: 'Are you sure you want to destroy this blueprint?',
+                                            type: 'danger',
+                                            isDestructive: true
+                                        });
+                                        if (!confirmed) return;
                                         await window.apiFetch(`/api/templates/${t.template_id || t.id}`, { method: 'DELETE' });
                                         if (onTemplatesUpdate) onTemplatesUpdate();
                                     }} 
@@ -714,7 +801,15 @@ const StaticPageManager = ({ refreshTrigger }) => {
             <div className="flex justify-end gap-4 flex-shrink-0 px-2">
                 <button onClick={() => setEditing(null)} className="px-8 py-3 border border-slate-200 rounded-2xl font-black text-xs text-slate-500 hover:bg-white transition-all uppercase tracking-widest">Discard</button>
                 <button onClick={async () => {
-                    if (!form.title.trim() || !form.slug.trim()) return alert('Missing required fields');
+                    if (!form.title.trim() || !form.slug.trim()) {
+                        showAlertDialog({
+                            title: 'Missing Fields',
+                            subtitle: 'Page Editor',
+                            message: 'Please fill in both the page title and slug.',
+                            type: 'warning'
+                        });
+                        return;
+                    }
                     const isNew = editing === 'new';
                     const url = isNew ? '/api/pages/' : `/api/pages/${editing}`;
                     await window.apiFetch(url, { method: isNew ? 'POST' : 'PUT', body: form });
@@ -756,7 +851,14 @@ const StaticPageManager = ({ refreshTrigger }) => {
                         <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
                             <button onClick={() => { setForm({ title: p.title, slug: p.slug, content: p.content, is_active: p.is_active }); setEditing(p.slug); }} className="px-5 py-2.5 bg-blue-50 text-blue-600 rounded-xl text-xs font-black hover:bg-blue-600 hover:text-white transition shadow-sm">Edit</button>
                             <button onClick={async () => {
-                                if (!confirm('Destroy this page?')) return;
+                                const confirmed = await showConfirmDialog({
+                                    title: 'Destroy Page',
+                                    subtitle: 'Permanent Action',
+                                    message: 'Are you sure you want to destroy this page?',
+                                    type: 'danger',
+                                    isDestructive: true
+                                });
+                                if (!confirmed) return;
                                 await window.apiFetch(`/api/pages/${p.slug}`, { method: 'DELETE' });
                                 reload();
                             }} className="p-2.5 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-600 hover:text-white transition shadow-sm"><TrashIcon size={16} /></button>
@@ -1291,10 +1393,20 @@ const UserManagement = ({ currentAdminUsername, refreshTrigger }) => {
                 setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_active: updated.is_active } : u));
             } else {
                 const err = await res.json().catch(() => ({}));
-                alert(err.detail || 'Failed to update user status');
+                showAlertDialog({
+                    title: 'Status Update Failed',
+                    subtitle: 'User Management',
+                    message: err.detail || 'Failed to update user status',
+                    type: 'danger'
+                });
             }
         } catch (err) {
-            alert('Failed to update status: ' + err.message);
+            showAlertDialog({
+                title: 'Error',
+                subtitle: 'User Management',
+                message: 'Failed to update status: ' + err.message,
+                type: 'danger'
+            });
         } finally {
             setTogglingId(null);
         }
@@ -1324,12 +1436,27 @@ const UserManagement = ({ currentAdminUsername, refreshTrigger }) => {
                     return next;
                 });
                 loadUsers(search, sort, page, roleFilter, userSearch, emailFilter, contactFilter, cityFilter, pageSize);
-                alert(data.message || `User '${deletedName}' (${wasAdmin ? 'Test Admin' : 'User'}) was permanently deleted.`);
+                showAlertDialog({
+                    title: 'User Deleted',
+                    subtitle: 'User Management',
+                    message: data.message || `User '${deletedName}' (${wasAdmin ? 'Test Admin' : 'User'}) was permanently deleted.`,
+                    type: 'success'
+                });
             } else {
-                alert(data.detail || 'Failed to delete user');
+                showAlertDialog({
+                    title: 'Delete Failed',
+                    subtitle: 'User Management',
+                    message: data.detail || 'Failed to delete user',
+                    type: 'danger'
+                });
             }
         } catch (err) {
-            alert('Error deleting user: ' + err.message);
+            showAlertDialog({
+                title: 'Error',
+                subtitle: 'User Management',
+                message: 'Error deleting user: ' + err.message,
+                type: 'danger'
+            });
         } finally {
             setIsSingleDeleting(false);
         }
@@ -1370,12 +1497,27 @@ const UserManagement = ({ currentAdminUsername, refreshTrigger }) => {
                 setShowBulkDeleteModal(false);
                 setSelectedUserIds(new Set());
                 loadUsers(search, sort, page, roleFilter, userSearch, emailFilter, contactFilter, cityFilter, pageSize);
-                alert(`Successfully deleted ${data.deleted_count} test user(s).`);
+                showAlertDialog({
+                    title: 'Test Users Deleted',
+                    subtitle: 'Bulk Delete',
+                    message: `Successfully deleted ${data.deleted_count} test user(s).`,
+                    type: 'success'
+                });
             } else {
-                alert(data.detail || 'Failed to delete test users');
+                showAlertDialog({
+                    title: 'Bulk Delete Failed',
+                    subtitle: 'User Management',
+                    message: data.detail || 'Failed to delete test users',
+                    type: 'danger'
+                });
             }
         } catch (err) {
-            alert('Error deleting test users: ' + err.message);
+            showAlertDialog({
+                title: 'Error',
+                subtitle: 'User Management',
+                message: 'Error deleting test users: ' + err.message,
+                type: 'danger'
+            });
         } finally {
             setIsBulkDeleting(false);
         }
@@ -1387,7 +1529,12 @@ const UserManagement = ({ currentAdminUsername, refreshTrigger }) => {
             const res = await window.apiFetch('/api/admin/users/export-excel');
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                alert(err.detail || 'Failed to export Excel');
+                showAlertDialog({
+                    title: 'Export Failed',
+                    subtitle: 'Excel Export',
+                    message: err.detail || 'Failed to export Excel',
+                    type: 'danger'
+                });
                 return;
             }
             const blob = await res.blob();
@@ -1400,7 +1547,12 @@ const UserManagement = ({ currentAdminUsername, refreshTrigger }) => {
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
         } catch (err) {
-            alert('Export failed: ' + err.message);
+            showAlertDialog({
+                title: 'Error',
+                subtitle: 'Excel Export',
+                message: 'Export failed: ' + err.message,
+                type: 'danger'
+            });
         } finally {
             setIsExportingExcel(false);
         }
@@ -2221,7 +2373,14 @@ const AdminPaymentsPanel = ({ refreshTrigger }) => {
     };
 
     const handleReconcile = async (orderId) => {
-        if (!window.confirm(`Fulfill wallet credits for order ${orderId}?`)) return;
+        const confirmed = await showConfirmDialog({
+            title: 'Reconcile Payment',
+            subtitle: 'Order Fulfillment',
+            message: `Fulfill wallet credits for order ${orderId}?`,
+            confirmText: 'Reconcile',
+            type: 'info'
+        });
+        if (!confirmed) return;
         setReconcilingId(orderId);
         try {
             const res = await window.apiFetch(`/api/admin/payments/${orderId}/reconcile`, {
@@ -2229,13 +2388,28 @@ const AdminPaymentsPanel = ({ refreshTrigger }) => {
             });
             const data = await res.json().catch(() => ({}));
             if (res.ok) {
-                alert(data.message || 'Successfully credited user.');
+                showAlertDialog({
+                    title: 'Success',
+                    subtitle: 'Order Reconciled',
+                    message: data.message || 'Successfully credited user.',
+                    type: 'success'
+                });
                 loadPayments(search, statusFilter, page, pageSize);
             } else {
-                alert(data.detail || 'Failed to reconcile payment.');
+                showAlertDialog({
+                    title: 'Reconciliation Failed',
+                    subtitle: 'Payment Error',
+                    message: data.detail || 'Failed to reconcile payment.',
+                    type: 'danger'
+                });
             }
         } catch (err) {
-            alert('Reconciliation failed: ' + err.message);
+            showAlertDialog({
+                title: 'Error',
+                subtitle: 'Payment Error',
+                message: 'Reconciliation failed: ' + err.message,
+                type: 'danger'
+            });
         } finally {
             setReconcilingId(null);
         }

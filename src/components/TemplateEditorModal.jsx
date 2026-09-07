@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { showAlertDialog } from './CustomDialog.jsx';
 /**
  * TemplateEditorModal — DOCX Template Management
  * ================================================
@@ -282,11 +283,21 @@ const TemplateEditorModal = ({ isOpen, token, template, onSave, onClose }) => {
             return;
         }
         if (!name.trim()) {
-            alert('Please enter a template name.');
+            showAlertDialog({
+                title: 'Name Required',
+                subtitle: 'Template Configuration',
+                message: 'Please enter a template name.',
+                type: 'warning'
+            });
             return;
         }
         if (!filePath) {
-            alert('Please upload a DOCX template file before saving.');
+            showAlertDialog({
+                title: 'DOCX Required',
+                subtitle: 'Template File Missing',
+                message: 'Please upload a DOCX template file before saving.',
+                type: 'warning'
+            });
             return;
         }
         
@@ -340,7 +351,12 @@ const TemplateEditorModal = ({ isOpen, token, template, onSave, onClose }) => {
             onClose();
         } catch (err) {
             console.error('[SAVE] Error:', err);
-            alert('Save failed: ' + err.message);
+            showAlertDialog({
+                title: 'Save Error',
+                subtitle: 'Template Save Failed',
+                message: 'Save failed: ' + err.message,
+                type: 'danger'
+            });
         } finally {
             setLoading(false);
             isSavingRef.current = false;

@@ -4,6 +4,8 @@ import UserMenu from './src/components/UserMenu.jsx';
 import AuthModal from './src/components/AuthModal.jsx';
 import HomePage from './src/pages/HomePage.jsx';
 import StaticPageView from './src/pages/StaticPageView.jsx';
+import PrivacyPolicyPage from './src/pages/PrivacyPolicyPage.jsx';
+import TermsOfServicePage from './src/pages/TermsOfServicePage.jsx';
 
 // ─── Global API Configuration and Helpers ───
 
@@ -87,6 +89,7 @@ const LazyDocumentServicesPanel = React.lazy(() => import('./src/components/Docu
 const LazyFormPanel = React.lazy(() => import('./src/components/FormPanel.jsx'));
 const LazyDocumentPreview = React.lazy(() => import('./src/components/DocumentPreview.jsx'));
 const LazyUserProfileModal = React.lazy(() => import('./src/components/UserProfileModal.jsx'));
+import { CustomDialogContainer, showConfirmDialog, showAlertDialog } from './src/components/CustomDialog.jsx';
 
 const App = () => {
     const isInitialLoadRef = useRef(true);
@@ -94,9 +97,14 @@ const App = () => {
     const [isDownloading, setIsDownloading] = useState(false);
     const [isFinalizing, setIsFinalizing] = useState(false);
     const [isTemplateEditorOpen, setIsTemplateEditorOpen] = useState(false);
-    const [currentView, setCurrentView] = useState(
-        localStorage.getItem('currentView') || 'home'
-    ); // 'home' | 'editor' | 'page'
+    const [currentView, setCurrentView] = useState(() => {
+        try {
+            const path = window.location.pathname.toLowerCase();
+            if (path === '/privacy-policy' || path === '/privacy-policy/') return 'privacy-policy';
+            if (path === '/terms-of-service' || path === '/terms-of-service/') return 'terms-of-service';
+        } catch { }
+        return localStorage.getItem('currentView') || 'home';
+    }); // 'home' | 'editor' | 'page' | 'privacy-policy' | 'terms-of-service'
     const [editingTemplate, setEditingTemplate] = useState(null); // null = closed, object = being edited
     const [currentPageSlug, setCurrentPageSlug] = useState(() => localStorage.getItem('currentPageSlug') || '');
     const [templates, setTemplates] = useState([]);
@@ -483,12 +491,22 @@ const App = () => {
             return;
         }
         if (!trackingId) {
-            alert('કૃપા કરીને ફાઈનલ લોક કરતાં પહેલાં દસ્તાવેજને ડ્રાફ્ટ તરીકે સેવ કરો (Please save as Draft first).');
+            await showAlertDialog({
+                title: 'ડ્રાફ્ટ સેવ કરવો જરૂરી છે (Draft Required)',
+                message: 'કૃપા કરીને ફાઈનલ લોક કરતાં પહેલાં દસ્તાવેજને ડ્રાફ્ટ તરીકે સેવ કરો.\n\nPlease save the document as a draft before final locking.',
+                type: 'warning',
+                icon: '📝'
+            });
             return;
         }
-        const confirmSubmit = window.confirm(
-            "શું તમે આ દસ્તાવેજને ફાઇનલ લોક કરવા માંગો છો? એકવાર લોક થયા પછી તમે તેને સંપાદિત કરી શકશો નહીં. (Are you sure you want to finalize and lock?)"
-        );
+        const confirmSubmit = await showConfirmDialog({
+            title: 'દસ્તાવેજ ફાઇનલ લોક કરો (Final Lock Document)',
+            message: 'શું તમે આ દસ્તાવેજને ફાઇનલ લોક કરવા માંગો છો? એકવાર લોક થયા પછી તમે તેમાં કોઈપણ ફેરફાર કરી શકશો નહીં.\n\nAre you sure you want to finalize and lock this document? Once locked, you will not be able to edit it.',
+            confirmText: 'હા, ફાઇનલ લોક કરો (Final Lock)',
+            cancelText: 'રદ કરો (Cancel)',
+            type: 'warning',
+            icon: '🔒'
+        });
         if (confirmSubmit) {
             setDraftError(null);
             setIsFinalizing(true);
@@ -584,6 +602,29 @@ const App = () => {
         }
     };
 
+    // Synchronize browser URL on popstate (Back / Forward buttons)
+    useEffect(() => {
+        const handlePopState = () => {
+            const path = window.location.pathname.toLowerCase();
+            if (path === '/privacy-policy' || path === '/privacy-policy/') {
+                setCurrentView('privacy-policy');
+            } else if (path === '/terms-of-service' || path === '/terms-of-service/') {
+                setCurrentView('terms-of-service');
+            } else if (path === '/' || path === '') {
+                const savedView = localStorage.getItem('currentView');
+                if (savedView === 'privacy-policy' || savedView === 'terms-of-service') {
+                    setCurrentView('home');
+                    localStorage.setItem('currentView', 'home');
+                } else {
+                    setCurrentView(savedView || 'home');
+                }
+            }
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+
     const handleNavigate = (urlOrMenu) => {
         if (!urlOrMenu) return;
 
@@ -604,10 +645,34 @@ const App = () => {
         }
 
         if (!url || url === '#') return;
+
+        if (url === '/privacy-policy' || url === 'privacy-policy') {
+            setCurrentView('privacy-policy');
+            localStorage.setItem('currentView', 'privacy-policy');
+            localStorage.removeItem('currentPageSlug');
+            if (window.location.pathname !== '/privacy-policy') {
+                window.history.pushState({}, '', '/privacy-policy');
+            }
+            return;
+        }
+
+        if (url === '/terms-of-service' || url === 'terms-of-service') {
+            setCurrentView('terms-of-service');
+            localStorage.setItem('currentView', 'terms-of-service');
+            localStorage.removeItem('currentPageSlug');
+            if (window.location.pathname !== '/terms-of-service') {
+                window.history.pushState({}, '', '/terms-of-service');
+            }
+            return;
+        }
+
         if (url === 'home' || url === '/') {
             setCurrentView('home');
             localStorage.setItem('currentView', 'home');
             localStorage.removeItem('currentPageSlug');
+            if (window.location.pathname !== '/') {
+                window.history.pushState({}, '', '/');
+            }
             return;
         }
         if (url.startsWith('editor')) {
@@ -642,6 +707,8 @@ const App = () => {
         }
         window.open(url, '_blank');
     };
+
+    window.handleNavigate = handleNavigate;
 
     const printRef = useRef(null);
 
@@ -835,7 +902,7 @@ const App = () => {
                         credit_cost: clean.credit_cost
                     }
                 });
-                alert("✅ Template created in database!");
+                showToast("✅ Template created in database!", "success");
             } else if (updatedTemplate._source === 'db' || updatedTemplate.template_id || updatedTemplate.id) {
                 const tId = updatedTemplate.template_id || updatedTemplate.id;
 
@@ -855,7 +922,7 @@ const App = () => {
                             credit_cost: updatedTemplate.credit_cost
                         }
                     });
-                    alert("✅ Template updated successfully!");
+                    showToast("✅ Template updated successfully!", "success");
                 } catch (putErr) {
                     if (putErr.status === 404) {
                         await window.apiFetch('/api/templates/', {
@@ -873,7 +940,7 @@ const App = () => {
                                 credit_cost: updatedTemplate.credit_cost
                             }
                         });
-                        alert("✅ Template created in database!");
+                        showToast("✅ Template created in database!", "success");
                     } else {
                         throw putErr;
                     }
@@ -886,7 +953,11 @@ const App = () => {
             refreshTemplates();
         } catch (err) {
             console.error("Template save error:", err);
-            alert(`❌ Failed to save template: ${err.message}`);
+            await showAlertDialog({
+                title: 'Template Save Failed',
+                message: `Failed to save template: ${err.message}`,
+                type: 'error'
+            });
         }
     };
 
@@ -1083,6 +1154,16 @@ const App = () => {
                                 templates={allTemplates}
                                 isAuthHydrated={isAuthHydrated}
                             />
+                        </div>
+                    )}
+                    {currentView === 'privacy-policy' && (
+                        <div className="flex-1 overflow-y-auto">
+                            <PrivacyPolicyPage onNavigate={handleNavigate} />
+                        </div>
+                    )}
+                    {currentView === 'terms-of-service' && (
+                        <div className="flex-1 overflow-y-auto">
+                            <TermsOfServicePage onNavigate={handleNavigate} />
                         </div>
                     )}
                     {currentView === 'page' && (
@@ -1322,6 +1403,8 @@ const App = () => {
                     />
                 )}
             </React.Suspense>
+
+            <CustomDialogContainer />
 
             {toast && (
                 <div className={`fixed bottom-5 right-5 z-50 flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border transition-all duration-300 animate-fade-in

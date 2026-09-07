@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { ArrowLeftIcon, ArrowRightIcon } from './Icons.jsx';
+import { showConfirmDialog, showAlertDialog } from './CustomDialog.jsx';
 
 const AdminWalletPanel = ({ token, refreshTrigger }) => {
     const [wallets, setWallets] = React.useState([]);
@@ -20,8 +21,15 @@ const AdminWalletPanel = ({ token, refreshTrigger }) => {
     const [isMigrating, setIsMigrating] = React.useState(false);
 
     const handleInitializeWallets = async () => {
-        const confirm = window.confirm("Are you sure you want to initialize wallets for all existing users? Users who already have wallets will not be modified.");
-        if (!confirm) return;
+        const confirmed = await showConfirmDialog({
+            title: 'Initialize Wallets',
+            subtitle: 'Bulk Action',
+            message: 'Are you sure you want to initialize wallets for all existing users? Users who already have wallets will not be modified.',
+            confirmText: 'Initialize',
+            cancelText: 'Cancel',
+            type: 'warning'
+        });
+        if (!confirmed) return;
         
         setIsMigrating(true);
         try {
@@ -33,13 +41,28 @@ const AdminWalletPanel = ({ token, refreshTrigger }) => {
             });
             const data = await res.json();
             if (res.ok) {
-                alert(`Wallet initialization complete!\n\nTotal Scanned: ${data.scanned}\nWallets Created: ${data.created}\nSkipped: ${data.skipped}\nErrors: ${data.errors}`);
+                await showAlertDialog({
+                    title: 'Initialization Complete',
+                    subtitle: 'Wallets Migrated',
+                    message: `Total Scanned: ${data.scanned}\nWallets Created: ${data.created}\nSkipped: ${data.skipped}\nErrors: ${data.errors}`,
+                    type: 'success'
+                });
                 fetchWallets(1, false, pageSize);
             } else {
-                alert(`Migration failed: ${data.detail || 'Unknown error'}`);
+                await showAlertDialog({
+                    title: 'Migration Failed',
+                    subtitle: 'Wallet Initialization',
+                    message: data.detail || 'Unknown error',
+                    type: 'danger'
+                });
             }
         } catch (err) {
-            alert(`Migration failed: ${err.message || 'Connection error'}`);
+            await showAlertDialog({
+                title: 'Migration Failed',
+                subtitle: 'Connection Error',
+                message: err.message || 'Connection error',
+                type: 'danger'
+            });
         } finally {
             setIsMigrating(false);
         }
@@ -154,7 +177,12 @@ const AdminWalletPanel = ({ token, refreshTrigger }) => {
 
             const data = await res.json();
             if (res.ok) {
-                alert(`Successfully adjusted balance! New Balance: ${data.current_balance}`);
+                await showAlertDialog({
+                    title: 'Balance Adjusted',
+                    subtitle: 'Wallet Update',
+                    message: `Successfully adjusted balance!\nNew Balance: ${data.current_balance} credits`,
+                    type: 'success'
+                });
                 setAdjustingWallet(null);
                 setAdjustForm({ credits: '', type: 'CREDIT', remarks: 'Manual adjustment' });
                 fetchWallets(page);

@@ -1,4 +1,5 @@
 import React from 'react';
+import Footer from '../components/Footer.jsx';
 
 const HomePage = ({ currentUser, onNavigate, onLogin, templates = [], isAuthHydrated = true }) => {
     const [currentSlide, setCurrentSlide] = React.useState(0);
@@ -432,48 +433,7 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [], isAuthHydr
             </div>
 
             {/* 4. Footer Section */}
-            <footer className="bg-slate-900 text-slate-400 py-12 border-t border-slate-800 mt-20 no-print">
-                <div className="max-w-7xl mx-auto px-4 md:px-6 grid grid-cols-1 md:grid-cols-4 gap-8">
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-3">
-                            <div className="h-9 w-9 rounded-lg bg-blue-600 flex items-center justify-center text-white">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-5 w-5">
-                                    <path d="M12 22V8M5 12H19M5 12A3.5 3.5 0 0 1 12 8.5M19 12A3.5 3.5 0 0 0 12 8.5M5 12L12 16.5L19 12" />
-                                </svg>
-                            </div>
-                            <span className="font-black text-white text-lg tracking-wider font-outfit">DraftSetu</span>
-                        </div>
-                        <p className="text-xs leading-relaxed font-semibold">
-                            Professional Legal Document Automation Platform. Automating complex drafting workflows with standard blueprints.
-                        </p>
-                    </div>
-                    <div>
-                        <h4 className="font-black text-white text-xs uppercase tracking-wider mb-4 border-b border-slate-800 pb-2 font-sans">Legal & Terms</h4>
-                        <ul className="space-y-2.5 text-xs font-semibold">
-                            <li><button className="hover:text-white transition">Privacy Policy</button></li>
-                            <li><button className="hover:text-white transition">Terms of Service</button></li>
-                            <li><button onClick={() => onNavigate('page:contact')} className="hover:text-white transition">Contact Us</button></li>
-                        </ul>
-                    </div>
-                    <div>
-                        <h4 className="font-black text-white text-xs uppercase tracking-wider mb-4 border-b border-slate-800 pb-2 font-sans">Resources</h4>
-                        <ul className="space-y-2.5 text-xs font-semibold">
-                            <li><button onClick={() => onNavigate('page:user-guide')} className="hover:text-white transition">User Guide</button></li>
-                            <li><button onClick={() => onNavigate('page:faqs')} className="hover:text-white transition">FAQs</button></li>
-                            <li><button onClick={() => onNavigate('documents')} className="hover:text-white transition">My Documents (Vault)</button></li>
-                        </ul>
-                    </div>
-                    <div className="space-y-3">
-                        <h4 className="font-black text-white text-xs uppercase tracking-wider mb-4 border-b border-slate-800 pb-2 font-sans">Disclaimer</h4>
-                        <p className="text-[10px] leading-relaxed">
-                            DraftSetu is a private document automation SaaS platform. All generated documents are draft blueprints. Final execution is subject to appropriate stamp duty, notarization, and registration before legal authorities.
-                        </p>
-                    </div>
-                </div>
-                <div className="max-w-7xl mx-auto px-4 md:px-6 pt-8 mt-8 border-t border-slate-800/60 text-center text-xs font-sans">
-                    <p>© 2026 DraftSetu. All rights reserved. Designed for professional legal-tech automation.</p>
-                </div>
-            </footer>
+            <Footer onNavigate={onNavigate} />
         </div>
     );
 };

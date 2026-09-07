@@ -64,6 +64,64 @@ class TemplateUpdate(TemplateBase):
     secondary_field: Optional[str] = None
     credit_cost: Optional[int] = None
 
+def _format_template_dict(t: models.DBTemplate) -> dict:
+    fields = json.loads(t.fields_json) if t.fields_json else {}
+    field_order = json.loads(t.field_order_json) if t.field_order_json else []
+    
+    # Enrich with true document order if available from docx
+    if t.file_path:
+        try:
+            extracted = template_service.extract_variables(t.file_path)
+            if extracted and isinstance(extracted, dict):
+                extracted_order = extracted.get("order", [])
+                if isinstance(field_order, dict):
+                    if not field_order.get("order") and extracted_order:
+                        field_order["order"] = extracted_order
+                    if not field_order.get("groups") and extracted.get("groups"):
+                        field_order["groups"] = extracted.get("groups")
+                    if not field_order.get("single_variables") and extracted.get("single_variables"):
+                        field_order["single_variables"] = extracted.get("single_variables")
+                elif isinstance(field_order, list) and not field_order and extracted_order:
+                    field_order = extracted
+        except Exception as e:
+            logger.debug(f"Error enriching template {t.template_id} variables: {e}")
+
+    variables = field_order if field_order else list(fields.keys())
+
+    # Parse field_order_json for metadata keys
+    fo = field_order if isinstance(field_order, dict) else {}
+    identity_field = fo.get("identity_field") or fo.get("document_identity_field")
+    secondary_field = fo.get("secondary_field") or fo.get("document_secondary_field")
+    if not identity_field and hasattr(t, "document_identity_field"):
+        identity_field = t.document_identity_field
+    if not secondary_field and hasattr(t, "document_secondary_field"):
+        secondary_field = t.document_secondary_field
+
+    return {
+        "id": t.id,
+        "template_id": t.template_id,
+        "name": t.name,
+        "category": t.category,
+        "header": t.header,
+        "content": t.content,
+        "content2": t.content2,
+        "footer": t.footer,
+        "fields": fields,
+        "fieldOrder": field_order if field_order else variables,
+        "variables": variables,
+        "is_active": t.is_active,
+        "status": t.status,
+        "file_path": t.file_path,
+        "menu_item_id": t.menu_item_id,
+        "document_identity_field": identity_field,
+        "document_secondary_field": secondary_field,
+        "identity_field": identity_field,
+        "secondary_field": secondary_field,
+        "credit_cost": t.credit_cost,
+        "created_at": t.created_at,
+        "updated_at": t.updated_at
+    }
+
 # --- Routes ---
 
 @router.get("/", response_model=List[dict])
@@ -71,50 +129,7 @@ def get_templates(skip: int = 0, limit: int = 100, db: Session = Depends(databas
     """Fetch all active templates from the database with pagination."""
     try:
         tpls = db.query(models.DBTemplate).filter(models.DBTemplate.is_active == True).order_by(models.DBTemplate.created_at.desc()).offset(skip).limit(limit).all()
-        # Convert to dict for response consistency
-        result = []
-        for t in tpls:
-            fields = json.loads(t.fields_json) if t.fields_json else {}
-            field_order = json.loads(t.field_order_json) if t.field_order_json else []
-            variables = field_order if field_order else list(fields.keys())
-            
-            # Parse field_order_json for metadata keys
-            fo = json.loads(t.field_order_json) if t.field_order_json else {}
-            identity_field = None
-            secondary_field = None
-            if isinstance(fo, dict):
-                identity_field = fo.get("identity_field") or fo.get("document_identity_field")
-                secondary_field = fo.get("secondary_field") or fo.get("document_secondary_field")
-            if not identity_field and hasattr(t, "document_identity_field"):
-                identity_field = t.document_identity_field
-            if not secondary_field and hasattr(t, "document_secondary_field"):
-                secondary_field = t.document_secondary_field
-
-            result.append({
-                "id": t.id,
-                "template_id": t.template_id,
-                "name": t.name,
-                "category": t.category,
-                "header": t.header,
-                "content": t.content,
-                "content2": t.content2,
-                "footer": t.footer,
-                "fields": fields,
-                "fieldOrder": field_order if field_order else variables,
-                "variables": variables,
-                "is_active": t.is_active,
-                "status": t.status,
-                "file_path": t.file_path,
-                "menu_item_id": t.menu_item_id,
-                "document_identity_field": identity_field,
-                "document_secondary_field": secondary_field,
-                "identity_field": identity_field,
-                "secondary_field": secondary_field,
-                "credit_cost": t.credit_cost,
-                "created_at": t.created_at,
-                "updated_at": t.updated_at
-            })
-        return result
+        return [_format_template_dict(t) for t in tpls]
     except Exception as e:
         logger.error(f"Error fetching templates: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -124,49 +139,7 @@ def get_archived_templates(db: Session = Depends(database.get_db), admin: models
     """Fetch all archived templates from the database. Admin only."""
     try:
         tpls = db.query(models.DBTemplate).filter(models.DBTemplate.status == "ARCHIVED").order_by(models.DBTemplate.created_at.desc()).all()
-        result = []
-        for t in tpls:
-            fields = json.loads(t.fields_json) if t.fields_json else {}
-            field_order = json.loads(t.field_order_json) if t.field_order_json else []
-            variables = field_order if field_order else list(fields.keys())
-
-            # Parse field_order_json for metadata keys
-            fo = json.loads(t.field_order_json) if t.field_order_json else {}
-            identity_field = None
-            secondary_field = None
-            if isinstance(fo, dict):
-                identity_field = fo.get("identity_field") or fo.get("document_identity_field")
-                secondary_field = fo.get("secondary_field") or fo.get("document_secondary_field")
-            if not identity_field and hasattr(t, "document_identity_field"):
-                identity_field = t.document_identity_field
-            if not secondary_field and hasattr(t, "document_secondary_field"):
-                secondary_field = t.document_secondary_field
-
-            result.append({
-                "id": t.id,
-                "template_id": t.template_id,
-                "name": t.name,
-                "category": t.category,
-                "header": t.header,
-                "content": t.content,
-                "content2": t.content2,
-                "footer": t.footer,
-                "fields": fields,
-                "fieldOrder": field_order if field_order else variables,
-                "variables": variables,
-                "is_active": t.is_active,
-                "status": t.status,
-                "file_path": t.file_path,
-                "menu_item_id": t.menu_item_id,
-                "document_identity_field": identity_field,
-                "document_secondary_field": secondary_field,
-                "identity_field": identity_field,
-                "secondary_field": secondary_field,
-                "credit_cost": t.credit_cost,
-                "created_at": t.created_at,
-                "updated_at": t.updated_at
-            })
-        return result
+        return [_format_template_dict(t) for t in tpls]
     except Exception as e:
         logger.error(f"Error fetching archived templates: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -384,44 +357,7 @@ def get_template(template_id: str, db: Session = Depends(database.get_db)):
     if not tpl:
         raise HTTPException(status_code=404, detail="Template not found")
     
-    fields = json.loads(tpl.fields_json) if tpl.fields_json else {}
-    field_order = json.loads(tpl.field_order_json) if tpl.field_order_json else []
-    variables = field_order if isinstance(field_order, list) and field_order else list(fields.keys())
-    
-    # Parse field_order_json for metadata keys
-    fo = json.loads(tpl.field_order_json) if tpl.field_order_json else {}
-    identity_field = None
-    secondary_field = None
-    if isinstance(fo, dict):
-        identity_field = fo.get("identity_field") or fo.get("document_identity_field")
-        secondary_field = fo.get("secondary_field") or fo.get("document_secondary_field")
-    if not identity_field and hasattr(tpl, "document_identity_field"):
-        identity_field = tpl.document_identity_field
-    if not secondary_field and hasattr(tpl, "document_secondary_field"):
-        secondary_field = tpl.document_secondary_field
-
-    return {
-        "id": tpl.id,
-        "template_id": tpl.template_id,
-        "name": tpl.name,
-        "category": tpl.category,
-        "header": tpl.header,
-        "content": tpl.content,
-        "content2": tpl.content2,
-        "footer": tpl.footer,
-        "fields": fields,
-        "fieldOrder": field_order if field_order else variables,
-        "variables": variables,
-        "is_active": tpl.is_active,
-        "status": tpl.status,
-        "file_path": tpl.file_path,
-        "menu_item_id": tpl.menu_item_id,
-        "document_identity_field": identity_field,
-        "document_secondary_field": secondary_field,
-        "identity_field": identity_field,
-        "secondary_field": secondary_field,
-        "credit_cost": tpl.credit_cost
-    }
+    return _format_template_dict(tpl)
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def create_template(tpl: TemplateCreate, db: Session = Depends(database.get_db), admin: models.User = Depends(get_admin_user)):

@@ -27,10 +27,10 @@ class TemplateService:
         """Extracts variables and Jinja2 loops from a file using docx_engine/fallback."""
         file_path = self.get_full_path(filename)
         if not file_path or not os.path.exists(file_path):
-            return {"groups": {}, "single_variables": []}
+            return {"groups": {}, "single_variables": [], "order": []}
             
         if file_path.endswith('.docx'):
-            from backend.services.document_service import extract_variables_from_docx
+            from backend.services.docx_engine import extract_variables_from_docx
             return extract_variables_from_docx(file_path)
         
         # Fallback for non-docx files (handled in router usually, but here for safety)
@@ -57,35 +57,57 @@ class TemplateService:
             groups_seen = {g: set() for g in detected_groups}
             single_variables = []
             single_variables_set = set()
-            
+            order = []
+            order_set = set()
+
+            items = []
+            for m in loop_pattern.finditer(text):
+                items.append((m.start(), 'loop', m.group(2).strip(), m.group(1).strip()))
             for m in var_pattern.finditer(text):
-                var_content = m.group(1).strip()
-                if '.' in var_content:
-                    parts = var_content.split('.', 1)
-                    prefix = parts[0].strip()
-                    field_name = parts[1].strip()
-                    if prefix in iterators:
-                        g = iterators[prefix]
-                        if field_name not in groups_seen[g]:
-                            groups_seen[g].add(field_name)
-                            groups[g].append(field_name)
-                    else:
-                        if var_content not in single_variables_set:
-                            single_variables_set.add(var_content)
-                            single_variables.append(var_content)
+                items.append((m.start(), 'var', m.group(1).strip(), None))
+            items.sort(key=lambda x: x[0])
+
+            for item in items:
+                if item[1] == 'loop':
+                    group = item[2]
+                    if group not in order_set:
+                        order_set.add(group)
+                        order.append(group)
                 else:
-                    if var_content not in iterators:
-                        if var_content not in single_variables_set:
-                            single_variables_set.add(var_content)
-                            single_variables.append(var_content)
+                    var_content = item[2]
+                    if '.' in var_content:
+                        parts = var_content.split('.', 1)
+                        prefix = parts[0].strip()
+                        field_name = parts[1].strip()
+                        if prefix in iterators:
+                            g = iterators[prefix]
+                            if field_name not in groups_seen[g]:
+                                groups_seen[g].add(field_name)
+                                groups[g].append(field_name)
+                        else:
+                            if var_content not in single_variables_set:
+                                single_variables_set.add(var_content)
+                                single_variables.append(var_content)
+                            if var_content not in order_set:
+                                order_set.add(var_content)
+                                order.append(var_content)
+                    else:
+                        if var_content not in iterators:
+                            if var_content not in single_variables_set:
+                                single_variables_set.add(var_content)
+                                single_variables.append(var_content)
+                            if var_content not in order_set:
+                                order_set.add(var_content)
+                                order.append(var_content)
                         
             return {
                 "groups": groups,
-                "single_variables": single_variables
+                "single_variables": single_variables,
+                "order": order
             }
         except Exception as e:
             logger.error(f"Error reading file for variables: {e}")
-            return {"groups": {}, "single_variables": []}
+            return {"groups": {}, "single_variables": [], "order": []}
 
 
     def save_uploaded_file(self, content: bytes, filename: str) -> str:

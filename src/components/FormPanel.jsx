@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { DateInputField } from './InputField.jsx';
 import PreviewModal from './PreviewModal.jsx';
 import PdfPreviewModal from './PdfPreviewModal.jsx';
+import { showAlertDialog } from './CustomDialog.jsx';
 
 const {
     processFieldValue,
@@ -337,26 +338,72 @@ const FormPanel = ({
         return activeTemplate?.fieldOrder || [];
     })();
 
-    // Auto-detect and structure variables (handles repeater blocks)
+    // Auto-detect and structure variables (handles repeater blocks and document order)
     const structuredVariables = React.useMemo(() => {
         if (!vars) return [];
 
         if (typeof vars === 'object' && !Array.isArray(vars)) {
             const result = [];
-            // Add groups as repeaters
+            const orderList = Array.isArray(vars.order) ? vars.order :
+                             Array.isArray(vars.field_order) ? vars.field_order :
+                             Array.isArray(vars.ordered) ? vars.ordered : null;
+
+            if (orderList && orderList.length > 0) {
+                const addedSet = new Set();
+                orderList.forEach(item => {
+                    const itemName = typeof item === 'string' ? item : (item.name || item.variable);
+                    if (!itemName || addedSet.has(itemName)) return;
+
+                    if (vars.groups && vars.groups[itemName]) {
+                        result.push({
+                            type: 'repeater',
+                            name: itemName,
+                            fields: (vars.groups[itemName] || []).map(f => ({ name: typeof f === 'string' ? f : (f.name || f) }))
+                        });
+                        addedSet.add(itemName);
+                    } else if (!vars.single_variables || vars.single_variables.includes(itemName) || !vars.groups || !vars.groups[itemName]) {
+                        result.push({ type: 'text', name: itemName });
+                        addedSet.add(itemName);
+                    }
+                });
+
+                // Append any single variables or groups not included in orderList
+                if (vars.single_variables) {
+                    vars.single_variables.forEach(v => {
+                        if (!addedSet.has(v)) {
+                            result.push({ type: 'text', name: v });
+                            addedSet.add(v);
+                        }
+                    });
+                }
+                if (vars.groups) {
+                    Object.entries(vars.groups).forEach(([groupName, groupFields]) => {
+                        if (!addedSet.has(groupName)) {
+                            result.push({
+                                type: 'repeater',
+                                name: groupName,
+                                fields: (groupFields || []).map(f => ({ name: typeof f === 'string' ? f : (f.name || f) }))
+                            });
+                            addedSet.add(groupName);
+                        }
+                    });
+                }
+                return result;
+            }
+
+            // Fallback if no order list: Single variables first, then groups
+            if (vars.single_variables) {
+                vars.single_variables.forEach(v => {
+                    result.push({ type: 'text', name: v });
+                });
+            }
             if (vars.groups) {
                 Object.entries(vars.groups).forEach(([groupName, groupFields]) => {
                     result.push({
                         type: 'repeater',
                         name: groupName,
-                        fields: (groupFields || []).map(f => ({ name: f }))
+                        fields: (groupFields || []).map(f => ({ name: typeof f === 'string' ? f : (f.name || f) }))
                     });
-                });
-            }
-            // Add single variables as text inputs
-            if (vars.single_variables) {
-                vars.single_variables.forEach(v => {
-                    result.push({ type: 'text', name: v });
                 });
             }
             return result;
@@ -369,15 +416,19 @@ const FormPanel = ({
         let current = result;
 
         vars.forEach(v => {
-            if (v.startsWith('#')) {
-                const repeater = { type: 'repeater', name: v.slice(1), fields: [] };
-                current.push(repeater);
-                stack.push(current);
-                current = repeater.fields;
-            } else if (v.startsWith('/')) {
-                current = stack.pop() || result;
-            } else {
-                current.push({ type: 'text', name: v });
+            if (typeof v === 'object' && v && v.name) {
+                result.push(v);
+            } else if (typeof v === 'string') {
+                if (v.startsWith('#')) {
+                    const repeater = { type: 'repeater', name: v.slice(1), fields: [] };
+                    current.push(repeater);
+                    stack.push(current);
+                    current = repeater.fields;
+                } else if (v.startsWith('/')) {
+                    current = stack.pop() || result;
+                } else {
+                    current.push({ type: 'text', name: v });
+                }
             }
         });
         return result;
@@ -688,13 +739,23 @@ const FormPanel = ({
                 const headerBtn = document.querySelector('header button:has-text("Log In / Register")');
                 if (headerBtn) headerBtn.click();
             }
-            alert('PDF Preview માટે Login / Register કરો (Login / Register to generate PDF)');
+            showAlertDialog({
+                title: 'Login Required',
+                subtitle: 'PDF Preview',
+                message: 'PDF Preview માટે Login / Register કરો (Login / Register to generate PDF)',
+                type: 'info'
+            });
             return;
         }
 
         if (!activeTemplateId || !activeTemplate) {
             setPdfPreviewError('Please select a template first.');
-            alert('કૃપા કરીને પહેલા ટેમ્પલેટ પસંદ કરો (Please select a template first).');
+            showAlertDialog({
+                title: 'Template Required',
+                subtitle: 'કૃપા કરીને ટેમ્પલેટ પસંદ કરો',
+                message: 'કૃપા કરીને પહેલા ટેમ્પલેટ પસંદ કરો (Please select a template first).',
+                type: 'warning'
+            });
             return;
         }
 
@@ -702,7 +763,12 @@ const FormPanel = ({
 
         if (!activeTemplate?.file_path) {
             setPdfPreviewError('This template has no DOCX file attached.');
-            alert('આ ટેમ્પલેટમાં કોઈ DOCX ફાઇલ શામેલ નથી (This template has no DOCX file attached).');
+            showAlertDialog({
+                title: 'No DOCX File',
+                subtitle: 'ટેમ્પલેટ ફાઇલ ખૂટે છે',
+                message: 'આ ટેમ્પલેટમાં કોઈ DOCX ફાઇલ શામેલ નથી (This template has no DOCX file attached).',
+                type: 'warning'
+            });
             return;
         }
 
@@ -779,7 +845,12 @@ const FormPanel = ({
                 ? 'સર્વર ઓફલાઈન છે. કૃપા કરીને બેકએન્ડ ચાલુ કરો (Server offline. Please start the backend).'
                 : (err.message || 'પીડીએફ પૂર્વદર્શન લોડ કરવામાં ભૂલ આવી (Error loading PDF preview).');
             setPdfPreviewError(msg);
-            alert(`પૂર્વદર્શન ભૂલ (Preview Error): ${msg}`);
+            showAlertDialog({
+                title: 'Preview Error',
+                subtitle: 'પૂર્વદર્શન ભૂલ',
+                message: `પૂર્વદર્શન ભૂલ (Preview Error): ${msg}`,
+                type: 'danger'
+            });
         } finally {
             setPdfPreviewLoading(false);
         }
@@ -1234,11 +1305,21 @@ const FormPanel = ({
 
                                                         setData(mappedDataset);
                                                     } else {
-                                                        alert("No demo dataset found for this template.");
+                                                        showAlertDialog({
+                                                            title: 'Demo Data',
+                                                            subtitle: 'No Demo Dataset',
+                                                            message: 'No demo dataset found for this template.',
+                                                            type: 'info'
+                                                        });
                                                     }
                                                 } catch (err) {
                                                     console.error(err);
-                                                    alert("Failed to load demo dataset.");
+                                                    showAlertDialog({
+                                                        title: 'Demo Data Error',
+                                                        subtitle: 'Failed to load',
+                                                        message: 'Failed to load demo dataset.',
+                                                        type: 'danger'
+                                                    });
                                                 }
                                             }}
                                             className="w-full py-2.5 rounded font-bold transition flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
@@ -1342,7 +1423,12 @@ const FormPanel = ({
                                                                 <button
                                                                     onClick={() => {
                                                                         if (hasInsufficientCredits) {
-                                                                            alert(`આ દસ્તાવેજ લોક કરવા માટે અપૂરતી ક્રેડિટ. જરૂરી ક્રેડિટ: ${creditCost}, તમારી ક્રેડિટ: ${userCredits}. (Insufficient credits to lock. Required: ${creditCost}, Yours: ${userCredits}.)`);
+                                                                            showAlertDialog({
+                                                                                title: 'અપૂરતી ક્રેડિટ (Insufficient Credits)',
+                                                                                subtitle: 'Credit Required',
+                                                                                message: `આ દસ્તાવેજ લોક કરવા માટે અપૂરતી ક્રેડિટ.\nજરૂરી ક્રેડિટ: ${creditCost}\nતમારી ક્રેડિટ: ${userCredits}`,
+                                                                                type: 'warning'
+                                                                            });
                                                                             return;
                                                                         }
                                                                         const isValid = validateRequiredFields();

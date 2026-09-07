@@ -27,19 +27,37 @@ from backend.core.config import settings
 
 logger = logging.getLogger("backend.docx_engine")
 
+from docx.text.paragraph import Paragraph
+from docx.table import Table
+
 # Concurrency protection: limit simultaneous heavy renders
 RENDER_LOCK = threading.Semaphore(3)
+
+# Fast memoization cache for DOCX variable extraction: (file_path, mtime) -> dict
+_DOCX_VAR_CACHE = {}
 
 
 # ─── VARIABLE EXTRACTION ────────────────────────────────────────────────────
 
 def extract_variables_from_docx(file_path: str) -> dict:
     """
-    Extracts all variables and Jinja2 loops from a .docx file.
-    Scans paragraphs, tables (recursive), headers, and footers.
+    Extracts all variables and Jinja2 loops from a .docx file preserving exact document order.
+    Scans headers, body paragraphs & tables in true XML order, and footers.
     Supports repeater block tags: {% for x in X %} and {% endfor %}.
-    Returns a dictionary containing "groups" and "single_variables".
+    Returns a dictionary containing "groups", "single_variables", and "order".
     """
+    if not file_path or not os.path.exists(file_path):
+        logger.error(f"❌ File not found: {file_path}")
+        return {"groups": {}, "single_variables": [], "order": []}
+
+    try:
+        mtime = os.path.getmtime(file_path)
+        cache_key = (file_path, mtime)
+        if cache_key in _DOCX_VAR_CACHE:
+            return _DOCX_VAR_CACHE[cache_key]
+    except Exception:
+        cache_key = None
+
     loop_pattern = re.compile(r'{%\s*for\s+(\w+)\s+in\s+(\w+)\s*%}')
     var_pattern = re.compile(r'\{\{([^}]+)\}\}')
 
@@ -57,20 +75,19 @@ def extract_variables_from_docx(file_path: str) -> dict:
     def scan_table(table):
         for row in table.rows:
             for cell in row.cells:
-                for p in cell.paragraphs:
-                    scan_paragraph(p)
-                for nested in cell.tables:
-                    scan_table(nested)
+                for child in cell._tc:
+                    if child.tag.endswith('p'):
+                        p = Paragraph(child, table)
+                        scan_paragraph(p)
+                    elif child.tag.endswith('tbl'):
+                        nested = Table(child, table)
+                        scan_table(nested)
 
     try:
-        if not os.path.exists(file_path):
-            logger.error(f"❌ File not found: {file_path}")
-            return {"groups": {}, "single_variables": []}
-
         doc = Document(file_path)
         logger.info(f"✅ Opened DOCX: {len(doc.paragraphs)} paragraphs, {len(doc.tables)} tables")
 
-        # Scan headers
+        # 1. Scan headers
         for section in doc.sections:
             try:
                 for p in section.header.paragraphs:
@@ -80,13 +97,16 @@ def extract_variables_from_docx(file_path: str) -> dict:
             except Exception as e:
                 logger.debug(f"Header scan skip: {e}")
 
-        # Scan main body
-        for p in doc.paragraphs:
-            scan_paragraph(p)
-        for t in doc.tables:
-            scan_table(t)
+        # 2. Scan main body in true XML document order
+        for child in doc.element.body:
+            if child.tag.endswith('p'):
+                p = Paragraph(child, doc)
+                scan_paragraph(p)
+            elif child.tag.endswith('tbl'):
+                t = Table(child, doc)
+                scan_table(t)
 
-        # Scan footers
+        # 3. Scan footers
         for section in doc.sections:
             try:
                 for p in section.footer.paragraphs:
@@ -96,7 +116,7 @@ def extract_variables_from_docx(file_path: str) -> dict:
             except Exception as e:
                 logger.debug(f"Footer scan skip: {e}")
 
-        # Pass 1: Scan all text for loop blocks
+        # Pass 1: Scan all text for loop blocks & iterators
         iterators = {}
         detected_groups = []
         detected_groups_set = set()
@@ -110,46 +130,71 @@ def extract_variables_from_docx(file_path: str) -> dict:
                     detected_groups.append(group)
                     logger.info(f"[LOOP DETECTED] {group}")
 
-        # Pass 2: Parse variables
+        # Pass 2: Parse variables and preserve true document appearance order
         groups = {g: [] for g in detected_groups}
         groups_seen = {g: set() for g in detected_groups}
         single_variables = []
         single_variables_set = set()
+        order = []
+        order_set = set()
 
         for text in all_texts:
+            items = []
+            for m in loop_pattern.finditer(text):
+                items.append((m.start(), 'loop', m.group(2).strip(), m.group(1).strip()))
             for m in var_pattern.finditer(text):
-                var_content = m.group(1).strip()
-                if '.' in var_content:
-                    parts = var_content.split('.', 1)
-                    prefix = parts[0].strip()
-                    field_name = parts[1].strip()
+                items.append((m.start(), 'var', m.group(1).strip(), None))
+            items.sort(key=lambda x: x[0])
 
-                    if prefix in iterators:
-                        g = iterators[prefix]
-                        if field_name not in groups_seen[g]:
-                            groups_seen[g].add(field_name)
-                            groups[g].append(field_name)
-                    else:
-                        if var_content not in single_variables_set:
-                            single_variables_set.add(var_content)
-                            single_variables.append(var_content)
+            for item in items:
+                if item[1] == 'loop':
+                    group = item[2]
+                    if group not in order_set:
+                        order_set.add(group)
+                        order.append(group)
                 else:
-                    if var_content not in iterators:
-                        if var_content not in single_variables_set:
-                            single_variables_set.add(var_content)
-                            single_variables.append(var_content)
+                    var_content = item[2]
+                    if '.' in var_content:
+                        parts = var_content.split('.', 1)
+                        prefix = parts[0].strip()
+                        field_name = parts[1].strip()
+
+                        if prefix in iterators:
+                            g = iterators[prefix]
+                            if field_name not in groups_seen[g]:
+                                groups_seen[g].add(field_name)
+                                groups[g].append(field_name)
+                        else:
+                            if var_content not in single_variables_set:
+                                single_variables_set.add(var_content)
+                                single_variables.append(var_content)
+                            if var_content not in order_set:
+                                order_set.add(var_content)
+                                order.append(var_content)
+                    else:
+                        if var_content not in iterators:
+                            if var_content not in single_variables_set:
+                                single_variables_set.add(var_content)
+                                single_variables.append(var_content)
+                            if var_content not in order_set:
+                                order_set.add(var_content)
+                                order.append(var_content)
 
         result = {
             "groups": groups,
-            "single_variables": single_variables
+            "single_variables": single_variables,
+            "order": order
         }
 
-        logger.info(f"[EXTRACT] Found loop groups: {list(result['groups'].keys())}, single variables: {result['single_variables']}")
+        if cache_key:
+            _DOCX_VAR_CACHE[cache_key] = result
+
+        logger.info(f"[EXTRACT] Found loop groups: {list(result['groups'].keys())}, single variables: {len(result['single_variables'])}, order: {result['order']}")
         return result
 
     except Exception as e:
         logger.critical(f"🔥 EXTRACTION FATAL: {e}", exc_info=True)
-        return {"groups": {}, "single_variables": []}
+        return {"groups": {}, "single_variables": [], "order": []}
 
 
 # ─── DOCX RENDERING ─────────────────────────────────────────────────────────
