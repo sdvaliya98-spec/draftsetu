@@ -15,6 +15,34 @@ const StaticPageView = ({ slug, onNavigate }) => {
         setLoading(true);
 
         const fetchPage = async () => {
+            if (slug === 'user-guide') {
+                if (isMounted) {
+                    setPage({
+                        title: 'DraftSetu – Document Creation User Manual (દસ્તાવેજ નિર્માણ માર્ગદર્શિકા)',
+                        content: `
+                            <div class="space-y-6">
+                                <p class="text-slate-700 text-sm md:text-base leading-relaxed">
+                                    DraftSetu પ્લેટફોર્મ પર લોગિનથી લઈને દસ્તાવેજ પસંદગી, ડેટા એન્ટ્રી, લાઈવ પ્રિવ્યૂ, વોટરમાર્ક્ડ પીડીએફ વેરિફિકેશન, ક્રેડિટ્સ અને ફાઇનલ અધિકૃત DOCX/PDF ડાઉનલોડ સુધીની સંપૂર્ણ માર્ગદર્શિકા નીચે ઉપલબ્ધ છે.
+                                </p>
+                                <div class="flex flex-wrap gap-4 pt-2">
+                                    <a href="/docs/DraftSetu_Document_Creation_User_Manual_Gujarati.pdf" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-6 py-3 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition active:scale-95 no-underline">
+                                        <span>📄 View / Open PDF in New Tab</span>
+                                    </a>
+                                    <a href="/docs/DraftSetu_Document_Creation_User_Manual_Gujarati.pdf" download="DraftSetu_Document_Creation_User_Manual_Gujarati.pdf" class="inline-flex items-center gap-2 px-6 py-3 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition active:scale-95 no-underline">
+                                        <span>📥 Download User Manual (PDF)</span>
+                                    </a>
+                                </div>
+                                <div class="mt-6 border border-slate-200 rounded-2xl overflow-hidden shadow-inner bg-slate-100">
+                                    <iframe src="/docs/DraftSetu_Document_Creation_User_Manual_Gujarati.pdf" class="w-full h-[700px] border-0" title="DraftSetu User Manual"></iframe>
+                                </div>
+                            </div>
+                        `
+                    });
+                    setLoading(false);
+                }
+                return;
+            }
+
             try {
                 if (typeof window.apiFetch === 'function') {
                     const r = await window.apiFetch(`/api/pages/${slug}`);

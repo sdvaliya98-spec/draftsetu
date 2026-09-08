@@ -43,6 +43,88 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
         };
     }, []);
 
+    // ── Preview Protection (Disables copying, drag-selection, context menu strictly on preview content) ──
+    useEffect(() => {
+        const handleGlobalKeyDown = (e) => {
+            const activeEl = document.activeElement;
+            const isInsideInput = activeEl && (
+                activeEl.tagName === 'INPUT' ||
+                activeEl.tagName === 'TEXTAREA' ||
+                activeEl.isContentEditable ||
+                activeEl.closest('input') ||
+                activeEl.closest('textarea')
+            );
+            if (isInsideInput) return;
+
+            const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+            if (!isCtrlOrCmd) return;
+
+            const key = e.key.toLowerCase();
+            if (['a', 'c', 'x', 'p', 's'].includes(key)) {
+                const previewEl = previewContainerRef.current;
+                if (!previewEl) return;
+
+                const selection = window.getSelection();
+                const isSelectionInPreview = selection && selection.rangeCount > 0 &&
+                    previewEl.contains(selection.getRangeAt(0).commonAncestorContainer);
+                const isFocusInPreview = activeEl && previewEl.contains(activeEl);
+
+                if (isSelectionInPreview || isFocusInPreview) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (key === 'c' || key === 'x' || key === 'a') {
+                        if (selection) selection.removeAllRanges();
+                    }
+                }
+            }
+        };
+
+        const handleGlobalCopy = (e) => {
+            const activeEl = document.activeElement;
+            const isInsideInput = activeEl && (
+                activeEl.tagName === 'INPUT' ||
+                activeEl.tagName === 'TEXTAREA' ||
+                activeEl.isContentEditable
+            );
+            if (isInsideInput) return;
+
+            const previewEl = previewContainerRef.current;
+            if (!previewEl) return;
+
+            const selection = window.getSelection();
+            if (selection && selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                if (previewEl.contains(range.commonAncestorContainer) || previewEl.contains(range.startContainer)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    selection.removeAllRanges();
+                }
+            }
+        };
+
+        const handleSelectStart = (e) => {
+            const previewEl = previewContainerRef.current;
+            if (previewEl && previewEl.contains(e.target)) {
+                const activeEl = document.activeElement;
+                if (!activeEl || (activeEl.tagName !== 'INPUT' && activeEl.tagName !== 'TEXTAREA')) {
+                    e.preventDefault();
+                }
+            }
+        };
+
+        document.addEventListener('keydown', handleGlobalKeyDown, true);
+        document.addEventListener('copy', handleGlobalCopy, true);
+        document.addEventListener('cut', handleGlobalCopy, true);
+        document.addEventListener('selectstart', handleSelectStart, true);
+
+        return () => {
+            document.removeEventListener('keydown', handleGlobalKeyDown, true);
+            document.removeEventListener('copy', handleGlobalCopy, true);
+            document.removeEventListener('cut', handleGlobalCopy, true);
+            document.removeEventListener('selectstart', handleSelectStart, true);
+        };
+    }, []);
+
     // Check LibreOffice availability on mount
     useEffect(() => {
         if (isDownloading) return;
@@ -669,7 +751,7 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
                 )}
 
                 {/* Inline Document Preview Workspace */}
-                <div className="space-y-2">
+                <div className="space-y-3">
                     <div className="flex items-center justify-between">
                         <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                             {isVisitor ? "Document Preview (Sample / નમૂનો)" : "Document Preview (Live)"}
@@ -681,8 +763,31 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
                         )}
                     </div>
 
-                    <div className="dp-preview-workspace">
-                        <div className="dp-paper-container">
+                    {/* Preview Notice Banner */}
+                    <div id="dp-preview-security-notice" className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200/90 rounded-2xl px-4 py-2.5 text-xs text-slate-700 shadow-2xs">
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm">🔒</span>
+                            <span className="font-bold text-slate-700">
+                                Preview only. Final document is available after Finalize.
+                            </span>
+                            <span className="text-slate-400 hidden md:inline">•</span>
+                            <span className="font-gujarati text-slate-500 hidden md:inline text-[11px]">
+                                આ માત્ર પ્રિવ્યૂ છે. અંતિમ દસ્તાવેજ Finalize કર્યા પછી ઉપલબ્ધ થશે.
+                            </span>
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 bg-blue-50 border border-blue-200/80 px-2.5 py-0.5 rounded-md">
+                            Protected Preview
+                        </span>
+                    </div>
+
+                    <div
+                        className="dp-preview-workspace select-none"
+                        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        onCopy={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        onCut={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    >
+                        <div className="dp-paper-container select-none">
                             {/* Loader / Skeletons */}
                             {isPreviewLoading && !previewBlob && (
                                 <div className="p-16 space-y-6">
@@ -704,7 +809,7 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
                             {/* Render Target */}
                             <div
                                 ref={previewContainerRef}
-                                className="w-full"
+                                className="w-full select-none"
                                 style={{ display: (!isPreviewLoading || previewBlob) ? 'block' : 'none' }}
                             />
 

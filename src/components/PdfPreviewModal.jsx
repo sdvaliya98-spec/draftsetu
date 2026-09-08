@@ -119,13 +119,13 @@ const PdfPreviewModal = ({ pdfUrl, onClose, activeTemplateId }) => {
                         <button
                             onClick={handleDownload}
                             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-black tracking-wider transition-all flex items-center gap-1.5 shadow-md active:scale-95 font-sans"
-                            title="Download PDF"
+                            title="Download Watermarked Preview PDF"
                             type="button"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                             </svg>
-                            <span>Download PDF</span>
+                            <span>Download Preview PDF</span>
                         </button>
                     </div>
 
@@ -141,6 +141,23 @@ const PdfPreviewModal = ({ pdfUrl, onClose, activeTemplateId }) => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
+                </div>
+
+                {/* ── Sub-header: Preview Notice ── */}
+                <div className="bg-amber-950/70 border-b border-amber-800/60 px-6 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-200 shrink-0">
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm">🔒</span>
+                        <span className="font-bold">
+                            Preview only. Final document is available after Finalize.
+                        </span>
+                        <span className="text-amber-500/60 hidden sm:inline">•</span>
+                        <span className="font-gujarati text-amber-300/80 hidden sm:inline text-[11px]">
+                            આ માત્ર પ્રિવ્યૂ છે. અંતિમ દસ્તાવેજ Finalize કર્યા પછી ઉપલબ્ધ થશે.
+                        </span>
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-amber-900/60 text-amber-300 border border-amber-700/50">
+                        Watermarked Copy
+                    </span>
                 </div>
 
                 {/* ── Modal Body (PDF Viewer) ── */}

@@ -20,6 +20,7 @@ import logging
 import subprocess
 import threading
 from typing import Optional
+from pathlib import Path
 
 from docx import Document
 from docxtpl import DocxTemplate
@@ -451,14 +452,6 @@ def _check_docx2pdf() -> bool:
         import docx2pdf  # noqa: F401
         import win32com.client
         import pythoncom
-        
-        pythoncom.CoInitialize()
-        try:
-            word = win32com.client.Dispatch("Word.Application")
-            word.Quit()
-        finally:
-            pythoncom.CoUninitialize()
-            
         logger.info("✅ [DOCX2PDF] Microsoft Word COM available — PDF engine ready.")
         return True
     except ImportError:
@@ -525,6 +518,30 @@ logger.info(
 word_pdf_lock = threading.Lock()
 
 
+def _safe_remove(path: str, retries: int = 5, delay: float = 0.5) -> bool:
+    """
+    Delete a file with retry-backoff to handle Windows file lock latency
+    (e.g. Word COM holds an exclusive lock briefly after Quit() returns).
+    Returns True if deleted, False if all retries failed.
+    """
+    for attempt in range(retries):
+        try:
+            if not os.path.exists(path):
+                return True
+            os.remove(path)
+            return True
+        except PermissionError:
+            if attempt < retries - 1:
+                time.sleep(delay * (attempt + 1))
+            else:
+                logger.warning(f"[_safe_remove] Could not delete after {retries} attempts: {path}")
+                return False
+        except Exception as e:
+            logger.warning(f"[_safe_remove] Unexpected error deleting {path}: {e}")
+            return False
+    return False
+
+
 def kill_zombie_winword():
     """
     Terminate orphan WINWORD.EXE processes older than 2 minutes using psutil.
@@ -549,7 +566,7 @@ def kill_zombie_winword():
         logger.error(f"Failed to run zombie winword killer: {e}")
 
 
-def _convert_via_word(docx_path: str, output_dir: str) -> str:
+def _convert_via_word(docx_path: str, output_dir: str, target_pdf_path: Optional[str] = None) -> str:
     """
     Convert DOCX → PDF using Microsoft Word COM automation (Windows only).
     Preserves ALL Word formatting, Gujarati fonts, and complex layouts exactly
@@ -560,13 +577,22 @@ def _convert_via_word(docx_path: str, output_dir: str) -> str:
     import pythoncom
     import win32com.client
 
-    base_name = os.path.splitext(os.path.basename(docx_path))[0]
-    pdf_path = os.path.join(output_dir, f"{base_name}.pdf")
+    if target_pdf_path:
+        pdf_path = target_pdf_path
+    else:
+        base_name = os.path.splitext(os.path.basename(docx_path))[0]
+        pdf_path = os.path.join(output_dir, f"{base_name}.pdf")
+
+    abs_docx = str(Path(docx_path).resolve())
+    abs_pdf  = str(Path(pdf_path).resolve())
 
     logger.info("💾 SAVING PDF")
-    _safe_print(f"[WORD COM] {docx_path} -> {pdf_path}")
+    _safe_print(f"[WORD COM] {abs_docx} -> {abs_pdf}")
 
     start = time.perf_counter()
+
+    if os.path.exists(abs_pdf):
+        _safe_remove(abs_pdf)
 
     pythoncom.CoInitialize()
     word = None
@@ -575,18 +601,17 @@ def _convert_via_word(docx_path: str, output_dir: str) -> str:
         word = win32com.client.Dispatch("Word.Application")
         word.Visible = False
         word.DisplayAlerts = 0  # wdAlertsNone = 0
-
-        abs_docx = os.path.abspath(docx_path)
-        abs_pdf  = os.path.abspath(pdf_path)
+        try:
+            word.ScreenUpdating = False
+            word.Options.PrintBackground = False
+        except Exception:
+            pass
 
         # Open with explicit parameters to avoid COM returning method object
-        # Parameters: FileName, ConfirmConversions, ReadOnly, AddToRecentFiles,
-        #             PasswordDocument, PasswordTemplate, Revert, WritePasswordDocument,
-        #             WritePasswordTemplate, Format
         doc = word.Documents.Open(
             abs_docx,   # FileName
             False,      # ConfirmConversions
-            False,      # ReadOnly (must be False to allow SaveAs)
+            False,      # ReadOnly
             False,      # AddToRecentFiles
         )
 
@@ -594,7 +619,6 @@ def _convert_via_word(docx_path: str, output_dir: str) -> str:
             raise RuntimeError("Word.Documents.Open returned None — file may be locked or corrupted.")
 
         # wdFormatPDF = 17
-        # Use SaveAs2 when available (Word 2010+), fall back to SaveAs
         try:
             doc.SaveAs2(abs_pdf, FileFormat=17)
         except AttributeError:
@@ -606,15 +630,33 @@ def _convert_via_word(docx_path: str, output_dir: str) -> str:
     finally:
         if doc is not None:
             try:
-                doc.Close(False)
-            except Exception as ex:
-                logger.warning(f"Error closing doc: {ex}")
+                doc.Close(0)
+            except Exception:
+                pass
+            try:
+                del doc
+            except Exception:
+                pass
+            doc = None
+
         if word is not None:
             try:
-                word.Quit()
-            except Exception as ex:
-                logger.warning(f"Error quitting word: {ex}")
-        pythoncom.CoUninitialize()
+                word.Quit(0)
+            except Exception:
+                pass
+            try:
+                del word
+            except Exception:
+                pass
+            word = None
+
+        time.sleep(0.3)
+        import gc
+        gc.collect()
+        try:
+            pythoncom.CoUninitialize()
+        except Exception:
+            pass
 
     if not os.path.exists(pdf_path):
         raise RuntimeError(
@@ -713,9 +755,100 @@ def _convert_via_libreoffice(docx_path: str, output_dir: str) -> str:
                 logger.warning(f"Failed to clean up LibreOffice profile directory {profile_disk_path}: {cleanup_err}")
 
 
+# ── Watermark Functionality ───────────────────────────────────────────────────
+
+PREVIEW_WATERMARK_TEXT: str = "DRAFTSETU • PREVIEW COPY • NOT FOR OFFICIAL USE"
+
+
+def add_watermark_to_pdf(
+    input_pdf_path: str,
+    output_pdf_path: Optional[str] = None,
+    text: str = PREVIEW_WATERMARK_TEXT
+) -> str:
+    """
+    Applies a clean vector watermark diagonally across the center of every page of a PDF.
+    - Single clear watermark per page.
+    - Rotated 45 degrees.
+    - Light neutral gray color (~18% opacity).
+    - Preserves 100% fidelity of underlying document content and Gujarati text.
+    - Zero feather, line, stripe, or VML distortion artifacts.
+    """
+    import io
+    from pypdf import PdfReader, PdfWriter
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.colors import Color
+
+    target_path = output_pdf_path or input_pdf_path
+    temp_output_path = f"{target_path}.wm_tmp_{uuid.uuid4().hex[:6]}.pdf"
+
+    try:
+        reader = PdfReader(input_pdf_path)
+        writer = PdfWriter()
+
+        for page in reader.pages:
+            page_width = float(page.mediabox.width)
+            page_height = float(page.mediabox.height)
+
+            # Generate vector watermark canvas for this page dimensions
+            packet = io.BytesIO()
+            c = canvas.Canvas(packet, pagesize=(page_width, page_height))
+            c.saveState()
+
+            # Neutral slate gray with ~18% opacity
+            c.setFillColor(Color(0.40, 0.45, 0.52, alpha=0.18))
+            c.setFont("Helvetica-Bold", 26)
+
+            # Translate to page center and rotate 45 degrees
+            c.translate(page_width / 2.0, page_height / 2.0)
+            c.rotate(45)
+            c.drawCentredString(0, 0, text)
+            c.restoreState()
+            c.save()
+
+            packet.seek(0)
+            watermark_pdf = PdfReader(packet)
+            watermark_page = watermark_pdf.pages[0]
+
+            new_page = writer.add_page(page)
+            new_page.merge_page(watermark_page, over=True)
+
+        with open(temp_output_path, "wb") as f_out:
+            writer.write(f_out)
+
+        # Replace target path safely
+        if os.path.exists(target_path):
+            _safe_remove(target_path)
+        os.replace(temp_output_path, target_path)
+
+        logger.info(f"✅ [WATERMARK] Embedded clean PDF watermark into: {os.path.basename(target_path)}")
+        return target_path
+    finally:
+        if os.path.exists(temp_output_path):
+            _safe_remove(temp_output_path)
+
+
+def add_watermark_to_docx(
+    docx_path: str,
+    output_path: Optional[str] = None,
+    text: str = PREVIEW_WATERMARK_TEXT
+) -> str:
+    """
+    Backward-compatibility helper. For PDF previews, PDF-level watermarking is used.
+    """
+    target_path = output_path or docx_path
+    if docx_path != target_path and not os.path.exists(target_path):
+        import shutil
+        shutil.copyfile(docx_path, target_path)
+    return target_path
+
+
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def convert_docx_to_pdf(docx_path: str, output_dir: Optional[str] = None) -> str:
+def convert_docx_to_pdf(
+    docx_path: str,
+    output_dir: Optional[str] = None,
+    watermark: Optional[str] = None
+) -> str:
     """
     Convert a rendered DOCX file to PDF using the best available engine:
       1. Microsoft Word COM (docx2pdf) — preferred on Windows, pixel-perfect fidelity
@@ -724,6 +857,7 @@ def convert_docx_to_pdf(docx_path: str, output_dir: Optional[str] = None) -> str
     Args:
         docx_path:   Absolute path to the .docx file to convert.
         output_dir:  Directory to write the PDF. Defaults to same dir as docx.
+        watermark:   Optional watermark text to embed across every page of the PDF.
 
     Returns:
         Absolute path to the generated .pdf file.
@@ -744,6 +878,9 @@ def convert_docx_to_pdf(docx_path: str, output_dir: Optional[str] = None) -> str
     out_dir = output_dir or os.path.dirname(docx_path)
     os.makedirs(out_dir, exist_ok=True)
 
+    expected_pdf_path = os.path.join(out_dir, f"{Path(docx_path).stem}.pdf")
+
+    pdf_result = None
     # Engine 1 — Microsoft Word COM (Windows, best quality for Gujarati fonts)
     if DOCX2PDF_AVAILABLE:
         logger.info("🟦 STARTING PDF CONVERSION")
@@ -752,7 +889,8 @@ def convert_docx_to_pdf(docx_path: str, output_dir: Optional[str] = None) -> str
             for attempt in range(3):
                 try:
                     kill_zombie_winword()
-                    return _convert_via_word(docx_path, out_dir)
+                    pdf_result = _convert_via_word(docx_path, out_dir, target_pdf_path=expected_pdf_path)
+                    break
                 except Exception as e:
                     logger.warning(f"Word COM attempt {attempt + 1} failed: {e}")
                     if attempt < 2:
@@ -763,8 +901,23 @@ def convert_docx_to_pdf(docx_path: str, output_dir: Optional[str] = None) -> str
                         if not LIBREOFFICE_AVAILABLE:
                             raise  # No fallback — surface the error
 
-    # Engine 2 — LibreOffice (fallback / Linux / macOS)
-    return _convert_via_libreoffice(docx_path, out_dir)
+    if not pdf_result:
+        # Engine 2 — LibreOffice (fallback / Linux / macOS)
+        pdf_result = _convert_via_libreoffice(docx_path, out_dir)
+        if pdf_result and pdf_result != expected_pdf_path and os.path.exists(pdf_result):
+            if os.path.exists(expected_pdf_path):
+                _safe_remove(expected_pdf_path)
+            try:
+                os.replace(pdf_result, expected_pdf_path)
+                pdf_result = expected_pdf_path
+            except Exception as ren_err:
+                logger.warning(f"Could not rename PDF to expected path: {ren_err}")
+
+    # Post-process: Apply clean PDF-level watermark only when requested (for Preview PDFs)
+    if watermark and pdf_result and os.path.exists(pdf_result):
+        pdf_result = add_watermark_to_pdf(pdf_result, pdf_result, text=watermark)
+
+    return pdf_result
 
 
 def libreoffice_available() -> bool:

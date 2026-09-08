@@ -82,3 +82,6 @@ public/test.docx
 *_temp_check*
 scripts/test_*.py
 *.png
+docs/*_tmp*.pdf
+docs/*_v2*.pdf
+docs/*_Updated*.pdf

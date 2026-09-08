@@ -40,6 +40,8 @@ active_render_lock = threading.Lock()
 from backend.services.docx_engine import (
     render_docx_template,
     convert_docx_to_pdf,
+    add_watermark_to_docx,
+    PREVIEW_WATERMARK_TEXT,
     libreoffice_available,
     LIBREOFFICE_PATH,
     LIBREOFFICE_AVAILABLE,
@@ -285,7 +287,17 @@ async def generate_document(
             )
 
         try:
-            pdf_path = convert_docx_to_pdf(rendered_path, temp_renders_dir)
+            # Check if this is an existing locked document
+            is_doc_locked = False
+            if req.tracking_id:
+                existing_doc = db.query(models.DocumentSubmission).filter(
+                    models.DocumentSubmission.tracking_id == req.tracking_id
+                ).first()
+                if existing_doc and existing_doc.is_locked:
+                    is_doc_locked = True
+            
+            pdf_watermark = None if is_doc_locked else PREVIEW_WATERMARK_TEXT
+            pdf_path = convert_docx_to_pdf(rendered_path, temp_renders_dir, watermark=pdf_watermark)
         except RuntimeError as pdf_err:
             background_tasks.add_task(cleanup_temp_file, rendered_path)
             raise HTTPException(
@@ -408,7 +420,7 @@ async def create_preview_pdf(
         )
 
     try:
-        pdf_path = convert_docx_to_pdf(rendered_path, settings.TEMP_PREVIEWS_DIR)
+        pdf_path = convert_docx_to_pdf(rendered_path, settings.TEMP_PREVIEWS_DIR, watermark=PREVIEW_WATERMARK_TEXT)
     except Exception as pdf_err:
         _safe_remove(temp_docx)  # retry-aware: Word may still hold the lock
         logger.error(f"❌ Preview PDF conversion failed: {pdf_err}", exc_info=True)

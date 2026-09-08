@@ -902,6 +902,27 @@ transform-origin: top center;
     min-height: unset !important;
 }
 
+/* Document Preview Protection (Scoped strictly to preview rendering areas) */
+.dp-preview-workspace,
+.dp-paper-container,
+.dp-paper-container *,
+.preview-modal-docx-wrapper,
+.preview-modal-docx-wrapper * {
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+    -webkit-user-drag: none !important;
+}
+
+/* Prevent print bypass of preview document content */
+@media print {
+    .dp-preview-workspace,
+    .preview-modal-docx-wrapper {
+        display: none !important;
+    }
+}
+
 /* Skeleton Loading Screens */
 @keyframes dpPulse {
     0%, 100% { opacity: 0.6; }

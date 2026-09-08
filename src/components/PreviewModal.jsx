@@ -3,13 +3,22 @@ import { createPortal } from 'react-dom';
 
 const PreviewModal = ({ previewRef, previewLoading, previewError, onClose }) => {
 
-    // ── ESC key handler ──
+    // ── ESC key handler & Shortcut protection ──
     React.useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
                 e.preventDefault();
                 e.stopPropagation();
                 onClose();
+                return;
+            }
+            const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+            if (isCtrlOrCmd && ['a', 'c', 'x', 'p', 's'].includes(e.key.toLowerCase())) {
+                const activeEl = document.activeElement;
+                if (!activeEl || (activeEl.tagName !== 'INPUT' && activeEl.tagName !== 'TEXTAREA')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
             }
         };
         document.addEventListener('keydown', handleKeyDown);
@@ -83,8 +92,31 @@ const PreviewModal = ({ previewRef, previewLoading, previewError, onClose }) => 
                     </span>
                 </div>
 
+                {/* ── Preview Notice Sub-header ── */}
+                <div className="bg-slate-50 border-b border-slate-200 px-6 py-2.5 flex items-center justify-between text-xs text-slate-600 shrink-0">
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm">🔒</span>
+                        <span className="font-semibold text-slate-700">
+                            Preview only. Final document is available after Finalize.
+                        </span>
+                        <span className="text-slate-400 hidden sm:inline">•</span>
+                        <span className="font-gujarati text-slate-500 hidden sm:inline text-[11px]">
+                            આ માત્ર પ્રિવ્યૂ છે. અંતિમ દસ્તાવેજ Finalize કર્યા પછી ઉપલબ્ધ થશે.
+                        </span>
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+                        Protected Preview
+                    </span>
+                </div>
+
                 {/* ── Modal Body (Render Area) ── */}
-                <div className="preview-modal-body">
+                <div
+                    className="preview-modal-body select-none"
+                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onCopy={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onCut={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                >
                     {/* Loading State */}
                     {previewLoading && (
                         <div className="preview-modal-loading">
@@ -105,10 +137,10 @@ const PreviewModal = ({ previewRef, previewLoading, previewError, onClose }) => 
                     )}
 
                     {/* DOCX Render Target — centered for Gujarati content */}
-                    <div className="preview-modal-docx-wrapper">
+                    <div className="preview-modal-docx-wrapper select-none">
                         <div
                             ref={previewRef}
-                            className="docx-wrapper preview-modal-docx-target"
+                            className="docx-wrapper preview-modal-docx-target select-none"
                         ></div>
                     </div>
                 </div>
