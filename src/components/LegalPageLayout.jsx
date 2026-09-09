@@ -24,13 +24,27 @@ const LegalPageLayout = ({
         window.scrollTo({ top: 0, behavior: 'instant' });
     }, [seoTitle]);
 
-    const handleBackHome = () => {
+    const handleHome = () => {
         if (typeof onNavigate === 'function') {
             onNavigate('home');
         } else if (typeof window.handleNavigate === 'function') {
             window.handleNavigate('home');
         } else {
             window.location.href = '/';
+        }
+    };
+
+    const handleBack = () => {
+        if (typeof onNavigate === 'function') {
+            onNavigate('back');
+        } else if (typeof window.handleNavigate === 'function') {
+            window.handleNavigate('back');
+        } else {
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.location.href = '/';
+            }
         }
     };
 
@@ -42,7 +56,7 @@ const LegalPageLayout = ({
                     <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs font-bold text-slate-500">
                         <button
                             type="button"
-                            onClick={handleBackHome}
+                            onClick={handleHome}
                             className="hover:text-blue-600 transition flex items-center gap-1.5 cursor-pointer"
                         >
                             <span>🏠</span>
@@ -58,12 +72,12 @@ const LegalPageLayout = ({
 
                     <button
                         type="button"
-                        onClick={handleBackHome}
+                        onClick={handleBack}
                         className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition active:scale-95 shadow-2xs cursor-pointer"
                     >
                         <span>&larr;</span>
-                        <span className="hidden sm:inline">Back to Home (પાછા જાઓ)</span>
-                        <span className="sm:hidden">Home</span>
+                        <span className="hidden sm:inline">Back (પાછા જાઓ)</span>
+                        <span className="sm:hidden">Back</span>
                     </button>
                 </div>
             </div>

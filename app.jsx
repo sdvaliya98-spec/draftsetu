@@ -94,19 +94,34 @@ import { CustomDialogContainer, showConfirmDialog, showAlertDialog } from './src
 const App = () => {
     const isInitialLoadRef = useRef(true);
     const skipRecoveryRef = useRef(false);
+    const viewHistoryRef = useRef([]);
     const [isDownloading, setIsDownloading] = useState(false);
     const [isFinalizing, setIsFinalizing] = useState(false);
-    const [isTemplateEditorOpen, setIsTemplateEditorOpen] = useState(false);
     const [currentView, setCurrentView] = useState(() => {
         try {
             const path = window.location.pathname.toLowerCase();
             if (path === '/privacy-policy' || path === '/privacy-policy/') return 'privacy-policy';
             if (path === '/terms-of-service' || path === '/terms-of-service/') return 'terms-of-service';
+            if (path.startsWith('/page:')) return 'page';
+            const searchParams = new URLSearchParams(window.location.search);
+            if (searchParams.get('view') === 'editor') return 'editor';
+            if (searchParams.get('page')) return 'page';
         } catch { }
-        return localStorage.getItem('currentView') || 'home';
+        return 'home';
     }); // 'home' | 'editor' | 'page' | 'privacy-policy' | 'terms-of-service'
     const [editingTemplate, setEditingTemplate] = useState(null); // null = closed, object = being edited
-    const [currentPageSlug, setCurrentPageSlug] = useState(() => localStorage.getItem('currentPageSlug') || '');
+    const [isTemplateEditorOpen, setIsTemplateEditorOpen] = useState(false);
+    const [currentPageSlug, setCurrentPageSlug] = useState(() => {
+        try {
+            const path = window.location.pathname;
+            if (path.toLowerCase().startsWith('/page:')) {
+                return path.slice(6).trim();
+            }
+            const searchParams = new URLSearchParams(window.location.search);
+            return searchParams.get('page') || '';
+        } catch { }
+        return '';
+    });
     const [templates, setTemplates] = useState([]);
     const [activeTemplateId, setActiveTemplateId] = useState('');
     const [role, setRole] = useState('user');
@@ -604,19 +619,51 @@ const App = () => {
 
     // Synchronize browser URL on popstate (Back / Forward buttons)
     useEffect(() => {
-        const handlePopState = () => {
+        const handlePopState = (event) => {
+            const state = event && event.state;
+            if (state && state.view) {
+                if (state.view === 'privacy-policy') {
+                    setCurrentView('privacy-policy');
+                    setCurrentPageSlug('');
+                } else if (state.view === 'terms-of-service') {
+                    setCurrentView('terms-of-service');
+                    setCurrentPageSlug('');
+                } else if (state.view === 'page' && state.slug) {
+                    setCurrentView('page');
+                    setCurrentPageSlug(state.slug);
+                } else if (state.view === 'editor') {
+                    setCurrentView('editor');
+                    setCurrentPageSlug('');
+                    if (state.templateId) {
+                        setActiveTemplateId(state.templateId);
+                        if (typeof loadTemplate === 'function') loadTemplate(state.templateId);
+                    }
+                } else {
+                    setCurrentView('home');
+                    setCurrentPageSlug('');
+                }
+                return;
+            }
+
             const path = window.location.pathname.toLowerCase();
             if (path === '/privacy-policy' || path === '/privacy-policy/') {
                 setCurrentView('privacy-policy');
+                setCurrentPageSlug('');
             } else if (path === '/terms-of-service' || path === '/terms-of-service/') {
                 setCurrentView('terms-of-service');
-            } else if (path === '/' || path === '') {
-                const savedView = localStorage.getItem('currentView');
-                if (savedView === 'privacy-policy' || savedView === 'terms-of-service') {
-                    setCurrentView('home');
-                    localStorage.setItem('currentView', 'home');
+                setCurrentPageSlug('');
+            } else if (path.startsWith('/page:')) {
+                setCurrentView('page');
+                setCurrentPageSlug(window.location.pathname.slice(6).trim());
+            } else {
+                const searchParams = new URLSearchParams(window.location.search);
+                const pageParam = searchParams.get('page');
+                if (pageParam) {
+                    setCurrentView('page');
+                    setCurrentPageSlug(pageParam);
                 } else {
-                    setCurrentView(savedView || 'home');
+                    setCurrentView('home');
+                    setCurrentPageSlug('');
                 }
             }
         };
@@ -629,6 +676,8 @@ const App = () => {
         if (!urlOrMenu) return;
 
         let url = urlOrMenu;
+        let menuTemplateId = null;
+
         if (typeof urlOrMenu === 'object' && urlOrMenu !== null) {
             const menu = urlOrMenu;
             if (menu.type === 'document_services_panel') {
@@ -636,55 +685,16 @@ const App = () => {
                 return;
             }
             if (menu.type === 'template') {
-                setCurrentView('editor');
-                localStorage.setItem('currentView', 'editor');
-                loadTemplate(menu.template_id);
-                return;
+                url = 'editor';
+                menuTemplateId = menu.template_id;
+            } else {
+                url = menu.url;
             }
-            url = menu.url;
         }
 
         if (!url || url === '#') return;
 
-        if (url === '/privacy-policy' || url === 'privacy-policy') {
-            setCurrentView('privacy-policy');
-            localStorage.setItem('currentView', 'privacy-policy');
-            localStorage.removeItem('currentPageSlug');
-            if (window.location.pathname !== '/privacy-policy') {
-                window.history.pushState({}, '', '/privacy-policy');
-            }
-            return;
-        }
-
-        if (url === '/terms-of-service' || url === 'terms-of-service') {
-            setCurrentView('terms-of-service');
-            localStorage.setItem('currentView', 'terms-of-service');
-            localStorage.removeItem('currentPageSlug');
-            if (window.location.pathname !== '/terms-of-service') {
-                window.history.pushState({}, '', '/terms-of-service');
-            }
-            return;
-        }
-
-        if (url === 'home' || url === '/') {
-            setCurrentView('home');
-            localStorage.setItem('currentView', 'home');
-            localStorage.removeItem('currentPageSlug');
-            if (window.location.pathname !== '/') {
-                window.history.pushState({}, '', '/');
-            }
-            return;
-        }
-        if (url.startsWith('editor')) {
-            setCurrentView('editor');
-            localStorage.setItem('currentView', 'editor');
-            const match = url.match(/template=([^&]+)/);
-            if (match && match[1]) {
-                const templateId = match[1];
-                loadTemplate(templateId);
-            }
-            return;
-        }
+        // Modals (Do not change view or push history)
         if (url === 'documents') {
             setIsViewingDrafts(true);
             return;
@@ -697,14 +707,150 @@ const App = () => {
             setIsUserProfileOpen(true);
             return;
         }
-        if (url.startsWith('page:')) {
-            const slug = url.slice(5).trim();
-            setCurrentView('page');
-            localStorage.setItem('currentView', 'page');
-            setCurrentPageSlug(slug);
-            localStorage.setItem('currentPageSlug', slug);
+
+        // External URLs
+        if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('mailto:') || url.startsWith('tel:')) {
+            window.open(url, '_blank');
             return;
         }
+
+        // --- BACK NAVIGATION (Pop exactly 1 previous view) ---
+        if (url === 'back' || url === '/back') {
+            if (viewHistoryRef.current.length === 0) {
+                // Stack empty -> graceful fallback to Home
+                setCurrentView('home');
+                setCurrentPageSlug('');
+                if (window.location.pathname !== '/') {
+                    window.history.pushState({ view: 'home' }, '', '/');
+                }
+                window.scrollTo({ top: 0, behavior: 'instant' });
+                return;
+            }
+
+            const target = viewHistoryRef.current.pop();
+            if (!target) {
+                setCurrentView('home');
+                setCurrentPageSlug('');
+                if (window.location.pathname !== '/') {
+                    window.history.pushState({ view: 'home' }, '', '/');
+                }
+                window.scrollTo({ top: 0, behavior: 'instant' });
+                return;
+            }
+
+            // Restore target view
+            if (target.view === 'editor') {
+                setCurrentView('editor');
+                setCurrentPageSlug('');
+                if (target.templateId) {
+                    setActiveTemplateId(target.templateId);
+                    if (typeof loadTemplate === 'function') loadTemplate(target.templateId);
+                }
+                if (window.location.pathname !== '/') {
+                    window.history.pushState({ view: 'editor', templateId: target.templateId }, '', '/');
+                }
+            } else if (target.view === 'page' && target.slug) {
+                setCurrentView('page');
+                setCurrentPageSlug(target.slug);
+                if (window.location.pathname !== '/') {
+                    window.history.pushState({ view: 'page', slug: target.slug }, '', '/');
+                }
+            } else if (target.view === 'privacy-policy') {
+                setCurrentView('privacy-policy');
+                setCurrentPageSlug('');
+                if (window.location.pathname !== '/privacy-policy') {
+                    window.history.pushState({ view: 'privacy-policy' }, '', '/privacy-policy');
+                }
+            } else if (target.view === 'terms-of-service') {
+                setCurrentView('terms-of-service');
+                setCurrentPageSlug('');
+                if (window.location.pathname !== '/terms-of-service') {
+                    window.history.pushState({ view: 'terms-of-service' }, '', '/terms-of-service');
+                }
+            } else {
+                // target is home
+                setCurrentView('home');
+                setCurrentPageSlug('');
+                if (window.location.pathname !== '/') {
+                    window.history.pushState({ view: 'home' }, '', '/');
+                }
+            }
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            return;
+        }
+
+        // Explicit Home Navigation -> reset stack to root
+        if (url === 'home' || url === '/') {
+            viewHistoryRef.current = [];
+            setCurrentView('home');
+            setCurrentPageSlug('');
+            if (window.location.pathname !== '/') {
+                window.history.pushState({ view: 'home' }, '', '/');
+            }
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            return;
+        }
+
+        // --- FORWARD NAVIGATION ---
+        // Push current view snapshot before transitioning
+        const currentSnapshot = {
+            view: currentView,
+            slug: currentPageSlug,
+            templateId: activeTemplateId || ''
+        };
+        viewHistoryRef.current.push(currentSnapshot);
+        if (viewHistoryRef.current.length > 50) {
+            viewHistoryRef.current.shift();
+        }
+
+        if (url === '/privacy-policy' || url === 'privacy-policy') {
+            setCurrentView('privacy-policy');
+            setCurrentPageSlug('');
+            if (window.location.pathname !== '/privacy-policy') {
+                window.history.pushState({ view: 'privacy-policy' }, '', '/privacy-policy');
+            }
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            return;
+        }
+
+        if (url === '/terms-of-service' || url === 'terms-of-service') {
+            setCurrentView('terms-of-service');
+            setCurrentPageSlug('');
+            if (window.location.pathname !== '/terms-of-service') {
+                window.history.pushState({ view: 'terms-of-service' }, '', '/terms-of-service');
+            }
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            return;
+        }
+
+        if (url.startsWith('editor')) {
+            setCurrentView('editor');
+            setCurrentPageSlug('');
+            const match = url.match(/template=([^&]+)/);
+            const templateId = menuTemplateId || (match && match[1] ? match[1] : activeTemplateId);
+            if (window.location.pathname !== '/') {
+                window.history.pushState({ view: 'editor', templateId }, '', '/');
+            }
+            if (templateId) {
+                if (typeof loadTemplate === 'function') loadTemplate(templateId);
+                else setActiveTemplateId(templateId);
+            }
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            return;
+        }
+
+        if (url.startsWith('page:') || url.startsWith('/page:')) {
+            const raw = url.startsWith('/') ? url.slice(1) : url;
+            const slug = raw.slice(5).trim();
+            setCurrentView('page');
+            setCurrentPageSlug(slug);
+            if (window.location.pathname !== '/') {
+                window.history.pushState({ view: 'page', slug }, '', '/');
+            }
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            return;
+        }
+
         window.open(url, '_blank');
     };
 
@@ -713,6 +859,10 @@ const App = () => {
     const printRef = useRef(null);
 
     useEffect(() => {
+        try {
+            localStorage.removeItem('currentView');
+            localStorage.removeItem('currentPageSlug');
+        } catch (e) { }
         const savedTemplates = localStorage.getItem('customTemplates');
         const savedRole = localStorage.getItem('appRole');
         if (savedTemplates) { try { setTemplates(JSON.parse(savedTemplates)); } catch (e) { } }
@@ -997,7 +1147,7 @@ const App = () => {
 
         const newTpl = allTemplates.find(t => t.id === newTemplateId);
         if (!newTpl) {
-            console.warn(`[handleTemplateSelect] New template not found: ${newTemplateId}`);
+            setActiveTemplateId(newTemplateId);
             return;
         }
 
@@ -1292,7 +1442,6 @@ const App = () => {
                                 setIsLocked(draft.is_locked);
                                 setIsViewingDrafts(false);
                                 setCurrentView('editor');
-                                localStorage.setItem('currentView', 'editor');
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                                 showToast("Draft loaded successfully", "success");
                             } catch (e) {
@@ -1382,7 +1531,7 @@ const App = () => {
                         menuItem={docServicesMenuItem}
                         onSelectTemplate={(templateId) => {
                             setCurrentView('editor');
-                            localStorage.setItem('currentView', 'editor');
+                            setCurrentPageSlug('');
                             handleTemplateSelect(templateId);
                         }}
                     />
