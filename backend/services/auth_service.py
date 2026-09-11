@@ -1,5 +1,6 @@
 import bcrypt
 import jwt
+from typing import Optional
 from datetime import timedelta, datetime, timezone
 import os
 from sqlalchemy.orm import Session
@@ -148,7 +149,25 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise HTTPException(status_code=403, detail="Account is disabled")
     return user
 
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/auth/token", auto_error=False)
+
+def get_current_user_optional(token: Optional[str] = Depends(oauth2_scheme_optional), db: Session = Depends(database.get_db)) -> Optional[models.User]:
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            return None
+        user = db.query(models.User).filter(models.User.username == username).first()
+        if user and user.is_active:
+            return user
+    except Exception:
+        pass
+    return None
+
 def get_admin_user(current_user: models.User = Depends(get_current_user)):
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
+

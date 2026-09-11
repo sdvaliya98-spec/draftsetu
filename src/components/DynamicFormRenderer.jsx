@@ -24,7 +24,7 @@ const DynamicFormRenderer = ({ fields = [], data = {}, setData, isLocked = false
                             options={field.options || []}
                             onChange={(newVal) => setData(prev => ({ ...prev, [variable]: newVal }))}
                             disabled={isLocked}
-                            required={field.required !== false}
+                            required={field.required === true}
                             placeholder={`Enter ${readableLabel}...`}
                         />
                     );
@@ -40,7 +40,7 @@ const DynamicFormRenderer = ({ fields = [], data = {}, setData, isLocked = false
                         options={field.options || []}
                         onChange={(newVal) => setData(prev => ({ ...prev, [variable]: newVal }))}
                         disabled={isLocked}
-                        required={field.required !== false}
+                        required={field.required === true}
                         placeholder={`Enter ${readableLabel}...`}
                     />
                 );

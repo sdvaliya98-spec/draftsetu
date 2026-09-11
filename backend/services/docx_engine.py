@@ -59,8 +59,9 @@ def extract_variables_from_docx(file_path: str) -> dict:
     except Exception:
         cache_key = None
 
-    loop_pattern = re.compile(r'{%\s*for\s+(\w+)\s+in\s+(\w+)\s*%}')
+    loop_pattern = re.compile(r'{%\s*(?:tr|tc|p)?\s*for\s+(\w+)\s+in\s+(\w+)\s*%}')
     var_pattern = re.compile(r'\{\{([^}]+)\}\}')
+    if_pattern = re.compile(r'{%\s*(?:tr|tc|p)?\s*(?:if|elif)\s+([^%]+)%}')
 
     all_texts: list[str] = []
 
@@ -85,6 +86,9 @@ def extract_variables_from_docx(file_path: str) -> dict:
                         scan_table(nested)
 
     try:
+        import jinja2
+        import jinja2.meta
+
         doc = Document(file_path)
         logger.info(f"✅ Opened DOCX: {len(doc.paragraphs)} paragraphs, {len(doc.tables)} tables")
 
@@ -145,15 +149,29 @@ def extract_variables_from_docx(file_path: str) -> dict:
                 items.append((m.start(), 'loop', m.group(2).strip(), m.group(1).strip()))
             for m in var_pattern.finditer(text):
                 items.append((m.start(), 'var', m.group(1).strip(), None))
+            for m in if_pattern.finditer(text):
+                cond = m.group(1).strip()
+                try:
+                    ast = jinja2.Environment().parse(f'{{% if {cond} %}}{{% endif %}}')
+                    vars_in_cond = jinja2.meta.find_undeclared_variables(ast)
+                    for v in vars_in_cond:
+                        items.append((m.start(), 'if_var', v, None))
+                except Exception:
+                    tokens = re.findall(r'[a-zA-Z0-9_\u0A80-\u0AFF]+', cond)
+                    for tok in tokens:
+                        if tok not in {'if', 'elif', 'else', 'endif', 'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None'}:
+                            items.append((m.start(), 'if_var', tok, None))
+
             items.sort(key=lambda x: x[0])
 
             for item in items:
-                if item[1] == 'loop':
+                kind = item[1]
+                if kind == 'loop':
                     group = item[2]
                     if group not in order_set:
                         order_set.add(group)
                         order.append(group)
-                else:
+                elif kind == 'var':
                     var_content = item[2]
                     if '.' in var_content:
                         parts = var_content.split('.', 1)
@@ -180,6 +198,15 @@ def extract_variables_from_docx(file_path: str) -> dict:
                             if var_content not in order_set:
                                 order_set.add(var_content)
                                 order.append(var_content)
+                elif kind == 'if_var':
+                    var_name = item[2]
+                    if var_name not in iterators and var_name not in detected_groups_set:
+                        if var_name not in single_variables_set:
+                            single_variables_set.add(var_name)
+                            single_variables.append(var_name)
+                        if var_name not in order_set:
+                            order_set.add(var_name)
+                            order.append(var_name)
 
         result = {
             "groups": groups,
@@ -263,11 +290,58 @@ def _normalize_context(data: dict) -> dict:
     return {}
 
 
+class PreviewVar(str):
+    """
+    Subclass of str that preserves pure string semantics for Jinja expressions and comparisons,
+    while carrying the variable path for preview marker injection during finalization.
+    """
+    def __new__(cls, val, path=''):
+        obj = str.__new__(cls, str(val) if val is not None else '')
+        obj.var_path = path
+        return obj
+
+
+def _wrap_preview_context(data, prefix=''):
+    """
+    Recursively wraps leaf values in PreviewVar preserving field paths.
+    Supports dictionaries, lists (repeaters), and scalar values.
+    """
+    if data is None:
+        return PreviewVar('', prefix)
+    if isinstance(data, dict):
+        return {k: _wrap_preview_context(v, f"{prefix}.{k}" if prefix else k) for k, v in data.items()}
+    if isinstance(data, list):
+        return [_wrap_preview_context(item, f"{prefix}.{i}" if prefix else str(i)) for i, item in enumerate(data)]
+    return PreviewVar(str(data), prefix)
+
+
+def _create_preview_jinja_env():
+    """
+    Creates a Jinja2 environment with a custom finalize hook for live preview rendering.
+    Conditions, loops, and comparisons evaluate on pure values without marker contamination.
+    Markers [[[VAR_START:path]]]...[[[VAR_END]]] are attached exclusively upon output formatting.
+    """
+    import jinja2
+
+    def preview_finalize(val):
+        if isinstance(val, jinja2.Undefined):
+            name = getattr(val, '_undefined_name', '') or ''
+            return f"[[[VAR_START:{name}]]][[[VAR_MISSING:{name}]]][[[VAR_END]]]"
+        if isinstance(val, PreviewVar):
+            if str(val).strip() == '':
+                return f"[[[VAR_START:{val.var_path}]]][[[VAR_MISSING:{val.var_path}]]][[[VAR_END]]]"
+            return f"[[[VAR_START:{val.var_path}]]]{str(val)}[[[VAR_END]]]"
+        return val
+
+    return jinja2.Environment(finalize=preview_finalize, autoescape=False)
+
+
 def render_docx_template(
     template_path: str,
     data: dict,
     output_path: str,
     tracking_id: Optional[str] = None,
+    preview: bool = False,
 ) -> str:
     """
     Renders a DOCX template with user data using docxtpl (Jinja2 engine).
@@ -277,6 +351,7 @@ def render_docx_template(
         data: Dictionary of variable values (can include lists for repeaters).
         output_path: Full path where the rendered .docx will be saved.
         tracking_id: Optional tracking ID for logging.
+        preview: If True, evaluates Jinja logic with pure semantics while injecting preview markers into output.
 
     Returns:
         output_path if successful.
@@ -288,7 +363,7 @@ def render_docx_template(
     tid = tracking_id or uuid.uuid4().hex[:8]
     start = time.perf_counter()
 
-    logger.info(f"📄 DOCX RENDER START [{tid}]: template={os.path.basename(template_path)}")
+    logger.info(f"📄 DOCX RENDER START [{tid}]: template={os.path.basename(template_path)}, preview={preview}")
 
     if not os.path.exists(template_path):
         raise FileNotFoundError(f"Template not found: {template_path}")
@@ -358,7 +433,13 @@ def render_docx_template(
                 f"EXTRA_PARAGRAPHS Generated Count: {len(context.get('EXTRA_PARAGRAPHS', []))}"
             )
 
-            doc.render(context)
+            if preview:
+                preview_context = _wrap_preview_context(context)
+                jinja_env = _create_preview_jinja_env()
+                doc.render(preview_context, jinja_env=jinja_env)
+            else:
+                doc.render(context)
+
             doc.save(output_path)
 
             duration = time.perf_counter() - start

@@ -38,8 +38,12 @@ class TemplateService:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 text = f.read()
             
-            loop_pattern = re.compile(r'{%\s*for\s+(\w+)\s+in\s+(\w+)\s*%}')
+            import jinja2
+            import jinja2.meta
+
+            loop_pattern = re.compile(r'{%\s*(?:tr|tc|p)?\s*for\s+(\w+)\s+in\s+(\w+)\s*%}')
             var_pattern = re.compile(r'\{\{([^}]+)\}\}')
+            if_pattern = re.compile(r'{%\s*(?:tr|tc|p)?\s*(?:if|elif)\s+([^%]+)%}')
             
             iterators = {}
             detected_groups = []
@@ -65,15 +69,29 @@ class TemplateService:
                 items.append((m.start(), 'loop', m.group(2).strip(), m.group(1).strip()))
             for m in var_pattern.finditer(text):
                 items.append((m.start(), 'var', m.group(1).strip(), None))
+            for m in if_pattern.finditer(text):
+                cond = m.group(1).strip()
+                try:
+                    ast = jinja2.Environment().parse(f'{{% if {cond} %}}{{% endif %}}')
+                    vars_in_cond = jinja2.meta.find_undeclared_variables(ast)
+                    for v in vars_in_cond:
+                        items.append((m.start(), 'if_var', v, None))
+                except Exception:
+                    tokens = re.findall(r'[a-zA-Z0-9_\u0A80-\u0AFF]+', cond)
+                    for tok in tokens:
+                        if tok not in {'if', 'elif', 'else', 'endif', 'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None'}:
+                            items.append((m.start(), 'if_var', tok, None))
+
             items.sort(key=lambda x: x[0])
 
             for item in items:
-                if item[1] == 'loop':
+                kind = item[1]
+                if kind == 'loop':
                     group = item[2]
                     if group not in order_set:
                         order_set.add(group)
                         order.append(group)
-                else:
+                elif kind == 'var':
                     var_content = item[2]
                     if '.' in var_content:
                         parts = var_content.split('.', 1)
@@ -99,6 +117,15 @@ class TemplateService:
                             if var_content not in order_set:
                                 order_set.add(var_content)
                                 order.append(var_content)
+                elif kind == 'if_var':
+                    var_name = item[2]
+                    if var_name not in iterators and var_name not in detected_groups_set:
+                        if var_name not in single_variables_set:
+                            single_variables_set.add(var_name)
+                            single_variables.append(var_name)
+                        if var_name not in order_set:
+                            order_set.add(var_name)
+                            order.append(var_name)
                         
             return {
                 "groups": groups,

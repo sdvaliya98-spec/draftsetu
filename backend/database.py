@@ -118,6 +118,32 @@ def ensure_schema_up_to_date():
                     if col not in columns:
                         logger.info(f"🛠️ Adding missing column '{col}' to db_templates table...")
                         conn.execute(text(f"ALTER TABLE db_templates ADD COLUMN {col} {col_type}"))
+
+            # Check and migrate legacy templates where 100% of fields were automatically marked required:true
+            try:
+                with engine.begin() as conn:
+                    rows = conn.execute(text("SELECT id, fields_json FROM db_templates WHERE fields_json IS NOT NULL AND fields_json != ''")).fetchall()
+                    for row_id, f_json in rows:
+                        if not f_json:
+                            continue
+                        try:
+                            fields_data = json.loads(f_json) if isinstance(f_json, str) else f_json
+                            if isinstance(fields_data, dict) and fields_data:
+                                total_fields = len(fields_data)
+                                req_true_count = sum(1 for v in fields_data.values() if isinstance(v, dict) and v.get("required") is True)
+                                if total_fields > 0 and req_true_count == total_fields:
+                                    for v in fields_data.values():
+                                        if isinstance(v, dict):
+                                            v["required"] = False
+                                    conn.execute(
+                                        text("UPDATE db_templates SET fields_json = :fj WHERE id = :tid"),
+                                        {"fj": json.dumps(fields_data), "tid": row_id}
+                                    )
+                                    logger.info(f"🔄 Migrated template ID {row_id}: reset legacy automatic required:true to required:false")
+                        except Exception as parse_e:
+                            logger.warning(f"Could not check legacy fields_json for template {row_id}: {parse_e}")
+            except Exception as mig_e:
+                logger.warning(f"Legacy required fields migration warning: {mig_e}")
             
         # Check document_submissions
         if "document_submissions" in table_names:

@@ -161,117 +161,6 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
     }).length;
     const totalKeys = templateKeys.length;
 
-    // Helper to recursively wrap filled variables with highlight markers
-    const addPreviewMarkers = (obj, prefix = "") => {
-        if (obj === null || obj === undefined) {
-            return obj;
-        }
-        if (Array.isArray(obj)) {
-            return obj.map((item, idx) => addPreviewMarkers(item, `${prefix}[${idx}]`));
-        }
-        if (typeof obj === 'object') {
-            const newObj = {};
-            for (const [k, v] of Object.entries(obj)) {
-                newObj[k] = addPreviewMarkers(v, prefix ? `${prefix}.${k}` : k);
-            }
-            return newObj;
-        }
-        if (typeof obj === 'string' || typeof obj === 'number') {
-            const keyName = prefix.split('.').pop() || prefix;
-            return `[[[VAR_START:${keyName}]]]${obj}[[[VAR_END]]]`;
-        }
-        return obj;
-    };
-
-    // Prepares preview data by injecting preview markers and missing indicators
-    const preparePreviewData = () => {
-        const previewData = {};
-        const vars = template?.variables;
-
-        let singles = [];
-        let groups = {};
-        if (vars) {
-            if (Array.isArray(vars)) {
-                singles = vars.filter(v => !v.startsWith('#') && !v.startsWith('/'));
-            } else if (typeof vars === 'object') {
-                singles = vars.single_variables || [];
-                groups = vars.groups || {};
-            }
-        }
-
-        const isDateField = (fieldName) => {
-            const fieldConfig = (template?.fields && template.fields[fieldName]) || {};
-            return fieldConfig.type === 'date' || getFieldType(fieldName) === 'date';
-        };
-
-        const formatValue = (fieldName, val) => {
-            if (isDateField(fieldName)) {
-                return window.formatPreviewDate ? window.formatPreviewDate(val) : val;
-            }
-            return val;
-        };
-
-        // Helper to recursively inject markers
-        const injectValue = (val, path) => {
-            const isEmpty = val === '' || val === null || val === undefined;
-            if (isEmpty) {
-                return `[[[VAR_START:${path}]]][[[VAR_MISSING:${path}]]][[[VAR_END]]]`;
-            }
-            return `[[[VAR_START:${path}]]]${val}[[[VAR_END]]]`;
-        };
-
-        const processItem = (item, fields, pathPrefix) => {
-            if (!item || typeof item !== 'object') return item;
-            const newItem = { ...item };
-            fields.forEach(field => {
-                if (field !== 'index' && field !== 'children') {
-                    const val = item[field];
-                    const formattedVal = formatValue(field, val);
-                    newItem[field] = injectValue(formattedVal, `${pathPrefix}.${field}`);
-                }
-            });
-            if (Array.isArray(item.children)) {
-                newItem.children = item.children.map((child, childIdx) => {
-                    return processItem(child, fields, `${pathPrefix}.children.${childIdx}`);
-                });
-            }
-            return newItem;
-        };
-
-        // 1. Process singles
-        singles.forEach(key => {
-            const val = data?.[key];
-            const formattedVal = formatValue(key, val);
-            previewData[key] = injectValue(formattedVal, key);
-        });
-
-        // 2. Process groups
-        Object.entries(groups).forEach(([groupName, groupFields]) => {
-            const userList = data?.[groupName];
-            if (!userList || !Array.isArray(userList)) {
-                previewData[groupName] = [];
-            } else {
-                previewData[groupName] = userList.map((item, idx) => {
-                    return processItem(item, groupFields, `${groupName}.${idx}`);
-                });
-            }
-        });
-
-        // Fallback for other data keys not explicitly in the variables schema
-        Object.entries(data || {}).forEach(([k, v]) => {
-            if (!(k in previewData) && !groups[k]) {
-                if (typeof v === 'string' || typeof v === 'number') {
-                    const formattedVal = formatValue(k, v);
-                    previewData[k] = injectValue(formattedVal, k);
-                } else {
-                    previewData[k] = v;
-                }
-            }
-        });
-
-        return previewData;
-    };
-
     const applyHighlights = (highlight) => {
         if (!originalHtmlRef.current || !previewContainerRef.current) return;
 
@@ -299,7 +188,24 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
 
     const scrollToField = (path, smooth = true) => {
         if (!path || !previewContainerRef.current) return;
-        const element = previewContainerRef.current.querySelector(`[data-var-path="${path}"]`);
+        let element = previewContainerRef.current.querySelector(`[data-var-path="${path}"]`);
+
+        // Fallback for paragraph repeaters / aliases
+        if (!element) {
+            const lowerPath = path.toLowerCase();
+            if (lowerPath === 'para.text' || lowerPath === 'extra_paragraphs_text' || lowerPath === 'extra_paragraphs') {
+                element = previewContainerRef.current.querySelector('[data-var-path^="EXTRA_PARAGRAPHS."]') ||
+                          previewContainerRef.current.querySelector('[data-var-path="EXTRA_PARAGRAPHS"]') ||
+                          previewContainerRef.current.querySelector('[data-var-path="para.text"]') ||
+                          previewContainerRef.current.querySelector('[data-var-path="EXTRA_PARAGRAPHS_TEXT"]');
+            } else if (path.includes('.')) {
+                const parts = path.split('.');
+                const lastPart = parts[parts.length - 1];
+                element = previewContainerRef.current.querySelector(`[data-var-path="${lastPart}"]`) ||
+                          previewContainerRef.current.querySelector(`[data-var-path^="${parts[0]}."]`);
+            }
+        }
+
         if (element) {
             element.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'center' });
             element.classList.remove('dp-pulse-active');
@@ -323,9 +229,10 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
     }, []);
 
     // Live preview fetch helper
-    const fetchLivePreview = async (signal = null) => {
+    const fetchLivePreview = async (signal = null, customData = null) => {
         if (!activeTemplateId || !template) return;
 
+        // Abort previous in-flight fetch
         if (activeFetchControllerRef.current) {
             activeFetchControllerRef.current.abort();
         }
@@ -335,32 +242,34 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
             activeFetchControllerRef.current = controller;
         }
 
-        const fetchSignal = signal || controller.signal;
+        const fetchSignal = signal || controller?.signal;
         const currentVersion = ++previewVersionRef.current;
+        const payloadData = customData !== null && customData !== undefined ? customData : (data || {});
 
         setIsPreviewLoading(true);
         setPreviewError(null);
         try {
             const token = localStorage.getItem('authToken') || localStorage.getItem('token');
-            let res;
-
+            const headers = {
+                'Content-Type': 'application/json'
+            };
             if (token) {
-                const previewData = preparePreviewData();
-                res = await fetch(`${window.API_BASE || ''}/api/documents/generate?format=docx`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                        template_id: activeTemplateId,
-                        data: previewData,
-                        format: 'docx'
-                    }),
-                    signal: fetchSignal
-                });
-            } else {
-                // Unauthenticated visitor: load safe public template sample DOCX
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            let res = await fetch(`${window.API_BASE || ''}/api/documents/generate?format=docx&preview=true`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    template_id: activeTemplateId,
+                    data: payloadData,
+                    format: 'docx',
+                    preview: true
+                }),
+                signal: fetchSignal
+            });
+
+            if (!res.ok && (res.status === 401 || res.status === 403 || res.status === 404) && !fetchSignal?.aborted) {
                 res = await fetch(`${window.API_BASE || ''}/api/templates/${encodeURIComponent(activeTemplateId)}/sample-docx`, {
                     method: 'GET',
                     signal: fetchSignal
@@ -379,20 +288,20 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
             const blob = await res.blob();
             const arrayBuffer = await blob.arrayBuffer();
 
-            if (currentVersion === previewVersionRef.current && !fetchSignal.aborted) {
+            if (currentVersion === previewVersionRef.current && !fetchSignal?.aborted) {
                 setPreviewBlob(arrayBuffer);
             }
         } catch (err) {
             if (err.name === 'AbortError') return;
             console.error('[DocumentPreview] Live preview fetch error:', err);
-            if (currentVersion === previewVersionRef.current && !fetchSignal.aborted) {
+            if (currentVersion === previewVersionRef.current && !fetchSignal?.aborted) {
                 const msg = err.message || 'Failed to generate live preview';
                 if (!msg.toLowerCase().includes('authenticated') && !msg.toLowerCase().includes('login')) {
                     setPreviewError(msg);
                 }
             }
         } finally {
-            if (currentVersion === previewVersionRef.current && !fetchSignal.aborted) {
+            if (currentVersion === previewVersionRef.current && !fetchSignal?.aborted) {
                 setIsPreviewLoading(false);
             }
         }
@@ -402,14 +311,13 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
     useEffect(() => {
         if (!activeTemplateId || !template || !autoSync) return;
 
-        const controller = new AbortController();
+        const currentData = data;
         const timeoutId = safeSetTimeout(() => {
-            fetchLivePreview(controller.signal);
-        }, 1000);
+            fetchLivePreview(null, currentData);
+        }, 300);
 
         return () => {
             clearTimeout(timeoutId);
-            controller.abort();
         };
     }, [activeTemplateId, template, data, autoSync]);
 
@@ -427,11 +335,11 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
 
         const renderPreview = async () => {
             try {
-                if (!window.docx && window.loadDocxPreview) {
+                if ((!window.docx || !window.JSZip) && window.loadDocxPreview) {
                     await window.loadDocxPreview();
                 }
-                if (!window.docx) {
-                    throw new Error("docx-preview library is not loaded");
+                if (!window.docx || !window.JSZip) {
+                    throw new Error("docx-preview library or JSZip is not loaded");
                 }
                 previewContainerRef.current.innerHTML = "";
                 await window.docx.renderAsync(

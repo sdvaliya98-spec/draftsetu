@@ -238,12 +238,16 @@ const App = () => {
             const res = await window.apiFetch('/api/templates/');
             const rawData = await res.json();
             const data = rawData.map(t => {
-                let fields = t.fields || {};
-                let fieldOrder = t.fieldOrder || [];
-                let variables = t.variables || [];
-                try { if (t.fields_json) fields = JSON.parse(t.fields_json); } catch (e) { }
-                try { if (t.field_order_json) fieldOrder = JSON.parse(t.field_order_json); } catch (e) { }
-                return { ...t, fields, fieldOrder, variables };
+                let fields = t.fields;
+                if (!fields && t.fields_json) {
+                    try { fields = JSON.parse(t.fields_json); } catch (e) { fields = {}; }
+                }
+                let fieldOrder = t.fieldOrder;
+                if (!fieldOrder && t.field_order_json) {
+                    try { fieldOrder = JSON.parse(t.field_order_json); } catch (e) { fieldOrder = []; }
+                }
+                let variables = t.variables || fieldOrder || [];
+                return { ...t, fields: fields || {}, fieldOrder: fieldOrder || [], variables };
             });
             setDbTpls(data);
         }

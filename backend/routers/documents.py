@@ -16,7 +16,7 @@ GET  /api/documents/{tracking_id}  — Get single document
 GET  /api/documents/{tracking_id}/download — Download generated file
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, BackgroundTasks, Query
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -33,6 +33,7 @@ from datetime import datetime, timezone
 
 from backend import models, database
 from backend.routers.auth import get_current_user
+from backend.services.auth_service import get_current_user_optional
 from pydantic import BaseModel
 
 active_render_jobs = set()
@@ -64,6 +65,7 @@ class GenerateRequest(BaseModel):
     data: dict
     format: str = "docx"   # "docx" or "pdf"
     tracking_id: Optional[str] = None  # Optional: associate with saved draft
+    preview: Optional[bool] = False
 
 
 class PreviewRequest(BaseModel):
@@ -110,8 +112,8 @@ def _safe_remove(path: str, retries: int = 5, delay: float = 0.5) -> bool:
 def validate_generation_data(db_template: models.DBTemplate, data: dict):
     """
     Validate that all required fields in the template are present and not blank.
-    If a template has no required metadata (required key is missing/not false),
-    treat all variables as required=true (backward compatibility).
+    Only fields explicitly marked required=True in the template's fields metadata are enforced.
+    Unconfigured or default variables are optional (required=False).
     """
     try:
         fields_config = json.loads(db_template.fields_json) if db_template.fields_json else {}
@@ -148,7 +150,7 @@ def validate_generation_data(db_template: models.DBTemplate, data: dict):
     # Validate single variables
     for var in input_vars:
         field_cfg = fields_config.get(var, {})
-        is_required = field_cfg.get("required") != False
+        is_required = field_cfg.get("required") is True
         if is_required:
             val = data.get(var)
             if val is None or str(val).strip() == "":
@@ -164,7 +166,7 @@ def validate_generation_data(db_template: models.DBTemplate, data: dict):
             for idx, row in enumerate(group_data):
                 for var in group_fields:
                     field_cfg = fields_config.get(var, {})
-                    is_required = field_cfg.get("required") != False
+                    is_required = field_cfg.get("required") is True
                     if is_required:
                         val = row.get(var)
                         if val is None or str(val).strip() == "":
@@ -178,8 +180,9 @@ def validate_generation_data(db_template: models.DBTemplate, data: dict):
 async def generate_document(
     req: GenerateRequest,
     background_tasks: BackgroundTasks,
+    preview: Optional[bool] = Query(None),
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: Optional[models.User] = Depends(get_current_user_optional),
 ):
     """
     Core document generation endpoint.
@@ -188,17 +191,25 @@ async def generate_document(
 
     This endpoint does NOT use HTML rendering. The DOCX template IS the layout.
     """
+    is_preview = bool(req.preview or preview)
+    if not is_preview and not current_user:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required to finalize and generate documents."
+        )
+
+    username = current_user.username if current_user else "visitor"
     logger.info(
         f"📄 GENERATE REQUEST: template={req.template_id}, format={req.format}, "
-        f"user={current_user.username}, vars={list(req.data.keys())}"
+        f"user={username}, preview={is_preview}, vars={list(req.data.keys())}"
     )
     # AUDIT LOGGING
     for audit_key in ['HEIRS', 'MEMBERS', 'FAMILY_MEMBERS', 'family_members']:
         if audit_key in req.data:
             logger.info(f"AUDIT RAW DATA [{audit_key}]: {json.dumps(req.data[audit_key], indent=2)}")
 
-    # 0. Cache check for finalized document
-    if req.tracking_id:
+    # 0. Cache check for finalized document (skip cache for live preview)
+    if req.tracking_id and not is_preview:
         doc = db.query(models.DocumentSubmission).filter(
             models.DocumentSubmission.tracking_id == req.tracking_id
         ).first()
@@ -236,8 +247,9 @@ async def generate_document(
                    "Please upload a .docx template file in the Admin Panel."
         )
 
-    # 1.5 Validate fields against template requirements
-    validate_generation_data(db_template, req.data)
+    # 1.5 Validate fields against template requirements (only on final download, not in live preview)
+    if not is_preview:
+        validate_generation_data(db_template, req.data)
 
     # 2. Resolve template file path
     template_path = template_service.get_full_path(db_template.file_path)
@@ -263,6 +275,7 @@ async def generate_document(
             data=req.data,
             output_path=docx_output,
             tracking_id=gen_id,
+            preview=is_preview
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -318,9 +331,10 @@ async def generate_document(
         background_tasks.add_task(cleanup_temp_file, pdf_path)
         
         # Log Document Generated & PDF Downloaded
-        from backend.services.activity_service import log_activity
-        log_activity(db, current_user.username, "Document Generated", "template", req.template_id)
-        log_activity(db, current_user.username, "PDF Downloaded", "template", req.template_id)
+        if current_user and not is_preview:
+            from backend.services.activity_service import log_activity
+            log_activity(db, current_user.username, "Document Generated", "template", req.template_id)
+            log_activity(db, current_user.username, "PDF Downloaded", "template", req.template_id)
 
         return FileResponse(
             path=pdf_path,
@@ -335,9 +349,10 @@ async def generate_document(
     background_tasks.add_task(cleanup_temp_file, rendered_path)
 
     # Log Document Generated & DOCX Downloaded
-    from backend.services.activity_service import log_activity
-    log_activity(db, current_user.username, "Document Generated", "template", req.template_id)
-    log_activity(db, current_user.username, "DOCX Downloaded", "template", req.template_id)
+    if current_user and not is_preview:
+        from backend.services.activity_service import log_activity
+        log_activity(db, current_user.username, "Document Generated", "template", req.template_id)
+        log_activity(db, current_user.username, "DOCX Downloaded", "template", req.template_id)
 
     return FileResponse(
         path=rendered_path,

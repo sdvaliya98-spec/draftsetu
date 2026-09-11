@@ -313,7 +313,8 @@ const TemplateEditorModal = ({ isOpen, token, template, onSave, onClose }) => {
                 }
                 normalizedFields[key] = {
                     ...field,
-                    type
+                    type,
+                    required: field.required === true
                 };
             });
 
@@ -817,12 +818,12 @@ const TemplateEditorModal = ({ isOpen, token, template, onSave, onClose }) => {
                                                 <div>
                                                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Required Status</label>
                                                     <select
-                                                        value={field.required !== false ? 'required' : 'optional'}
+                                                        value={field.required === true ? 'required' : 'optional'}
                                                         onChange={e => updateField(v, 'required', e.target.value === 'required')}
                                                         className="w-full mt-1 px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none font-bold text-slate-700 bg-white"
                                                     >
-                                                        <option value="required">Required</option>
                                                         <option value="optional">Optional</option>
+                                                        <option value="required">Required</option>
                                                     </select>
                                                 </div>
                                             </div>

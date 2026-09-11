@@ -68,23 +68,67 @@ def _format_template_dict(t: models.DBTemplate) -> dict:
     fields = json.loads(t.fields_json) if t.fields_json else {}
     field_order = json.loads(t.field_order_json) if t.field_order_json else []
     
-    # Enrich with true document order if available from docx
+    # Enrich with true document order and newly detected variables if available from docx
     if t.file_path:
         try:
             extracted = template_service.extract_variables(t.file_path)
             if extracted and isinstance(extracted, dict):
                 extracted_order = extracted.get("order", [])
+                extracted_groups = extracted.get("groups", {})
+                extracted_singles = extracted.get("single_variables", [])
+
                 if isinstance(field_order, dict):
-                    if not field_order.get("order") and extracted_order:
+                    # Merge groups
+                    existing_groups = field_order.get("groups", {})
+                    for g_name, g_fields in extracted_groups.items():
+                        if g_name not in existing_groups:
+                            existing_groups[g_name] = g_fields
+                    field_order["groups"] = existing_groups
+
+                    # Merge single variables
+                    existing_singles = list(field_order.get("single_variables", []))
+                    for s_var in extracted_singles:
+                        if s_var not in existing_singles:
+                            existing_singles.append(s_var)
+                    field_order["single_variables"] = existing_singles
+
+                    # Merge order
+                    existing_order = list(field_order.get("order", []))
+                    if not existing_order and extracted_order:
                         field_order["order"] = extracted_order
-                    if not field_order.get("groups") and extracted.get("groups"):
-                        field_order["groups"] = extracted.get("groups")
-                    if not field_order.get("single_variables") and extracted.get("single_variables"):
-                        field_order["single_variables"] = extracted.get("single_variables")
-                elif isinstance(field_order, list) and not field_order and extracted_order:
+                    else:
+                        for o_item in extracted_order:
+                            if o_item not in existing_order:
+                                existing_order.append(o_item)
+                        field_order["order"] = existing_order
+                elif (isinstance(field_order, list) and not field_order) or not field_order:
                     field_order = extracted
+
+                # Ensure every single variable has an entry in fields
+                if isinstance(field_order, dict):
+                    for s_var in field_order.get("single_variables", []):
+                        if s_var not in fields:
+                            fields[s_var] = {
+                                "label": s_var.replace('_', ' ').title(),
+                                "type": "text",
+                                "required": False
+                            }
+                    for g_fields in field_order.get("groups", {}).values():
+                        if isinstance(g_fields, list):
+                            for g_var in g_fields:
+                                if g_var not in fields:
+                                    fields[g_var] = {
+                                        "label": g_var.replace('_', ' ').title(),
+                                        "type": "text",
+                                        "required": False
+                                    }
         except Exception as e:
             logger.debug(f"Error enriching template {t.template_id} variables: {e}")
+
+    # Ensure all field configs have an explicit boolean required property
+    for v_cfg in fields.values():
+        if isinstance(v_cfg, dict) and "required" not in v_cfg:
+            v_cfg["required"] = False
 
     variables = field_order if field_order else list(fields.keys())
 
@@ -338,7 +382,8 @@ def get_sample_docx(template_id: str, db: Session = Depends(database.get_db)):
             template_path=full_tpl_path,
             data=sample_data,
             output_path=output_path,
-            tracking_id="SAMPLE-PREVIEW"
+            tracking_id="SAMPLE-PREVIEW",
+            preview=True
         )
     except Exception as e:
         logger.error(f"Sample DOCX render error: {e}", exc_info=True)
@@ -678,23 +723,23 @@ async def upload_docx(
             except Exception as e:
                 logger.warning(f"[DB READ] Error parsing existing fields_json: {e}")
         
-        # Merge new variables and default required status
+        # Merge new variables and default required status to False
         for var in deduped_vars:
             if var not in existing_fields:
                 existing_fields[var] = {
                     "label": var.replace("_", " ").title(),
                     "type": "text",
-                    "required": True
+                    "required": False
                 }
             elif "required" not in existing_fields[var]:
-                existing_fields[var]["required"] = True
+                existing_fields[var]["required"] = False
     else:
-        # Build initial fields config with default required = True
+        # Build initial fields config with default required = False
         for var in deduped_vars:
             existing_fields[var] = {
                 "label": var.replace("_", " ").title(),
                 "type": "text",
-                "required": True
+                "required": False
             }
 
     return {
@@ -942,7 +987,7 @@ async def replace_docx(
         except Exception as e:
             logger.warning(f"[REPLACE-DOCX] Error parsing existing fields_json: {e}")
 
-    # Merge new variables and default to required=True
+    # Merge new variables and default to required=False
     all_new_vars = []
     if isinstance(new_variables, dict):
         all_new_vars.extend(new_variables.get("single_variables", []))
@@ -964,10 +1009,10 @@ async def replace_docx(
             existing_fields[var] = {
                 "label": var.replace("_", " ").title(),
                 "type": "text",
-                "required": True
+                "required": False
             }
         elif "required" not in existing_fields[var]:
-            existing_fields[var]["required"] = True
+            existing_fields[var]["required"] = False
             
     db_tpl.file_path = new_saved_filename
     db_tpl.field_order_json = json.dumps(new_variables)

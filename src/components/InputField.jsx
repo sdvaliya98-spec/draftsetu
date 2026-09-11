@@ -188,7 +188,7 @@ const DateInputField = ({ value, onChange, disabled, borderClass, placeholder = 
     );
 };
 
-const InputField = ({ label, value, onChange, type = "text", placeholder = "", disabled = false, options = [], error = null, required = true, variable = "", path = "" }) => {
+const InputField = ({ label, value, onChange, type = "text", placeholder = "", disabled = false, options = [], error = null, required = false, variable = "", path = "" }) => {
     const borderClass = error 
         ? "border-red-300 focus:border-red-500 focus:ring-red-500 focus:ring-1" 
         : "border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500";
@@ -224,6 +224,9 @@ const InputField = ({ label, value, onChange, type = "text", placeholder = "", d
             </label>
             {type === "textarea" ? (
                 <textarea
+                    id={`field-${variable}`}
+                    name={variable}
+                    data-field-key={variable}
                     value={value}
                     onChange={e => onChange(e.target.value)}
                     onFocus={triggerFocus}
@@ -234,6 +237,9 @@ const InputField = ({ label, value, onChange, type = "text", placeholder = "", d
                 />
             ) : (type === "select" || type === "dropdown") ? (
                 <select
+                    id={`field-${variable}`}
+                    name={variable}
+                    data-field-key={variable}
                     value={value}
                     onChange={e => onChange(e.target.value)}
                     onFocus={triggerFocus}
@@ -268,6 +274,9 @@ const InputField = ({ label, value, onChange, type = "text", placeholder = "", d
                 />
             ) : (
                 <input
+                    id={`field-${variable}`}
+                    name={variable}
+                    data-field-key={variable}
                     type={type}
                     value={(type === 'number' && typeof value === 'string') ? value.replace(/,/g, '') : (value || "")}
                     onChange={e => onChange(e.target.value)}

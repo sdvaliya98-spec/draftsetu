@@ -143,7 +143,7 @@ const DynamicRepeater = React.memo(({ name, fields, data, setData, isLocked, sho
                             </th>
                             {/* Field Columns */}
                             {inputFields.map(f => {
-                                const isRequired = templateFields[f.name]?.required !== false;
+                                const isRequired = templateFields[f.name]?.required === true;
                                 return (
                                     <th key={f.name} className="py-3 px-3 text-[10px] font-black text-slate-400 uppercase tracking-wider font-sans whitespace-nowrap">
                                         {REPEATER_FIELD_LABELS[f.name.toLowerCase()] || f.name.replace(/_/g, ' ').toUpperCase()}
@@ -170,7 +170,7 @@ const DynamicRepeater = React.memo(({ name, fields, data, setData, isLocked, sho
                                 {inputFields.map(f => {
                                     const fType = getFieldType(f.name);
                                     const isAutoWordField = f.name === 'amount_in_words';
-                                    const isFieldRequired = templateFields[f.name]?.required !== false;
+                                    const isFieldRequired = templateFields[f.name]?.required === true;
                                     let fieldError = validateField(f.name, item[f.name]);
                                     if (!fieldError && isFieldRequired && (!item[f.name] || String(item[f.name]).trim() === '') && showRequiredErrors) {
                                         fieldError = "ફરજિયાત (Required)";
@@ -651,7 +651,7 @@ const FormPanel = ({
             previewAbortControllerRef.current = controller;
 
             const response = await fetch(
-                `${window.API_BASE || ''}/api/documents/generate?format=docx`,
+                `${window.API_BASE || ''}/api/documents/generate?format=docx&preview=true`,
                 {
                     method: "POST",
                     headers: {
@@ -661,7 +661,8 @@ const FormPanel = ({
                     body: JSON.stringify({
                         template_id: activeTemplateId,
                         data: data || {},
-                        format: "docx"
+                        format: "docx",
+                        preview: true
                     }),
                     signal: controller.signal
                 }
@@ -873,7 +874,7 @@ const FormPanel = ({
             if (group.type === 'text') {
                 const variable = group.name;
                 const fieldConfig = (selectedTemplate?.fields && selectedTemplate.fields[variable]) || {};
-                const isRequired = fieldConfig.required !== false;
+                const isRequired = fieldConfig.required === true;
                 const val = data[variable];
                 if (isRequired && (val === null || val === undefined || String(val).trim() === '')) {
                     hasEmptyRequired = true;
@@ -884,7 +885,7 @@ const FormPanel = ({
                     list.forEach(item => {
                         group.fields.forEach(f => {
                             const fieldConfig = (selectedTemplate?.fields && selectedTemplate.fields[f.name]) || {};
-                            if (fieldConfig.required !== false) {
+                            if (fieldConfig.required === true) {
                                 const val = item[f.name];
                                 if (val === null || val === undefined || String(val).trim() === '') {
                                     hasEmptyRequired = true;
@@ -1159,7 +1160,7 @@ const FormPanel = ({
                                 || variable.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim().toUpperCase();
                             const inputType = getFieldType(variable, fieldConfig.type || 'text');
 
-                            const isFieldRequired = fieldConfig.required !== false;
+                            const isFieldRequired = fieldConfig.required === true;
                             const val = data[variable] || '';
                             let fieldError = validateField(variable, val);
                             if (!fieldError && isFieldRequired && String(val).trim() === '' && showRequiredErrors) {
