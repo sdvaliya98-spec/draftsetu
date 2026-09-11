@@ -9,7 +9,8 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
     const [pdfAvailable, setPdfAvailable] = useState(null);
 
     const hasAuthToken = Boolean(localStorage.getItem('authToken') || localStorage.getItem('token'));
-    const isVisitor = isLoggedIn !== undefined ? !isLoggedIn : !hasAuthToken;
+    const isUserAuthenticated = isLoggedIn !== undefined ? Boolean(isLoggedIn) : hasAuthToken;
+    const isVisitor = !isUserAuthenticated;
 
     // Live Preview state
     const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -321,13 +322,6 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
         };
     }, [activeTemplateId, template, data, autoSync]);
 
-    // Force initial preview load if auto-sync is on
-    useEffect(() => {
-        if (autoSync && activeTemplateId && template && !previewBlob) {
-            fetchLivePreview();
-        }
-    }, [autoSync, activeTemplateId, template]);
-
     // docx-preview rendering effect
     useEffect(() => {
         let active = true;
@@ -356,8 +350,8 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
                 );
                 if (active) {
                     originalHtmlRef.current = previewContainerRef.current.innerHTML;
-                    applyHighlights(showHighlights);
-                    if (window.activeFocusedFieldPath) {
+                    applyHighlights(isUserAuthenticated && showHighlights);
+                    if (isUserAuthenticated && window.activeFocusedFieldPath) {
                         safeSetTimeout(() => {
                             scrollToField(window.activeFocusedFieldPath, false);
                         }, 50);
@@ -376,14 +370,14 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
         return () => {
             active = false;
         };
-    }, [previewBlob]);
+    }, [previewBlob, isUserAuthenticated]);
 
     // Fast toggle update effect without fetching from server
     useEffect(() => {
         if (originalHtmlRef.current && previewContainerRef.current) {
-            applyHighlights(showHighlights);
+            applyHighlights(isUserAuthenticated && showHighlights);
         }
-    }, [showHighlights]);
+    }, [showHighlights, isUserAuthenticated]);
 
 
 
@@ -422,13 +416,18 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
                     {/* Status Indicators row */}
                     <div className="flex items-center gap-2">
                         {/* Highlight Toggle */}
-                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-full px-3 py-1.5 shadow-sm">
+                        <div className={`flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-full px-3 py-1.5 shadow-sm ${!isUserAuthenticated ? 'opacity-60 cursor-not-allowed' : ''}`}>
                             <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Highlight Variables</span>
                             <label className="dp-switch">
                                 <input
                                     type="checkbox"
-                                    checked={showHighlights}
-                                    onChange={(e) => setShowHighlights(e.target.checked)}
+                                    checked={isUserAuthenticated ? showHighlights : false}
+                                    onChange={(e) => {
+                                        if (isUserAuthenticated) {
+                                            setShowHighlights(e.target.checked);
+                                        }
+                                    }}
+                                    disabled={!isUserAuthenticated}
                                     id="toggle-show-highlights"
                                 />
                                 <span className="dp-slider"></span>
