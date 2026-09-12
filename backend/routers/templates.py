@@ -404,6 +404,7 @@ def get_template(template_id: str, db: Session = Depends(database.get_db)):
     
     return _format_template_dict(tpl)
 
+@router.post("", status_code=status.HTTP_201_CREATED)
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def create_template(tpl: TemplateCreate, db: Session = Depends(database.get_db), admin: models.User = Depends(get_admin_user)):
     """Create a new template record in the database."""
@@ -475,6 +476,7 @@ def create_template(tpl: TemplateCreate, db: Session = Depends(database.get_db),
         )
 
 @router.put("/{template_id}")
+@router.put("/{template_id}/")
 def update_template(template_id: str, tpl: TemplateUpdate, db: Session = Depends(database.get_db), admin: models.User = Depends(get_admin_user)):
     """Update an existing template's configuration or content."""
     db_tpl = db.query(models.DBTemplate).filter(models.DBTemplate.template_id == template_id).first()

@@ -166,7 +166,13 @@
                             const text = await res.text().catch(() => "Unknown Error");
                             errorData = { detail: text };
                         }
-                        const error = new Error(errorData.detail || `Server Error (${res.status})`);
+                        let msg = errorData.detail || `Server Error (${res.status})`;
+                        if (Array.isArray(msg)) {
+                            msg = msg.map(item => (item && item.msg) ? `${item.loc ? item.loc.join('.') + ': ' : ''}${item.msg}` : JSON.stringify(item)).join('; ');
+                        } else if (typeof msg === 'object' && msg !== null) {
+                            msg = JSON.stringify(msg);
+                        }
+                        const error = new Error(msg);
                         error.status = res.status;
                         error.data = errorData;
                         throw error;

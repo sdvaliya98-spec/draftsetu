@@ -1041,10 +1041,11 @@ const App = () => {
                 const { _isNew, id, ...clean } = updatedTemplate;
                 const finalName = clean.name.trim() || 'Untitled Template';
 
-                await window.apiFetch('/api/templates/', {
+                await window.apiFetch('/api/templates', {
                     method: 'POST',
                     body: {
                         name: finalName,
+                        category: clean.category || 'General',
                         header: clean.header,
                         content: clean.content,
                         content2: clean.content2,
@@ -1053,7 +1054,11 @@ const App = () => {
                         field_order_json: JSON.stringify(clean.fieldOrder),
                         file_path: clean.file_path,
                         menu_item_id: clean.menu_item_id,
-                        credit_cost: clean.credit_cost
+                        credit_cost: clean.credit_cost,
+                        document_identity_field: clean.document_identity_field,
+                        document_secondary_field: clean.document_secondary_field,
+                        identity_field: clean.identity_field,
+                        secondary_field: clean.secondary_field
                     }
                 });
                 showToast("✅ Template created in database!", "success");
@@ -1061,10 +1066,11 @@ const App = () => {
                 const tId = updatedTemplate.template_id || updatedTemplate.id;
 
                 try {
-                    await window.apiFetch(`/api/templates/${tId}/`, {
+                    await window.apiFetch(`/api/templates/${tId}`, {
                         method: 'PUT',
                         body: {
                             name: updatedTemplate.name,
+                            category: updatedTemplate.category || 'General',
                             header: updatedTemplate.header,
                             content: updatedTemplate.content,
                             content2: updatedTemplate.content2,
@@ -1073,16 +1079,21 @@ const App = () => {
                             field_order_json: JSON.stringify(updatedTemplate.fieldOrder),
                             file_path: updatedTemplate.file_path,
                             menu_item_id: updatedTemplate.menu_item_id,
-                            credit_cost: updatedTemplate.credit_cost
+                            credit_cost: updatedTemplate.credit_cost,
+                            document_identity_field: updatedTemplate.document_identity_field,
+                            document_secondary_field: updatedTemplate.document_secondary_field,
+                            identity_field: updatedTemplate.identity_field,
+                            secondary_field: updatedTemplate.secondary_field
                         }
                     });
                     showToast("✅ Template updated successfully!", "success");
                 } catch (putErr) {
                     if (putErr.status === 404) {
-                        await window.apiFetch('/api/templates/', {
+                        await window.apiFetch('/api/templates', {
                             method: 'POST',
                             body: {
                                 name: updatedTemplate.name,
+                                category: updatedTemplate.category || 'General',
                                 header: updatedTemplate.header,
                                 content: updatedTemplate.content,
                                 content2: updatedTemplate.content2,
@@ -1091,7 +1102,11 @@ const App = () => {
                                 field_order_json: JSON.stringify(updatedTemplate.fieldOrder),
                                 file_path: updatedTemplate.file_path,
                                 menu_item_id: updatedTemplate.menu_item_id,
-                                credit_cost: updatedTemplate.credit_cost
+                                credit_cost: updatedTemplate.credit_cost,
+                                document_identity_field: updatedTemplate.document_identity_field,
+                                document_secondary_field: updatedTemplate.document_secondary_field,
+                                identity_field: updatedTemplate.identity_field,
+                                secondary_field: updatedTemplate.secondary_field
                             }
                         });
                         showToast("✅ Template created in database!", "success");
@@ -1107,9 +1122,21 @@ const App = () => {
             refreshTemplates();
         } catch (err) {
             console.error("Template save error:", err);
+            let userErrMsg = err.message;
+            if (err.message === 'SERVER_OFFLINE') {
+                userErrMsg = 'Unable to reach the server. Please check your network connection.';
+            } else if (err.status === 401) {
+                userErrMsg = 'Authentication required. Please log in as an administrator.';
+            } else if (err.status === 403) {
+                userErrMsg = 'Permission denied. Administrator access is required to edit templates.';
+            } else if (err.status === 404) {
+                userErrMsg = 'Template not found.';
+            } else if (err.status === 422) {
+                userErrMsg = `Validation error: ${err.message}`;
+            }
             await showAlertDialog({
                 title: 'Template Save Failed',
-                message: `Failed to save template: ${err.message}`,
+                message: userErrMsg,
                 type: 'error'
             });
         }
