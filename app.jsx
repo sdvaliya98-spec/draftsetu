@@ -1012,9 +1012,12 @@ const App = () => {
     // Template-specific draft recovery save using DraftCacheManager (user-isolated)
     useEffect(() => {
         if (isDownloading) return;
+        if (currentView !== 'editor') return;
         if (!activeTemplateId) return;
+        if (isPromptingRecoveryRef.current) return;
         if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
         saveDebounceRef.current = setTimeout(() => {
+            if (isPromptingRecoveryRef.current) return;
             if (Object.keys(data).length > 0 && window.DraftCacheManager) {
                 window.DraftCacheManager.save(activeTemplateId, data, trackingId, isLocked, currentUser);
             }
@@ -1022,7 +1025,7 @@ const App = () => {
         return () => {
             if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
         };
-    }, [data, trackingId, isLocked, activeTemplateId, isDownloading, currentUser]);
+    }, [data, trackingId, isLocked, activeTemplateId, isDownloading, currentUser, currentView]);
 
     useEffect(() => { localStorage.setItem('customTemplates', JSON.stringify(templates)); }, [templates]);
     useEffect(() => { localStorage.setItem('appRole', role); }, [role]);
@@ -1187,8 +1190,8 @@ const App = () => {
 
         console.log(`[handleTemplateSelect] Switching from ${activeTemplateId} to ${newTemplateId}`);
 
-        // Save the CURRENT states of the ACTIVE template before switching
-        if (activeTemplateId) {
+        // Save the CURRENT states of the ACTIVE template before switching ONLY if currently in active editor view
+        if (currentView === 'editor' && activeTemplateId) {
             console.log(`[handleTemplateSelect] Saving session for ${activeTemplateId}: data=${JSON.stringify(data)} trackingId=${trackingId} isLocked=${isLocked}`);
             window.SessionManager.saveSession(activeTemplateId, { data, trackingId, isLocked });
             if (window.DraftCacheManager && Object.keys(data).length > 0) {
