@@ -247,7 +247,7 @@ const InputField = ({ label, value, onChange, type = "text", placeholder = "", d
                     className={`w-full px-3 py-2 border rounded bg-white focus:outline-none ${borderClass} ${disabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
                 >
                     <option value="">Select {label}...</option>
-                    {options.map((opt, i) => (
+                    {(window.parseOptionsList ? window.parseOptionsList(options) : options).map((opt, i) => (
                         <option key={i} value={opt}>{opt}</option>
                     ))}
                 </select>
@@ -258,7 +258,7 @@ const InputField = ({ label, value, onChange, type = "text", placeholder = "", d
                     onFocus={triggerFocus}
                     placeholder={placeholder}
                     disabled={disabled}
-                    options={options}
+                    options={window.parseOptionsList ? window.parseOptionsList(options) : options}
                     variable={variable}
                     borderClass={borderClass}
                 />

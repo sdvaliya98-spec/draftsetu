@@ -20,7 +20,7 @@ const syncNestedIndices = (list, parentIndexStr = '') => {
     });
 };
 
-const NestedRepeaterNode = React.memo(({ node, fields, onUpdate, onRemove, onDuplicate, path, level, isLocked, showRequiredErrors, groupName, absolutePath }) => {
+const NestedRepeaterNode = React.memo(({ node, fields, onUpdate, onRemove, onDuplicate, path, level, isLocked, showRequiredErrors, groupName, absolutePath, templateFields = {} }) => {
     const [isCollapsed, setIsCollapsed] = React.useState(false);
 
     const childList = Array.isArray(node.children) ? node.children : [];
@@ -160,17 +160,21 @@ const NestedRepeaterNode = React.memo(({ node, fields, onUpdate, onRemove, onDup
                 {/* Form Fields for this Node */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {fields.filter(f => f.name !== 'index' && f.name !== 'children' && f.type !== 'repeater').map(f => {
-                        const fType = getFieldType(f.name);
+                        const fieldConfig = (templateFields && templateFields[f.name]) || {};
+                        const fType = getFieldType(f.name, fieldConfig.type || f.type || 'text');
                         const isAutoWordField = f.name === 'amount_in_words';
                         const isFieldRequired = f.name !== 'index' && f.name !== 'amount_in_words' && f.name !== 'children' && f.type !== 'repeater';
                         let fieldError = validateField(f.name, node[f.name]);
                         if (!fieldError && isFieldRequired && (!node[f.name] || String(node[f.name]).trim() === '') && showRequiredErrors) {
                             fieldError = "Required";
                         }
-                        const readableLabel = (REPEATER_FIELD_LABELS && REPEATER_FIELD_LABELS[f.name.toLowerCase()]) 
+                        const readableLabel = (REPEATER_FIELD_LABELS && REPEATER_FIELD_LABELS[f.name.toLowerCase()])
                             || f.name.replace(/_/g, ' ').toUpperCase();
 
                         const pathStr = `${groupName}.${absolutePath.join('.children.')}.${f.name}`;
+                        const parsedOptions = window.parseOptionsList
+                            ? window.parseOptionsList(fieldConfig.options || f.options || [])
+                            : (fieldConfig.options || f.options || []);
 
                         return (
                             <InputField
@@ -179,6 +183,7 @@ const NestedRepeaterNode = React.memo(({ node, fields, onUpdate, onRemove, onDup
                                 type={fType}
                                 label={readableLabel}
                                 value={node[f.name] || ''}
+                                options={parsedOptions}
                                 onChange={v => handleFieldChange(f.name, v)}
                                 disabled={isLocked || isAutoWordField}
                                 error={fieldError}
@@ -208,6 +213,7 @@ const NestedRepeaterNode = React.memo(({ node, fields, onUpdate, onRemove, onDup
                             showRequiredErrors={showRequiredErrors}
                             groupName={groupName}
                             absolutePath={[...absolutePath, idx]}
+                            templateFields={templateFields}
                         />
                     ))}
                 </div>
@@ -216,7 +222,7 @@ const NestedRepeaterNode = React.memo(({ node, fields, onUpdate, onRemove, onDup
     );
 });
 
-const NestedRepeater = React.memo(({ name, fields, data, setData, isLocked, showRequiredErrors }) => {
+const NestedRepeater = React.memo(({ name, fields, data, setData, isLocked, showRequiredErrors, templateFields = {} }) => {
     const list = Array.isArray(data[name]) ? data[name] : [];
 
     const titleInfo = getRepeaterTitle(name);
@@ -345,6 +351,7 @@ const NestedRepeater = React.memo(({ name, fields, data, setData, isLocked, show
                             showRequiredErrors={showRequiredErrors}
                             groupName={name}
                             absolutePath={[idx]}
+                            templateFields={templateFields}
                         />
                     ))}
                 </div>

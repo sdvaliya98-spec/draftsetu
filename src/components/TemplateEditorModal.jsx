@@ -81,7 +81,10 @@ const TemplateEditorModal = ({ isOpen, token, template, onSave, onClose }) => {
                     if (type === 'Dropdown' || type === 'dropdown' || type === 'select') {
                         type = 'select';
                     }
-                    normalized[key] = { ...f, type };
+                    const options = (typeof window.parseOptionsList === 'function')
+                        ? window.parseOptionsList(f.options)
+                        : (Array.isArray(f.options) ? f.options : []);
+                    normalized[key] = { ...f, type, options };
                 });
             }
             setFields(normalized);
@@ -311,9 +314,13 @@ const TemplateEditorModal = ({ isOpen, token, template, onSave, onClose }) => {
                 if (type === 'Dropdown' || type === 'dropdown' || type === 'select') {
                     type = 'select';
                 }
+                const cleanOptions = (typeof window.parseOptionsList === 'function')
+                    ? window.parseOptionsList(field.options)
+                    : (Array.isArray(field.options) ? field.options.filter(Boolean) : []);
                 normalizedFields[key] = {
                     ...field,
                     type,
+                    options: cleanOptions,
                     required: field.required === true
                 };
             });
@@ -866,22 +873,14 @@ const TemplateEditorModal = ({ isOpen, token, template, onSave, onClose }) => {
                                             </div>
                                         </div>
 
-                                         {(field.type === "Dropdown" || field.type === "dropdown" || field.type === "select" || field.type === "hybrid-dropdown") && (
+                                        {(field.type === "Dropdown" || field.type === "dropdown" || field.type === "select" || field.type === "hybrid-dropdown") && (
                                             <div className="mt-3">
                                                 <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                                                     Dropdown Options
                                                 </label>
                                                 <textarea
-                                                    value={(field.options || []).join('\n')}
-                                                    onChange={(e) =>
-                                                        updateField(index, {
-                                                            ...field,
-                                                            options: e.target.value
-                                                                .split('\n')
-                                                                .map(o => o.trim())
-                                                                .filter(Boolean)
-                                                        })
-                                                    }
+                                                    value={Array.isArray(field.options) ? field.options.join('\n') : (typeof field.options === 'string' ? field.options : '')}
+                                                    onChange={(e) => updateField(v, 'options', e.target.value.split('\n'))}
                                                     placeholder={`વારસાઈ હકથી
 ખરીદી હકથી
 બક્ષીસ હકથી`}

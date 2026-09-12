@@ -46,8 +46,34 @@ const processFieldValue = (name, val) => {
     return val;
 };
 
+const parseOptionsList = (opts) => {
+    if (!opts) return [];
+    let list = [];
+    if (Array.isArray(opts)) {
+        list = opts;
+    } else if (typeof opts === 'string') {
+        list = opts.includes('\n') ? opts.split('\n') : opts.split(',');
+    }
+    const clean = [];
+    const seen = new Set();
+    for (const item of list) {
+        const val = typeof item === 'object' && item !== null ? (item.value || item.label || '') : String(item || '');
+        const trimmed = val.trim();
+        if (trimmed && !seen.has(trimmed)) {
+            seen.add(trimmed);
+            clean.push(trimmed);
+        }
+    }
+    return clean;
+};
+
 const getFieldType = (variableName, fallbackType = 'text') => {
-    const lowerName = variableName.toLowerCase();
+    const lowerName = (variableName || '').toLowerCase();
+
+    // If a specific custom type is configured (like 'hybrid-dropdown', 'select', 'dropdown', 'number', 'textarea'), respect it
+    if (fallbackType && fallbackType !== 'text') {
+        return fallbackType;
+    }
 
     if (lowerName === 'extra_paragraphs_text' || lowerName === 'para.text') {
         return 'textarea';
@@ -61,7 +87,7 @@ const getFieldType = (variableName, fallbackType = 'text') => {
         return 'textarea';
     }
 
-    return fallbackType;
+    return fallbackType || 'text';
 };
 
 const validateField = (name, val) => {
@@ -148,3 +174,14 @@ window.validateField = validateField;
 window.REPEATER_TITLES = REPEATER_TITLES;
 window.REPEATER_FIELD_LABELS = REPEATER_FIELD_LABELS;
 window.getRepeaterTitle = getRepeaterTitle;
+window.parseOptionsList = parseOptionsList;
+
+export {
+    processFieldValue,
+    getFieldType,
+    validateField,
+    REPEATER_TITLES,
+    REPEATER_FIELD_LABELS,
+    getRepeaterTitle,
+    parseOptionsList
+};

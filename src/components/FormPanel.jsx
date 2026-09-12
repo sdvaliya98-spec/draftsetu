@@ -178,10 +178,11 @@ const DynamicRepeater = React.memo(({ name, fields, data, setData, isLocked, sho
                                 </td>
                                 {/* Inputs Cells */}
                                 {inputFields.map(f => {
-                                    const fType = getFieldType(f.name);
+                                    const fieldConfig = (templateFields && templateFields[f.name]) || {};
+                                    const fType = getFieldType(f.name, fieldConfig.type || f.type || 'text');
                                     const isAutoWordField = f.name === 'amount_in_words';
                                     const isOwnerNameField = f.name && f.name.toLowerCase() === 'owner_name';
-                                    const isFieldRequired = templateFields[f.name]?.required === true;
+                                    const isFieldRequired = fieldConfig.required === true;
                                     let fieldError = validateField(f.name, item[f.name]);
                                     if (!fieldError && isFieldRequired && (!item[f.name] || String(item[f.name]).trim() === '') && showRequiredErrors) {
                                         fieldError = "ફરજિયાત (Required)";
@@ -194,6 +195,10 @@ const DynamicRepeater = React.memo(({ name, fields, data, setData, isLocked, sho
                                         window.activeFocusedFieldPath = pathStr;
                                         window.dispatchEvent(new CustomEvent('focus-preview-field', { detail: { path: pathStr } }));
                                     };
+
+                                    const repeaterOptions = isOwnerNameField
+                                        ? applicantNames
+                                        : (window.parseOptionsList ? window.parseOptionsList(fieldConfig.options || f.options || []) : (fieldConfig.options || f.options || []));
 
                                     return (
                                         <td key={f.name} className="py-2 px-2 align-middle">
@@ -225,11 +230,24 @@ const DynamicRepeater = React.memo(({ name, fields, data, setData, isLocked, sho
                                                         onChange={v => updateItem(i, f.name, v)}
                                                         onFocus={triggerFocus}
                                                         disabled={isFinalized}
-                                                        options={isOwnerNameField ? applicantNames : (f.options || templateFields[f.name]?.options || [])}
-                                                        variable={`owner-name-suggestions-${name}-${i}`}
+                                                        options={repeaterOptions}
+                                                        variable={isOwnerNameField ? `owner-name-suggestions-${name}-${i}` : `hybrid-${name}-${i}-${f.name}`}
                                                         borderClass={`min-w-[140px] px-3 py-1.5 rounded-lg text-xs font-semibold ${borderClass}`}
                                                         placeholder={f.name.replace(/_/g, ' ')}
                                                     />
+                                                ) : (fType === 'select' || fType === 'dropdown') ? (
+                                                    <select
+                                                        value={item[f.name] || ''}
+                                                        onChange={e => updateItem(i, f.name, e.target.value)}
+                                                        onFocus={triggerFocus}
+                                                        disabled={isFinalized}
+                                                        className={`w-full min-w-[140px] px-3 py-1.5 border rounded-lg text-xs font-semibold bg-white focus:outline-none ${borderClass} ${isFinalized ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'bg-white'}`}
+                                                    >
+                                                        <option value="">{f.name.replace(/_/g, ' ')}...</option>
+                                                        {repeaterOptions.map((opt, optIdx) => (
+                                                            <option key={optIdx} value={opt}>{opt}</option>
+                                                        ))}
+                                                    </select>
                                                 ) : (
                                                     <input
                                                         type={fType}
@@ -1188,6 +1206,7 @@ const FormPanel = ({
                             if (!fieldError && isFieldRequired && String(val).trim() === '' && showRequiredErrors) {
                                 fieldError = "આ માહિતી ફરજિયાત છે (This field is required)";
                             }
+                            const parsedOptions = window.parseOptionsList ? window.parseOptionsList(fieldConfig.options || []) : (fieldConfig.options || []);
 
                             return (
                                 <InputField
@@ -1196,7 +1215,7 @@ const FormPanel = ({
                                     type={inputType}
                                     label={readableLabel}
                                     value={val}
-                                    options={fieldConfig.options || []}
+                                    options={parsedOptions}
                                     onChange={(val) => {
                                         setData(prev => {
                                             const processedVal = processFieldValue(variable, val);

@@ -13,6 +13,7 @@ const DynamicFormRenderer = ({ fields = [], data = {}, setData, isLocked = false
 
                 const readableLabel = field.label || variable.replace(/_/g, ' ').toUpperCase();
                 const val = data[variable] || '';
+                const parsedOptions = window.parseOptionsList ? window.parseOptionsList(field.options || []) : (field.options || []);
                 
                 if (field.type === "hybrid-dropdown") {
                     return (
@@ -21,7 +22,7 @@ const DynamicFormRenderer = ({ fields = [], data = {}, setData, isLocked = false
                             label={readableLabel}
                             variable={variable}
                             value={val}
-                            options={field.options || []}
+                            options={parsedOptions}
                             onChange={(newVal) => setData(prev => ({ ...prev, [variable]: newVal }))}
                             disabled={isLocked}
                             required={field.required === true}
@@ -37,7 +38,7 @@ const DynamicFormRenderer = ({ fields = [], data = {}, setData, isLocked = false
                         type={field.type || 'text'}
                         label={readableLabel}
                         value={val}
-                        options={field.options || []}
+                        options={parsedOptions}
                         onChange={(newVal) => setData(prev => ({ ...prev, [variable]: newVal }))}
                         disabled={isLocked}
                         required={field.required === true}

@@ -126,7 +126,9 @@ def _generate_mock_data_for_template(fields_json_str: str, field_order_json_str:
 
     mock_data = {}
     
-    def get_sample_value(field_name: str, field_type: str = "text") -> str:
+    def get_sample_value(field_name: str, field_type: str = "text", options: list = None) -> str:
+        if options and isinstance(options, list) and len(options) > 0 and str(options[0]).strip():
+            return str(options[0]).strip()
         name_lower = field_name.lower()
         if "date" in name_lower or name_lower == "dob":
             return datetime.utcnow().strftime("%Y-%m-%d")
@@ -199,9 +201,11 @@ def _generate_mock_data_for_template(fields_json_str: str, field_order_json_str:
 
     for var in single_variables:
         f_type = "text"
+        f_opts = []
         if var in fields_config and isinstance(fields_config[var], dict):
             f_type = fields_config[var].get("type", "text")
-        mock_data[var] = get_sample_value(var, f_type)
+            f_opts = fields_config[var].get("options", [])
+        mock_data[var] = get_sample_value(var, f_type, f_opts)
 
     # Heir-like group names that should have nested children for NestedRepeater
     heir_group_names = {'heirs', 'family_members', 'members', 'heir_tree'}
@@ -216,9 +220,11 @@ def _generate_mock_data_for_template(fields_json_str: str, field_order_json_str:
                     entry["index"] = index_str
                 else:
                     f_type = "text"
+                    f_opts = []
                     if field in fields_config and isinstance(fields_config[field], dict):
                         f_type = fields_config[field].get("type", "text")
-                    entry[field] = get_sample_value(field, f_type)
+                        f_opts = fields_config[field].get("options", [])
+                    entry[field] = get_sample_value(field, f_type, f_opts)
             if is_heir_group:
                 entry["children"] = []
             return entry

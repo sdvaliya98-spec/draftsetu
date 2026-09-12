@@ -14,6 +14,10 @@ const HybridDropdownField = ({
     onFocus = null
 }) => {
     const listId = `list-${variable || Math.random().toString(36).substr(2, 9)}`;
+    const parsedOptions = window.parseOptionsList
+        ? window.parseOptionsList(options)
+        : (Array.isArray(options) ? options.filter(Boolean) : []);
+
     const finalBorderClass = borderClass || (error 
         ? "border-red-300 focus:border-red-500 focus:ring-red-500 focus:ring-1" 
         : "border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100/50");
@@ -22,6 +26,9 @@ const HybridDropdownField = ({
         <div className="relative w-full">
             <input
                 type="text"
+                id={variable ? `field-${variable}` : undefined}
+                name={variable || undefined}
+                data-field-key={variable || undefined}
                 list={listId}
                 value={value || ""}
                 onChange={e => onChange(e.target.value)}
@@ -31,7 +38,7 @@ const HybridDropdownField = ({
                 className={`w-full px-3 py-2 border rounded-xl bg-white focus:outline-none transition-all ${finalBorderClass} ${disabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
             />
             <datalist id={listId}>
-                {(options || []).map((option, i) => (
+                {parsedOptions.map((option, i) => (
                     <option key={i} value={option} />
                 ))}
             </datalist>
