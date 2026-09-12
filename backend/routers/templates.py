@@ -172,7 +172,10 @@ def _format_template_dict(t: models.DBTemplate) -> dict:
 def get_templates(skip: int = 0, limit: int = 100, db: Session = Depends(database.get_db)):
     """Fetch all active templates from the database with pagination."""
     try:
-        tpls = db.query(models.DBTemplate).filter(models.DBTemplate.is_active == True).order_by(models.DBTemplate.created_at.desc()).offset(skip).limit(limit).all()
+        tpls = db.query(models.DBTemplate).filter(
+            models.DBTemplate.is_active == True,
+            models.DBTemplate.status == "ACTIVE"
+        ).order_by(models.DBTemplate.created_at.desc()).offset(skip).limit(limit).all()
         return [_format_template_dict(t) for t in tpls]
     except Exception as e:
         logger.error(f"Error fetching templates: {e}")
@@ -225,6 +228,12 @@ def archive_template(
         db_tpl.is_active = False
         db_tpl.status = "ARCHIVED"
         db_tpl.updated_at = datetime.utcnow()
+
+        # Unbind any MenuItem referencing this template
+        menu_items = db.query(models.MenuItem).filter(models.MenuItem.template_id == template_id).all()
+        for m in menu_items:
+            m.template_id = None
+
         db.commit()
         
         # Log to activity logs
@@ -544,23 +553,6 @@ def update_template(template_id: str, tpl: TemplateUpdate, db: Session = Depends
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update template: {str(e)}"
         )
-
-@router.delete("/{template_id}")
-def delete_template(template_id: str, db: Session = Depends(database.get_db), admin: models.User = Depends(get_admin_user)):
-    """Soft-delete a template by setting is_active to False."""
-    db_tpl = db.query(models.DBTemplate).filter(models.DBTemplate.template_id == template_id).first()
-    if not db_tpl:
-        raise HTTPException(status_code=404, detail="Template not found")
-    
-    try:
-        db_tpl.is_active = False
-        db.commit()
-        logger.info(f"Deactivated template: {template_id}")
-        return {"success": True, "message": "Template deleted"}
-    except Exception as e:
-        logger.error(f"Error deleting template: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/upload-test")
 def upload_test():

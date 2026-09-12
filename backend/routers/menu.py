@@ -26,6 +26,13 @@ class MenuItemUpdate(MenuItemBase):
 
 @router.get("/")
 def get_menu(db: Session = Depends(database.get_db)):
+    active_tpl_ids = {
+        t[0] for t in db.query(models.DBTemplate.template_id).filter(
+            models.DBTemplate.is_active == True,
+            models.DBTemplate.status == "ACTIVE"
+        ).all() if t[0]
+    }
+
     def build_tree(items, parent_id=None):
         return [
             {
@@ -34,12 +41,12 @@ def get_menu(db: Session = Depends(database.get_db)):
                 "url": i.url,
                 "icon": i.icon,
                 "type": i.type,
-                "template_id": i.template_id,
+                "template_id": i.template_id if (i.template_id and i.template_id in active_tpl_ids) else None,
                 "children": build_tree(items, i.id)
             }
             for i in items if i.parent_id == parent_id
         ]
-    items = db.query(models.MenuItem).filter(models.MenuItem.is_active == True).all()
+    items = db.query(models.MenuItem).filter(models.MenuItem.is_active == True).order_by(models.MenuItem.order_index).all()
     return build_tree(items)
 
 @router.get("/all")

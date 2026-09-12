@@ -1163,11 +1163,12 @@ const App = () => {
     };
 
     const allTemplates = useMemo(() => {
-        const dbIds = new Set(dbTpls.map(t => t.template_id));
-        const filteredLocals = templates.filter(t => !dbIds.has(t.id));
+        const activeDbTpls = (dbTpls || []).filter(t => t.is_active !== false && t.status !== 'ARCHIVED' && t.status !== 'DELETED');
+        const dbIds = new Set(activeDbTpls.map(t => t.template_id));
+        const filteredLocals = (templates || []).filter(t => !dbIds.has(t.id) && t.is_active !== false && t.status !== 'ARCHIVED' && t.status !== 'DELETED');
         const apiTemplates = [
             ...filteredLocals.map(t => ({ ...t, _source: 'local' })),
-            ...dbTpls.map(t => ({ ...t, id: t.template_id, _source: 'db' }))
+            ...activeDbTpls.map(t => ({ ...t, id: t.template_id, _source: 'db' }))
         ];
         const normalizedTemplates = apiTemplates.map(t => ({
             ...t,

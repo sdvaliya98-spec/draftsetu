@@ -5,33 +5,36 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [], isAuthHydr
     const [currentSlide, setCurrentSlide] = React.useState(0);
     const [selectedCategory, setSelectedCategory] = React.useState('All');
 
-    const filteredTemplates = selectedCategory === 'All' 
-        ? templates 
-        : templates.filter(t => (t.category || 'General') === selectedCategory);
+    const activeTemplates = React.useMemo(() => {
+        return (templates || []).filter(t => t.is_active !== false && t.status !== 'ARCHIVED' && t.status !== 'DELETED');
+    }, [templates]);
+
+    const filteredTemplates = selectedCategory === 'All'
+        ? activeTemplates
+        : activeTemplates.filter(t => (t.category || 'General') === selectedCategory);
     
     // Dynamic Category List derived from templates
     const availableCategories = React.useMemo(() => {
-        const cats = new Set(templates.map(t => t.category || 'General').filter(c => c && c !== 'Test / Dummy'));
+        const cats = new Set(activeTemplates.map(t => t.category || 'General').filter(c => c && c !== 'Test / Dummy'));
         return ['All', ...Array.from(cats)];
-    }, [templates]);
+    }, [activeTemplates]);
 
     // Dynamic URL Resolver Helper
     const getTemplateUrl = (categoryName, targetTemplateId = null, searchKeywords = []) => {
         // 1. Direct active template ID match if provided
         if (targetTemplateId) {
-            const targetTpl = templates.find(t => t.is_active && (t.template_id === targetTemplateId || t.id === targetTemplateId));
+            const targetTpl = activeTemplates.find(t => (t.template_id === targetTemplateId || t.id === targetTemplateId));
             if (targetTpl) {
                 return `editor?template=${targetTpl.template_id || targetTpl.id}`;
             }
         }
         // 2. Direct category match
-        const categoryMatch = templates.find(t => t.is_active && (t.category || '').toLowerCase() === (categoryName || '').toLowerCase());
+        const categoryMatch = activeTemplates.find(t => (t.category || '').toLowerCase() === (categoryName || '').toLowerCase());
         if (categoryMatch) {
             return `editor?template=${categoryMatch.template_id || categoryMatch.id}`;
         }
         // 3. Fallback to search keywords if needed
-        const keywordMatch = templates.find(t => {
-            if (!t.is_active) return false;
+        const keywordMatch = activeTemplates.find(t => {
             return searchKeywords.some(keyword => 
                 (t.name || '').toLowerCase().includes(keyword.toLowerCase()) || 
                 (t.template_id || t.id || '').toLowerCase().includes(keyword.toLowerCase())

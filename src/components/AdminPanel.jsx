@@ -293,7 +293,7 @@ const MenuBuilder = ({ onMenuUpdate, templates, dbTemplates, refreshTrigger }) =
 };
 
 // ─── Template Manager ─────────────────────────────────────────────────────────
-const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplate, onNewTemplate, onDeleteLocalTemplate, onTemplatesUpdate, refreshTrigger }) => {
+const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplate, onNewTemplate, onDeleteLocalTemplate, onTemplatesUpdate, onMenuUpdate, refreshTrigger }) => {
     const all = React.useMemo(() => [
         ...localTemplates.map(t => ({ ...t, _source: 'local' })),
         ...(dbTemplates || []).map(t => ({ ...t, id: t.template_id, _source: 'db' }))
@@ -360,6 +360,7 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
                     type: 'success'
                 });
                 if (onTemplatesUpdate) onTemplatesUpdate();
+                if (onMenuUpdate) onMenuUpdate();
                 if (activeSubTab === 'archived') loadArchived();
             } else {
                 showAlertDialog({
@@ -401,6 +402,7 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
                     type: 'success'
                 });
                 if (onTemplatesUpdate) onTemplatesUpdate();
+                if (onMenuUpdate) onMenuUpdate();
                 if (activeSubTab === 'archived') loadArchived();
             } else {
                 showAlertDialog({
@@ -651,6 +653,7 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
                                         if (!confirmed) return;
                                         await window.apiFetch(`/api/templates/${t.template_id || t.id}`, { method: 'DELETE' });
                                         if (onTemplatesUpdate) onTemplatesUpdate();
+                                        if (onMenuUpdate) onMenuUpdate();
                                     }} 
                                     className="px-3 py-2 bg-rose-50 text-rose-600 rounded-xl text-xs font-black hover:bg-rose-600 hover:text-white transition shadow-sm flex items-center gap-1"
                                 >
@@ -3134,6 +3137,7 @@ const AdminPanel = ({ onClose, currentUser, templates, dbTemplates, onEditTempla
                             onNewTemplate={onNewTemplate} 
                             onDeleteLocalTemplate={onDeleteLocalTemplate} 
                             onTemplatesUpdate={onTemplatesUpdate} 
+                            onMenuUpdate={onMenuUpdate}
                             refreshTrigger={refreshTrigger}
                         />
                     )}
