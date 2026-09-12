@@ -471,7 +471,7 @@ const App = () => {
 
                 // Clear cache
                 if (window.DraftCacheManager) {
-                    window.DraftCacheManager.clear(targetTemplateId);
+                    window.DraftCacheManager.clear(targetTemplateId, currentUser);
                 } else {
                     localStorage.removeItem(`temp_draft_${targetTemplateId}`);
                     localStorage.removeItem(`temp_tracking_id_${targetTemplateId}`);
@@ -586,7 +586,7 @@ const App = () => {
 
                     // Clear cache
                     if (window.DraftCacheManager) {
-                        window.DraftCacheManager.clear(targetTemplateId);
+                        window.DraftCacheManager.clear(targetTemplateId, currentUser);
                     } else {
                         localStorage.removeItem(`temp_draft_${targetTemplateId}`);
                         localStorage.removeItem(`temp_tracking_id_${targetTemplateId}`);
@@ -876,7 +876,9 @@ const App = () => {
         }
     }, []);
 
-    // Template-specific draft recovery load with backend verification
+    // Template-specific draft recovery load with user confirmation dialog
+    const isPromptingRecoveryRef = useRef(false);
+
     useEffect(() => {
         let active = true;
         if (isDownloading) return;
@@ -890,97 +892,112 @@ const App = () => {
             return;
         }
 
-        const cachedDraft = window.DraftCacheManager ? window.DraftCacheManager.load(activeTemplateId) : null;
+        // Check if an in-memory session is already registered in SessionManager
+        const existingSession = window.SessionManager ? window.SessionManager.restoreSession(activeTemplateId) : null;
+        if (existingSession && window.DraftCacheManager && window.DraftCacheManager.isMeaningfulDraft(existingSession.data, getTemplateEmptyState(allTemplates.find(t => t.id === activeTemplateId), false))) {
+            // Already actively working in memory for this session
+            return;
+        }
 
-        if (cachedDraft) {
-            const { data: cachedData, trackingId: cachedTrackId, isLocked: cachedLocked } = cachedDraft;
+        const activeTemplate = allTemplates.find(t => t.id === activeTemplateId);
+        const emptyState = getTemplateEmptyState(activeTemplate, isInitialLoadRef.current);
+        isInitialLoadRef.current = false;
 
-            if (cachedLocked) {
+        const cachedDraft = window.DraftCacheManager ? window.DraftCacheManager.load(activeTemplateId, currentUser) : null;
+
+        if (cachedDraft && !cachedDraft.isLocked && window.DraftCacheManager && window.DraftCacheManager.isMeaningfulDraft(cachedDraft.data, emptyState)) {
+            const { data: cachedData, trackingId: cachedTrackId } = cachedDraft;
+
+            if (isPromptingRecoveryRef.current) return;
+            isPromptingRecoveryRef.current = true;
+
+            showConfirmDialog({
+                title: 'Unsaved data found (અધૂરો ડેટા મળ્યો છે)',
+                message: 'તમારો અગાઉનો અધૂરો ડેટા મળ્યો છે. શું તમે તેને restore કરવા માંગો છો?\n\nUnsaved draft data from your previous session was found. Would you like to restore it?',
+                confirmText: 'Restore (પુનઃપ્રાપ્ત કરો)',
+                cancelText: 'Discard (કાઢી નાખો)',
+                type: 'primary',
+                icon: '📝',
+                closeOnOverlayClick: false
+            }).then(async (userWantsRestore) => {
+                isPromptingRecoveryRef.current = false;
                 if (!active) return;
-                setTrackingId(null);
-                setIsLocked(false);
-                const activeTemplate = allTemplates.find(t => t.id === activeTemplateId);
-                const empty = getTemplateEmptyState(activeTemplate, false);
-                setData(empty);
-                if (window.DraftCacheManager) window.DraftCacheManager.clear(activeTemplateId);
-                window.SessionManager.saveSession(activeTemplateId, { data: empty, trackingId: null, isLocked: false });
-                return;
-            }
 
-            if (cachedTrackId && authToken) {
-                window.apiFetch(`/api/documents/${cachedTrackId}`, {
-                    headers: { 'Authorization': `Bearer ${authToken}` }
-                })
-                    .then(async (res) => {
-                        if (!active) return;
-                        if (res.ok) {
-                            const docData = await res.json();
-                            if (docData.is_locked) {
-                                if (window.DraftCacheManager) window.DraftCacheManager.clear(activeTemplateId);
-                                setTrackingId(null);
-                                setIsLocked(false);
-                                const activeTemplate = allTemplates.find(t => t.id === activeTemplateId);
-                                const empty = getTemplateEmptyState(activeTemplate, false);
-                                setData(empty);
-                                window.SessionManager.saveSession(activeTemplateId, { data: empty, trackingId: null, isLocked: false });
-                                showToast("આ દસ્તાવેજ ફાઇનલ લોક કરેલ છે અને તેમાં ફેરફાર કરી શકાશે નહીં. (This document has been locked and cannot be edited.)", "error");
-                            } else {
+                if (userWantsRestore) {
+                    if (cachedTrackId && authToken) {
+                        try {
+                            const res = await window.apiFetch(`/api/documents/${cachedTrackId}`, {
+                                headers: { 'Authorization': `Bearer ${authToken}` }
+                            });
+                            if (!active) return;
+                            if (res.ok) {
+                                const docData = await res.json();
+                                if (docData.is_locked) {
+                                    if (window.DraftCacheManager) window.DraftCacheManager.clear(activeTemplateId, currentUser);
+                                    setTrackingId(null);
+                                    setIsLocked(false);
+                                    setData(emptyState);
+                                    window.SessionManager.saveSession(activeTemplateId, { data: emptyState, trackingId: null, isLocked: false });
+                                    showToast("આ દસ્તાવેજ ફાઇનલ લોક કરેલ છે અને તેમાં ફેરફાર કરી શકાશે નહીં. (This document has been locked and cannot be edited.)", "error");
+                                    return;
+                                }
                                 try {
                                     const parsed = JSON.parse(docData.data_json);
                                     setData(parsed);
                                     setTrackingId(docData.tracking_id);
                                     setIsLocked(false);
-                                    if (window.DraftCacheManager) window.DraftCacheManager.save(activeTemplateId, parsed, docData.tracking_id, false);
+                                    if (window.DraftCacheManager) window.DraftCacheManager.save(activeTemplateId, parsed, docData.tracking_id, false, currentUser);
                                     window.SessionManager.saveSession(activeTemplateId, { data: parsed, trackingId: docData.tracking_id, isLocked: false });
+                                    showToast("ડ્રાફ્ટ સફળતાપૂર્વક પુનઃપ્રાપ્ત થયો (Draft restored)", "success");
                                 } catch (e) {
                                     console.error("❌ [App] Error parsing database draft JSON:", e);
-                                    const activeTemplate = allTemplates.find(t => t.id === activeTemplateId);
-                                    const empty = getTemplateEmptyState(activeTemplate, false);
-                                    setData(empty);
+                                    setData(cachedData);
                                     setTrackingId(docData.tracking_id);
                                     setIsLocked(false);
-                                    window.SessionManager.saveSession(activeTemplateId, { data: empty, trackingId: docData.tracking_id, isLocked: false });
+                                    window.SessionManager.saveSession(activeTemplateId, { data: cachedData, trackingId: docData.tracking_id, isLocked: false });
+                                    showToast("ડ્રાફ્ટ સફળતાપૂર્વક પુનઃપ્રાપ્ત થયો (Draft restored)", "success");
                                 }
+                            } else {
+                                setData(cachedData);
+                                setTrackingId(cachedTrackId);
+                                setIsLocked(false);
+                                window.SessionManager.saveSession(activeTemplateId, { data: cachedData, trackingId: cachedTrackId, isLocked: false });
+                                showToast("ડ્રાફ્ટ સફળતાપૂર્વક પુનઃપ્રાપ્ત થયો (Draft restored)", "success");
                             }
-                        } else if (res.status === 404) {
-                            if (window.DraftCacheManager) window.DraftCacheManager.clear(activeTemplateId);
-                            setTrackingId(null);
-                            setIsLocked(false);
-                            const activeTemplate = allTemplates.find(t => t.id === activeTemplateId);
-                            const empty = getTemplateEmptyState(activeTemplate, false);
-                            setData(empty);
-                            window.SessionManager.saveSession(activeTemplateId, { data: empty, trackingId: null, isLocked: false });
-                            showToast("સંદર્ભિત ડ્રાફ્ટ ડેટાબેઝમાં મળ્યો નથી, નવો દસ્તાવેજ શરૂ થઈ રહ્યો છે (Draft not found in database. Opening a fresh document.)", "error");
-                        } else {
-                            console.error(`❌ [App] Server error ${res.status} during draft verification.`);
-                            showToast(`ડ્રાફ્ટ ચકાસવામાં ભૂલ આવી (Error verifying draft): status ${res.status}`, "error");
-                        }
-                    })
-                    .catch((err) => {
-                        if (!active) return;
-                        console.error("❌ [App] Network/Service exception during draft verification:", err);
-                        if (err.message === 'SERVER_OFFLINE') {
-                            const activeTemplate = allTemplates.find(t => t.id === activeTemplateId);
-                            const restoredData = cachedData || getTemplateEmptyState(activeTemplate, false);
-                            setData(restoredData);
+                        } catch (err) {
+                            if (!active) return;
+                            console.error("❌ [App] Network exception during draft restore verification:", err);
+                            setData(cachedData);
                             setTrackingId(cachedTrackId);
                             setIsLocked(false);
-                            window.SessionManager.saveSession(activeTemplateId, { data: restoredData, trackingId: cachedTrackId, isLocked: false });
+                            window.SessionManager.saveSession(activeTemplateId, { data: cachedData, trackingId: cachedTrackId, isLocked: false });
+                            showToast("ડ્રાફ્ટ સફળતાપૂર્વક પુનઃપ્રાપ્ત થયો (Draft restored)", "success");
                         }
-                    });
-            } else {
-                const activeTemplate = allTemplates.find(t => t.id === activeTemplateId);
-                const restoredData = cachedData || getTemplateEmptyState(activeTemplate, false);
-                setData(restoredData);
-                setTrackingId(null);
-                setIsLocked(false);
-                window.SessionManager.saveSession(activeTemplateId, { data: restoredData, trackingId: null, isLocked: false });
-            }
+                    } else {
+                        setData(cachedData);
+                        setTrackingId(null);
+                        setIsLocked(false);
+                        window.SessionManager.saveSession(activeTemplateId, { data: cachedData, trackingId: null, isLocked: false });
+                        showToast("ડ્રાફ્ટ સફળતાપૂર્વક પુનઃપ્રાપ્ત થયો (Draft restored)", "success");
+                    }
+                } else {
+                    // User chose Discard
+                    if (window.DraftCacheManager) window.DraftCacheManager.clear(activeTemplateId, currentUser);
+                    setData(emptyState);
+                    setTrackingId(null);
+                    setIsLocked(false);
+                    window.SessionManager.saveSession(activeTemplateId, { data: emptyState, trackingId: null, isLocked: false });
+                    showToast("અધૂરો ડેટા કાઢી નાખવામાં આવ્યો (Unsaved draft discarded)", "info");
+                }
+            }).catch((err) => {
+                isPromptingRecoveryRef.current = false;
+                console.error("❌ [App] Error in recovery confirmation dialog:", err);
+            });
         } else {
+            if (cachedDraft && cachedDraft.isLocked) {
+                if (window.DraftCacheManager) window.DraftCacheManager.clear(activeTemplateId, currentUser);
+            }
             if (!active) return;
-            const activeTemplate = allTemplates.find(t => t.id === activeTemplateId);
-            const emptyState = getTemplateEmptyState(activeTemplate, isInitialLoadRef.current);
-            isInitialLoadRef.current = false;
             setData(emptyState);
             setTrackingId(null);
             setIsLocked(false);
@@ -990,22 +1007,22 @@ const App = () => {
         return () => {
             active = false;
         };
-    }, [activeTemplateId, authToken, isDownloading, currentView]);
+    }, [activeTemplateId, authToken, isDownloading, currentView, currentUser]);
 
-    // Template-specific draft recovery save using DraftCacheManager
+    // Template-specific draft recovery save using DraftCacheManager (user-isolated)
     useEffect(() => {
         if (isDownloading) return;
         if (!activeTemplateId) return;
         if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
         saveDebounceRef.current = setTimeout(() => {
             if (Object.keys(data).length > 0 && window.DraftCacheManager) {
-                window.DraftCacheManager.save(activeTemplateId, data, trackingId, isLocked);
+                window.DraftCacheManager.save(activeTemplateId, data, trackingId, isLocked, currentUser);
             }
         }, 500);
         return () => {
             if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
         };
-    }, [data, trackingId, isLocked, activeTemplateId, isDownloading]);
+    }, [data, trackingId, isLocked, activeTemplateId, isDownloading, currentUser]);
 
     useEffect(() => { localStorage.setItem('customTemplates', JSON.stringify(templates)); }, [templates]);
     useEffect(() => { localStorage.setItem('appRole', role); }, [role]);
@@ -1174,6 +1191,9 @@ const App = () => {
         if (activeTemplateId) {
             console.log(`[handleTemplateSelect] Saving session for ${activeTemplateId}: data=${JSON.stringify(data)} trackingId=${trackingId} isLocked=${isLocked}`);
             window.SessionManager.saveSession(activeTemplateId, { data, trackingId, isLocked });
+            if (window.DraftCacheManager && Object.keys(data).length > 0) {
+                window.DraftCacheManager.save(activeTemplateId, data, trackingId, isLocked, currentUser);
+            }
         }
 
         const newTpl = allTemplates.find(t => t.id === newTemplateId);
@@ -1184,19 +1204,21 @@ const App = () => {
 
         const session = window.SessionManager.restoreSession(newTemplateId);
         if (session) {
-            console.log(`[handleTemplateSelect] Restoring session for ${newTemplateId}: data=${JSON.stringify(session.data)} trackingId=${session.trackingId} isLocked=${session.isLocked}`);
+            console.log(`[handleTemplateSelect] Restoring in-memory session for ${newTemplateId}`);
             setData(session.data);
             setTrackingId(session.trackingId);
             setIsLocked(session.isLocked);
             skipRecoveryRef.current = true;
         } else {
-            const cachedDraft = window.DraftCacheManager ? window.DraftCacheManager.load(newTemplateId) : null;
-            if (cachedDraft) {
-                console.log(`[handleTemplateSelect] Found local recovery cache for ${newTemplateId}, letting recovery useEffect run`);
+            const cachedDraft = window.DraftCacheManager ? window.DraftCacheManager.load(newTemplateId, currentUser) : null;
+            const empty = getTemplateEmptyState(newTpl, false);
+            const isMeaningful = cachedDraft && !cachedDraft.isLocked && window.DraftCacheManager && window.DraftCacheManager.isMeaningfulDraft(cachedDraft.data, empty);
+
+            if (isMeaningful) {
+                console.log(`[handleTemplateSelect] Found meaningful recovery cache for ${newTemplateId}, letting recovery effect prompt user`);
                 skipRecoveryRef.current = false;
             } else {
-                console.log(`[handleTemplateSelect] No session or cache for ${newTemplateId}, initializing with empty state`);
-                const empty = getTemplateEmptyState(newTpl, false);
+                console.log(`[handleTemplateSelect] No session or meaningful cache for ${newTemplateId}, initializing with empty state`);
                 setData(empty);
                 setTrackingId(null);
                 setIsLocked(false);
@@ -1309,6 +1331,7 @@ const App = () => {
                     } catch (e) {
                         console.warn("Failed to log logout", e);
                     }
+                    if (window.SessionManager) window.SessionManager.clearAll();
                     setCurrentUser(null); setAuthToken(null); setIsAdminUser(false);
                     setRole('user');
                     setIsAuthHydrated(true);
@@ -1453,7 +1476,7 @@ const App = () => {
                                 skipRecoveryRef.current = true;
 
                                 if (window.DraftCacheManager) {
-                                    window.DraftCacheManager.save(tId, draftData, draft.tracking_id, draft.is_locked);
+                                    window.DraftCacheManager.save(tId, draftData, draft.tracking_id, draft.is_locked, currentUser);
                                 } else {
                                     localStorage.setItem(`temp_draft_${tId}`, draft.data_json);
                                     if (draft.tracking_id) {
@@ -1486,7 +1509,7 @@ const App = () => {
                             window.SessionManager.clearSession(targetTemplateId);
 
                             if (window.DraftCacheManager) {
-                                window.DraftCacheManager.clear(targetTemplateId);
+                                window.DraftCacheManager.clear(targetTemplateId, currentUser);
                             } else {
                                 localStorage.removeItem(`temp_draft_${targetTemplateId}`);
                                 localStorage.removeItem(`temp_tracking_id_${targetTemplateId}`);
@@ -1499,7 +1522,7 @@ const App = () => {
                                 const activeTemplate = allTemplates.find(t => t.id === targetTemplateId);
                                 setData(getTemplateEmptyState(activeTemplate, false));
                                 if (window.DraftCacheManager) {
-                                    window.DraftCacheManager.clear(targetTemplateId);
+                                    window.DraftCacheManager.clear(targetTemplateId, currentUser);
                                 }
                             }
                         }}
