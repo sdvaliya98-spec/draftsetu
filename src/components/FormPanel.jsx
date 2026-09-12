@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { DateInputField } from './InputField.jsx';
+import HybridDropdownField from './HybridDropdownField.jsx';
 import PreviewModal from './PreviewModal.jsx';
 import PdfPreviewModal from './PdfPreviewModal.jsx';
 import { showAlertDialog } from './CustomDialog.jsx';
@@ -17,6 +18,15 @@ const DynamicRepeater = React.memo(({ name, fields, data, setData, isLocked, sho
     const list = Array.isArray(data[name]) ? data[name] : [];
 
     const titleInfo = getRepeaterTitle(name);
+
+    // Derive applicant names dynamically for auto-suggestions (e.g. for LAND_RECORDS.owner_name)
+    const applicantNames = React.useMemo(() => {
+        const applicants = Array.isArray(data?.APPLICANTS) ? data.APPLICANTS :
+                           Array.isArray(data?.applicants) ? data.applicants : [];
+        return applicants
+            .map(a => (typeof a?.name === 'string' ? a.name.trim() : ''))
+            .filter(Boolean);
+    }, [data?.APPLICANTS, data?.applicants]);
 
     // Sync indices helper
     const syncRowIndices = (rawList) => {
@@ -170,6 +180,7 @@ const DynamicRepeater = React.memo(({ name, fields, data, setData, isLocked, sho
                                 {inputFields.map(f => {
                                     const fType = getFieldType(f.name);
                                     const isAutoWordField = f.name === 'amount_in_words';
+                                    const isOwnerNameField = f.name && f.name.toLowerCase() === 'owner_name';
                                     const isFieldRequired = templateFields[f.name]?.required === true;
                                     let fieldError = validateField(f.name, item[f.name]);
                                     if (!fieldError && isFieldRequired && (!item[f.name] || String(item[f.name]).trim() === '') && showRequiredErrors) {
@@ -207,6 +218,17 @@ const DynamicRepeater = React.memo(({ name, fields, data, setData, isLocked, sho
                                                         onFocus={triggerFocus}
                                                         className={`w-full min-w-[140px] px-3 py-1.5 border rounded-lg text-xs font-semibold focus:outline-none ${borderClass} ${isFinalized ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'bg-white'}`}
                                                         variable={`${name}.${i}.${f.name}`}
+                                                    />
+                                                ) : (isOwnerNameField || fType === 'hybrid-dropdown') ? (
+                                                    <HybridDropdownField
+                                                        value={item[f.name] || ''}
+                                                        onChange={v => updateItem(i, f.name, v)}
+                                                        onFocus={triggerFocus}
+                                                        disabled={isFinalized}
+                                                        options={isOwnerNameField ? applicantNames : (f.options || templateFields[f.name]?.options || [])}
+                                                        variable={`owner-name-suggestions-${name}-${i}`}
+                                                        borderClass={`min-w-[140px] px-3 py-1.5 rounded-lg text-xs font-semibold ${borderClass}`}
+                                                        placeholder={f.name.replace(/_/g, ' ')}
                                                     />
                                                 ) : (
                                                     <input
