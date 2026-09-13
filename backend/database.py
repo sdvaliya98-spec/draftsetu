@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine, text, inspect
+from sqlalchemy.pool import NullPool
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.types import TypeDecorator, TEXT
@@ -52,9 +53,10 @@ if "postgresql" in settings.DATABASE_URL:
         pool_pre_ping=True
     )
 else:
-    logger.info("📡 Database: Configuring SQLite connection engine...")
+    logger.info("📡 Database: Configuring SQLite connection engine with NullPool...")
     engine = create_engine(
         settings.DATABASE_URL,
+        poolclass=NullPool,
         connect_args={
             "check_same_thread": False,
             "timeout": 30
