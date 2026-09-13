@@ -198,9 +198,14 @@ def archive_template(
     admin: models.User = Depends(get_admin_user)
 ):
     """Archive a template by setting status to ARCHIVED and is_active to False. Admin only."""
-    db_tpl = db.query(models.DBTemplate).filter(models.DBTemplate.template_id == template_id).first()
+    db_tpl = db.query(models.DBTemplate).filter(
+        (models.DBTemplate.template_id == template_id) |
+        (models.DBTemplate.id == (int(template_id) if str(template_id).isdigit() else -1))
+    ).first()
     if not db_tpl:
         raise HTTPException(status_code=404, detail="Template not found")
+
+    actual_template_id = db_tpl.template_id
 
     # Safety Check: Prevent archiving if template has active locked document generation running.
     # Find all DocumentSubmissions where is_locked is True and pdf_generation_in_progress is True
@@ -214,7 +219,7 @@ def archive_template(
         if doc.data_json:
             try:
                 data = json.loads(doc.data_json)
-                if data.get("template_id") == template_id:
+                if data.get("template_id") in [template_id, actual_template_id]:
                     raise HTTPException(
                         status_code=400,
                         detail="Cannot archive template: an active document generation is running for this template."
@@ -230,7 +235,10 @@ def archive_template(
         db_tpl.updated_at = datetime.utcnow()
 
         # Unbind any MenuItem referencing this template
-        menu_items = db.query(models.MenuItem).filter(models.MenuItem.template_id == template_id).all()
+        menu_items = db.query(models.MenuItem).filter(
+            (models.MenuItem.template_id == actual_template_id) |
+            (models.MenuItem.template_id == str(db_tpl.id))
+        ).all()
         for m in menu_items:
             m.template_id = None
 
@@ -238,9 +246,9 @@ def archive_template(
         
         # Log to activity logs
         from backend.services.activity_service import log_activity
-        log_activity(db, admin.username, "Template Archived", "template", template_id, template_name=db_tpl.name)
+        log_activity(db, admin.username, "Template Archived", "template", actual_template_id, template_name=db_tpl.name)
         
-        logger.info(f"[TEMPLATE ARCHIVED] Admin [{admin.username}] archived template {db_tpl.name} ({template_id})")
+        logger.info(f"[TEMPLATE ARCHIVED] Admin [{admin.username}] archived template {db_tpl.name} ({actual_template_id})")
         return {"success": True, "message": "Template archived successfully"}
     except HTTPException:
         db.rollback()
@@ -257,9 +265,14 @@ def restore_template(
     admin: models.User = Depends(get_admin_user)
 ):
     """Restore an archived template by setting status to ACTIVE and is_active to True. Admin only."""
-    db_tpl = db.query(models.DBTemplate).filter(models.DBTemplate.template_id == template_id).first()
+    db_tpl = db.query(models.DBTemplate).filter(
+        (models.DBTemplate.template_id == template_id) |
+        (models.DBTemplate.id == (int(template_id) if str(template_id).isdigit() else -1))
+    ).first()
     if not db_tpl:
         raise HTTPException(status_code=404, detail="Template not found")
+
+    actual_template_id = db_tpl.template_id
 
     try:
         db_tpl.is_active = True
@@ -269,9 +282,9 @@ def restore_template(
         
         # Log to activity logs
         from backend.services.activity_service import log_activity
-        log_activity(db, admin.username, "Template Restored", "template", template_id, template_name=db_tpl.name)
+        log_activity(db, admin.username, "Template Restored", "template", actual_template_id, template_name=db_tpl.name)
         
-        logger.info(f"[TEMPLATE RESTORED] Admin [{admin.username}] restored template {db_tpl.name} ({template_id})")
+        logger.info(f"[TEMPLATE RESTORED] Admin [{admin.username}] restored template {db_tpl.name} ({actual_template_id})")
         return {"success": True, "message": "Template restored successfully"}
     except Exception as e:
         db.rollback()
@@ -290,9 +303,14 @@ def delete_template_permanently(
     If documents reference this template, prevent deletion with a clear safety warning.
     """
     from sqlalchemy import func
-    db_tpl = db.query(models.DBTemplate).filter(models.DBTemplate.template_id == template_id).first()
+    db_tpl = db.query(models.DBTemplate).filter(
+        (models.DBTemplate.template_id == template_id) |
+        (models.DBTemplate.id == (int(template_id) if str(template_id).isdigit() else -1))
+    ).first()
     if not db_tpl:
         raise HTTPException(status_code=404, detail="Template not found")
+
+    actual_template_id = db_tpl.template_id
 
     # 1. Dependency check: Document Submissions referencing this template_id
     if db.bind.dialect.name == 'postgresql':
@@ -306,8 +324,10 @@ def delete_template_permanently(
     )
 
     doc_count = db.query(models.DocumentSubmission).filter(
-        (models.DocumentSubmission.template_id == template_id) |
-        (resolved_template_id == template_id)
+        (models.DocumentSubmission.template_id == actual_template_id) |
+        (models.DocumentSubmission.template_id == str(db_tpl.id)) |
+        (resolved_template_id == actual_template_id) |
+        (resolved_template_id == str(db_tpl.id))
     ).count()
 
     if doc_count > 0:
@@ -321,7 +341,10 @@ def delete_template_permanently(
         tpl_file_path = db_tpl.file_path
         
         # 2. Unbind any MenuItem referencing this template
-        menu_items = db.query(models.MenuItem).filter(models.MenuItem.template_id == template_id).all()
+        menu_items = db.query(models.MenuItem).filter(
+            (models.MenuItem.template_id == actual_template_id) |
+            (models.MenuItem.template_id == str(db_tpl.id))
+        ).all()
         for m in menu_items:
             m.template_id = None
 
@@ -329,7 +352,7 @@ def delete_template_permanently(
         if tpl_file_path:
             other_using = db.query(models.DBTemplate).filter(
                 models.DBTemplate.file_path == tpl_file_path,
-                models.DBTemplate.template_id != template_id
+                models.DBTemplate.template_id != actual_template_id
             ).first()
             if not other_using:
                 full_path = template_service.get_full_path(tpl_file_path)
@@ -345,9 +368,9 @@ def delete_template_permanently(
 
         # 5. Log Activity
         from backend.services.activity_service import log_activity
-        log_activity(db, admin.username, "Template Permanently Deleted", "template", template_id, template_name=tpl_name)
+        log_activity(db, admin.username, "Template Permanently Deleted", "template", actual_template_id, template_name=tpl_name)
 
-        logger.info(f"[TEMPLATE PERMANENTLY DELETED] Admin [{admin.username}] permanently deleted template {tpl_name} ({template_id})")
+        logger.info(f"[TEMPLATE PERMANENTLY DELETED] Admin [{admin.username}] permanently deleted template {tpl_name} ({actual_template_id})")
         return {"success": True, "message": f"Template '{tpl_name}' was permanently deleted."}
     except HTTPException:
         db.rollback()

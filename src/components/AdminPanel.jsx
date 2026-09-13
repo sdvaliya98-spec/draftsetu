@@ -423,6 +423,49 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
         }
     };
 
+    const handleDeleteTemplate = async (templateId) => {
+        const confirmed = await showConfirmDialog({
+            title: 'Destroy Blueprint',
+            subtitle: 'Permanent Action',
+            message: 'Are you sure you want to permanently destroy this blueprint? This action cannot be undone.',
+            confirmText: 'Delete',
+            type: 'danger',
+            isDestructive: true
+        });
+        if (!confirmed) return;
+
+        try {
+            const res = await window.apiFetch(`/api/templates/${templateId}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (res.ok) {
+                showAlertDialog({
+                    title: 'Success',
+                    subtitle: 'Template Deleted',
+                    message: data.message || 'Template permanently deleted successfully!',
+                    type: 'success'
+                });
+                if (onTemplatesUpdate) onTemplatesUpdate();
+                if (onMenuUpdate) onMenuUpdate();
+                if (activeSubTab === 'archived') loadArchived();
+            } else {
+                showAlertDialog({
+                    title: 'Delete Error',
+                    subtitle: 'Template Action',
+                    message: `Error deleting template: ${data.detail || 'Unknown error'}`,
+                    type: 'danger'
+                });
+            }
+        } catch (err) {
+            console.error(err);
+            showAlertDialog({
+                title: 'Error',
+                subtitle: 'Template Action',
+                message: `Error: ${err.message || 'Failed to delete template'}`,
+                type: 'danger'
+            });
+        }
+    };
+
     const triggerReplace = (templateId) => {
         setReplacingTemplateId(templateId);
         if (fileInputRef.current) {
@@ -642,19 +685,7 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
 
                             {activeSubTab === 'active' && t._source === 'db' && (
                                 <button 
-                                    onClick={async () => {
-                                        const confirmed = await showConfirmDialog({
-                                            title: 'Destroy Blueprint',
-                                            subtitle: 'Permanent Action',
-                                            message: 'Are you sure you want to destroy this blueprint?',
-                                            type: 'danger',
-                                            isDestructive: true
-                                        });
-                                        if (!confirmed) return;
-                                        await window.apiFetch(`/api/templates/${t.template_id || t.id}`, { method: 'DELETE' });
-                                        if (onTemplatesUpdate) onTemplatesUpdate();
-                                        if (onMenuUpdate) onMenuUpdate();
-                                    }} 
+                                    onClick={() => handleDeleteTemplate(t.template_id || t.id)} 
                                     className="px-3 py-2 bg-rose-50 text-rose-600 rounded-xl text-xs font-black hover:bg-rose-600 hover:text-white transition shadow-sm flex items-center gap-1"
                                 >
                                     <span>🗑</span> Delete
