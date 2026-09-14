@@ -57,6 +57,7 @@ const AdminWalletPanel = ({ token, refreshTrigger }) => {
                 });
             }
         } catch (err) {
+            if (err.status === 401 || err.isSessionExpired) return;
             await showAlertDialog({
                 title: 'Migration Failed',
                 subtitle: 'Connection Error',

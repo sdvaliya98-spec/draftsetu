@@ -35,6 +35,7 @@ const ActivityLogs = ({ refreshTrigger }) => {
             setTotalPages(data.total_pages || 1);
             setPage(data.page || 1);
         } catch (err) {
+            if (err.status === 401 || err.isSessionExpired) return;
             setError(err.message || 'Failed to load activity logs');
         } finally {
             setLoading(false);

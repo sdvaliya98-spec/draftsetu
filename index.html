@@ -143,6 +143,71 @@
             ? "http://127.0.0.1:8000"
             : "";
 
+        let _isSessionExpiryHandling = false;
+
+        window.handleSessionExpired = function (detail) {
+            // 1. Clear stored credentials immediately (only once)
+            try {
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('currentUser');
+                localStorage.removeItem('isAdminUser');
+                localStorage.setItem('appRole', 'user');
+            } catch (e) {
+                console.warn("⚠️ [STORAGE] Failed to clear session items:", e.message);
+            }
+
+            // 2. Clear in-memory template sessions if active
+            if (window.SessionManager && typeof window.SessionManager.clearAll === 'function') {
+                window.SessionManager.clearAll();
+            }
+
+            // 3. Dispatch event for React application state reset
+            window.dispatchEvent(new CustomEvent('draftsetu:session-expired', {
+                detail: { message: detail || 'Session expired' }
+            }));
+
+            // 4. Prevent duplicate session expired dialogs if multiple API calls trigger concurrently
+            if (_isSessionExpiryHandling) {
+                return;
+            }
+            _isSessionExpiryHandling = true;
+
+            const onDialogDismissed = () => {
+                _isSessionExpiryHandling = false;
+                if (typeof window.openAuthModal === 'function') {
+                    window.openAuthModal();
+                }
+            };
+
+            // 5. Render DraftSetu CustomDialog with warning theme
+            if (typeof window.showAlertDialog === 'function') {
+                window.showAlertDialog({
+                    type: 'warning',
+                    title: 'સેશન સમાપ્ત થયું (Session Expired)',
+                    subtitle: 'Session Expired',
+                    message: 'તમારું સેશન સમાપ્ત થયું છે. કૃપા કરીને ફરી Login કરો.',
+                    confirmText: 'ફરી Login કરો (LOGIN AGAIN)',
+                    closeOnOverlayClick: false
+                }).then(onDialogDismissed).catch(onDialogDismissed);
+            } else {
+                // If custom dialog is not yet mounted, wait briefly or fallback
+                setTimeout(() => {
+                    if (typeof window.showAlertDialog === 'function') {
+                        window.showAlertDialog({
+                            type: 'warning',
+                            title: 'સેશન સમાપ્ત થયું (Session Expired)',
+                            subtitle: 'Session Expired',
+                            message: 'તમારું સેશન સમાપ્ત થયું છે. કૃપા કરીને ફરી Login કરો.',
+                            confirmText: 'ફરી Login કરો (LOGIN AGAIN)',
+                            closeOnOverlayClick: false
+                        }).then(onDialogDismissed).catch(onDialogDismissed);
+                    } else {
+                        onDialogDismissed();
+                    }
+                }, 200);
+            }
+        };
+
         window.apiFetch = async (path, options = {}, retries = 2) => {
             const cleanPath = path.startsWith('/') ? path : `/${path}`;
             const url = `${window.API_BASE}${cleanPath}`;
@@ -172,9 +237,25 @@
                         } else if (typeof msg === 'object' && msg !== null) {
                             msg = JSON.stringify(msg);
                         }
+
+                        // Check for 401 Unauthorized caused by expired/invalid JWT
+                        const isAuthEndpoint = (
+                            cleanPath === '/api/login' || cleanPath === '/login' ||
+                            cleanPath === '/api/register' || cleanPath === '/register' ||
+                            cleanPath === '/api/auth/google' || cleanPath === '/api/google' || cleanPath === '/google' ||
+                            cleanPath.startsWith('/api/forgot-password/') || cleanPath.startsWith('/forgot-password/')
+                        );
+
+                        if (res.status === 401 && !isAuthEndpoint) {
+                            window.handleSessionExpired(msg);
+                        }
+
                         const error = new Error(msg);
                         error.status = res.status;
                         error.data = errorData;
+                        if (res.status === 401 && !isAuthEndpoint) {
+                            error.isSessionExpired = true;
+                        }
                         throw error;
                     }
                     return res;

@@ -397,8 +397,9 @@ const GovHeader = ({
                                         </button>
                                         {role !== 'admin' && (
                                             <button
+                                                id="gov-header-logout-btn"
                                                 onClick={onLogout}
-                                                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-[9px] font-black tracking-wider uppercase transition border border-rose-200/60 whitespace-nowrap shrink-0 flex items-center justify-center"
+                                                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-[9px] font-black tracking-wider uppercase transition border border-rose-200/60 whitespace-nowrap shrink-0 flex items-center justify-center cursor-pointer"
                                                 type="button"
                                             >
                                                 LOGOUT
@@ -407,8 +408,9 @@ const GovHeader = ({
                                     </div>
                                 ) : (
                                     <button
+                                        id="gov-header-login-btn"
                                         onClick={onLoginClick}
-                                        className="px-3.5 xl:px-4 py-2 bg-[#1E60FF] hover:bg-blue-700 text-white rounded-xl text-[9px] font-black uppercase tracking-wider xl:tracking-widest transition-all shadow-md shadow-blue-600/10 hover:shadow-lg active:scale-95 whitespace-nowrap shrink-0 flex items-center justify-center"
+                                        className="px-3.5 xl:px-4 py-2 bg-[#1E60FF] hover:bg-blue-700 text-white rounded-xl text-[9px] font-black uppercase tracking-wider xl:tracking-widest transition-all shadow-md shadow-blue-600/10 hover:shadow-lg active:scale-95 whitespace-nowrap shrink-0 flex items-center justify-center cursor-pointer"
                                         type="button"
                                     >
                                         Log In / Register

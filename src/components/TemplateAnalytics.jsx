@@ -14,6 +14,7 @@ const TemplateAnalytics = ({ refreshTrigger }) => {
             setData(result);
         } catch (err) {
             console.error("❌ Failed to load template analytics:", err);
+            if (err.status === 401 || err.isSessionExpired) return;
             setError(err.message || 'Failed to load template analytics');
         } finally {
             setLoading(false);

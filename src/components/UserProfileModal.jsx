@@ -34,11 +34,10 @@ const UserProfileModal = ({ isOpen, onClose, onUserUpdated }) => {
 
         const fetchProfile = async () => {
             try {
-                const res = await window.apiFetch('/api/auth/me');
-                if (!res.ok) {
+                const data = await window.apiFetch('/api/auth/me');
+                if (!data) {
                     throw new Error('Failed to load profile details.');
                 }
-                const data = await res.json();
                 setProfile(data);
                 setForm({
                     full_name: data.full_name && data.full_name !== '—' ? data.full_name : '',
@@ -48,6 +47,10 @@ const UserProfileModal = ({ isOpen, onClose, onUserUpdated }) => {
                 });
             } catch (err) {
                 console.error('Error loading profile:', err);
+                if (err.status === 401 || err.isSessionExpired) {
+                    if (onClose) onClose();
+                    return;
+                }
                 setError(err.message || 'Could not fetch profile.');
             } finally {
                 setLoading(false);

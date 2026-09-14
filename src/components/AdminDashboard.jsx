@@ -36,6 +36,10 @@ const AdminDashboard = ({ refreshTrigger }) => {
             setStats(data);
         } catch (err) {
             console.error("Failed to load dashboard stats", err);
+            if (err.status === 401 || err.isSessionExpired) {
+                // Centralized session-expiry handles the UI dialog
+                return;
+            }
             setError(
                 err.message === 'SERVER_OFFLINE'
                 ? 'સર્વર ઓફલાઈન છે. કૃપા કરીને બેકએન્ડ ચાલુ કરો (Server is offline. Please start the backend FastAPI server).'

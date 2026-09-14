@@ -280,6 +280,10 @@ const WalletDashboard = ({ onClose, token, userCredits, refreshCredits }) => {
 
         } catch (err) {
             console.error("[Razorpay Checkout] Order initiation error:", err);
+            if (err.status === 401 || err.isSessionExpired) {
+                setIsProcessing(false);
+                return;
+            }
             setAlertState({
                 type: 'error',
                 message: "ઓર્ડર બનાવવામાં સમસ્યા આવી: " + (err.message || "Network error")

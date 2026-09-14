@@ -14,6 +14,7 @@ const StorageAnalytics = ({ refreshTrigger }) => {
             setData(result);
         } catch (err) {
             console.error("❌ Failed to load storage analytics:", err);
+            if (err.status === 401 || err.isSessionExpired) return;
             setError(err.message || 'Failed to load storage analytics');
         } finally {
             setLoading(false);

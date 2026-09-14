@@ -47,6 +47,7 @@ const TemplateAnalyticsDetail = ({ templateId, isOpen, onClose }) => {
             setTemplateUsers(usersData);
         } catch (err) {
             console.error("❌ Failed to load detailed template analytics:", err);
+            if (err.status === 401 || err.isSessionExpired) return;
             setError(err.message === 'SERVER_OFFLINE'
                 ? 'સર્વર ઓફલાઈન છે. કૃપા કરીને તપાસો કે બેકએન્ડ ચાલુ છે (Server is offline. Check backend connection).'
                 : err.message || 'Failed to load template analytics');

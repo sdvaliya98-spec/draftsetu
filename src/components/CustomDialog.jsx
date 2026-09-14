@@ -32,8 +32,9 @@ export const showConfirmDialog = ({
             closeOnOverlayClick
         });
     }
-    // Fallback if dialog container is unmounted
-    return Promise.resolve(window.confirm(typeof message === 'string' ? message : title));
+    // Safe fallback if dialog container is unmounted (never use native confirm)
+    console.warn("CustomDialog container not mounted for confirm:", title);
+    return Promise.resolve(false);
 };
 
 export const showAlertDialog = ({
@@ -57,8 +58,8 @@ export const showAlertDialog = ({
             closeOnOverlayClick
         });
     }
-    // Fallback if dialog container is unmounted
-    window.alert(typeof message === 'string' && message ? `${title ? title + '\n\n' : ''}${message}` : title);
+    // Safe fallback if dialog container is unmounted (never use native alert)
+    console.warn("CustomDialog container not mounted for alert:", title, message);
     return Promise.resolve(true);
 };
 
@@ -89,8 +90,9 @@ export const showPromptDialog = ({
             closeOnOverlayClick
         });
     }
-    // Fallback
-    return Promise.resolve(window.prompt(message || title, defaultValue));
+    // Safe fallback if dialog container is unmounted (never use native prompt)
+    console.warn("CustomDialog container not mounted for prompt:", title);
+    return Promise.resolve(defaultValue || null);
 };
 
 // Global backward compatibility

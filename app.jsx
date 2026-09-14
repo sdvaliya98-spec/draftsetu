@@ -160,6 +160,27 @@ const App = () => {
     const [templateLoadError, setTemplateLoadError] = useState(null);
     const [isDocServicesPanelOpen, setIsDocServicesPanelOpen] = useState(false);
 
+    // Centralized Session Expiry Event Listener
+    useEffect(() => {
+        const onSessionExpired = () => {
+            setCurrentUser(null);
+            setAuthToken(null);
+            setIsAdminUser(false);
+            setRole('user');
+            setIsAdminPanelOpen(false);
+            setIsViewingWallet(false);
+            setIsUserProfileOpen(false);
+            setIsViewingDrafts(false);
+            setUserCredits(null);
+            setIsAuthHydrated(true);
+        };
+
+        window.addEventListener('draftsetu:session-expired', onSessionExpired);
+        return () => {
+            window.removeEventListener('draftsetu:session-expired', onSessionExpired);
+        };
+    }, []);
+
     // Global Auth Hydration on startup
     useEffect(() => {
         let isMounted = true;
@@ -173,36 +194,21 @@ const App = () => {
             }
 
             try {
-                const res = await window.apiFetch('/api/auth/me', {
+                const userData = await window.apiFetch('/api/auth/me', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
-                if (res.ok) {
-                    const userData = await res.json();
-                    if (isMounted) {
-                        const verifiedUsername = userData.username || localStorage.getItem('currentUser');
-                        const verifiedIsAdmin = Boolean(userData.is_admin);
-                        setCurrentUser(verifiedUsername);
-                        setIsAdminUser(verifiedIsAdmin);
-                        localStorage.setItem('currentUser', verifiedUsername);
-                        localStorage.setItem('isAdminUser', String(verifiedIsAdmin));
-                    }
-                } else if (res.status === 401 || res.status === 403) {
-                    // Stored token is invalid or expired
-                    if (isMounted) {
-                        setCurrentUser(null);
-                        setAuthToken(null);
-                        setIsAdminUser(false);
-                        setRole('user');
-                        localStorage.removeItem('currentUser');
-                        localStorage.removeItem('authToken');
-                        localStorage.removeItem('isAdminUser');
-                        localStorage.setItem('appRole', 'user');
-                    }
+                if (userData && isMounted) {
+                    const verifiedUsername = userData.username || localStorage.getItem('currentUser');
+                    const verifiedIsAdmin = Boolean(userData.is_admin);
+                    setCurrentUser(verifiedUsername);
+                    setIsAdminUser(verifiedIsAdmin);
+                    localStorage.setItem('currentUser', verifiedUsername);
+                    localStorage.setItem('isAdminUser', String(verifiedIsAdmin));
                 }
             } catch (err) {
-                console.warn("Auth hydration verification network issue:", err);
-                if (err.status === 401 || err.status === 403) {
+                console.warn("Auth hydration verification notice:", err);
+                if (err.status === 401 || err.status === 403 || err.isSessionExpired) {
                     if (isMounted) {
                         setCurrentUser(null);
                         setAuthToken(null);
@@ -1336,10 +1342,19 @@ const App = () => {
                         console.warn("Failed to log logout", e);
                     }
                     if (window.SessionManager) window.SessionManager.clearAll();
-                    setCurrentUser(null); setAuthToken(null); setIsAdminUser(false);
+                    setCurrentUser(null);
+                    setAuthToken(null);
+                    setIsAdminUser(false);
                     setRole('user');
+                    setIsAdminPanelOpen(false);
+                    setIsUserProfileOpen(false);
+                    setIsViewingWallet(false);
+                    setIsViewingDrafts(false);
+                    setUserCredits(null);
                     setIsAuthHydrated(true);
-                    localStorage.removeItem('currentUser'); localStorage.removeItem('authToken'); localStorage.removeItem('isAdminUser');
+                    localStorage.removeItem('currentUser');
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('isAdminUser');
                     localStorage.setItem('appRole', 'user');
                 }}
                 onAdminPanelOpen={() => setIsAdminPanelOpen(true)}
