@@ -34,7 +34,8 @@ const UserProfileModal = ({ isOpen, onClose, onUserUpdated }) => {
 
         const fetchProfile = async () => {
             try {
-                const data = await window.apiFetch('/api/auth/me');
+                const res = await window.apiFetch('/api/auth/me');
+                const data = await res.json();
                 if (!data) {
                     throw new Error('Failed to load profile details.');
                 }

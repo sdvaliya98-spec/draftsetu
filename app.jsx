@@ -124,7 +124,7 @@ const App = () => {
     });
     const [templates, setTemplates] = useState([]);
     const [activeTemplateId, setActiveTemplateId] = useState('');
-    const [role, setRole] = useState('user');
+    const [role, setRole] = useState(() => localStorage.getItem('appRole') || 'user');
     const [isViewingDrafts, setIsViewingDrafts] = useState(false);
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(() => {
         try {
@@ -194,9 +194,10 @@ const App = () => {
             }
 
             try {
-                const userData = await window.apiFetch('/api/auth/me', {
+                const res = await window.apiFetch('/api/auth/me', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
+                const userData = await res.json();
 
                 if (userData && isMounted) {
                     const verifiedUsername = userData.username || localStorage.getItem('currentUser');
@@ -205,6 +206,16 @@ const App = () => {
                     setIsAdminUser(verifiedIsAdmin);
                     localStorage.setItem('currentUser', verifiedUsername);
                     localStorage.setItem('isAdminUser', String(verifiedIsAdmin));
+
+                    if (verifiedIsAdmin) {
+                        const savedRole = localStorage.getItem('appRole');
+                        const targetRole = (savedRole === 'admin' || savedRole === 'user') ? savedRole : 'admin';
+                        setRole(targetRole);
+                        localStorage.setItem('appRole', targetRole);
+                    } else {
+                        setRole('user');
+                        localStorage.setItem('appRole', 'user');
+                    }
                 }
             } catch (err) {
                 console.warn("Auth hydration verification notice:", err);
@@ -1323,7 +1334,13 @@ const App = () => {
     }, [allTemplates, activeTemplateId]);
 
     const handleRoleChange = (newRole) => {
+        if (newRole === 'admin' && !isAdminUser) {
+            setRole('user');
+            localStorage.setItem('appRole', 'user');
+            return;
+        }
         setRole(newRole);
+        localStorage.setItem('appRole', newRole);
     };
 
     return (

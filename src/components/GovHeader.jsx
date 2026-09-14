@@ -335,8 +335,9 @@ const GovHeader = ({
                                 {user && user.is_admin === true && (
                                     <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-[9px] font-black tracking-wider gap-1 shrink-0">
                                         <button
+                                            id="gov-header-admin-mode-btn"
                                             onClick={() => onRoleChange('admin')}
-                                            className={`px-2.5 py-1 rounded-lg transition-all duration-200 font-black leading-tight flex flex-col items-center justify-center text-center ${role === 'admin'
+                                            className={`px-2.5 py-1 rounded-lg transition-all duration-200 font-black leading-tight flex flex-col items-center justify-center text-center cursor-pointer ${role === 'admin'
                                                 ? 'bg-[#1E60FF] text-white shadow-sm'
                                                 : 'bg-transparent text-slate-600 hover:text-slate-900 hover:bg-white/60'
                                                 }`}
@@ -346,8 +347,9 @@ const GovHeader = ({
                                             <span>Mode</span>
                                         </button>
                                         <button
+                                            id="gov-header-user-mode-btn"
                                             onClick={() => onRoleChange('user')}
-                                            className={`px-2.5 py-1 rounded-lg transition-all duration-200 font-black leading-tight flex flex-col items-center justify-center text-center ${role === 'user'
+                                            className={`px-2.5 py-1 rounded-lg transition-all duration-200 font-black leading-tight flex flex-col items-center justify-center text-center cursor-pointer ${role === 'user'
                                                 ? 'bg-[#1E60FF] text-white shadow-sm'
                                                 : 'bg-transparent text-slate-600 hover:text-slate-900 hover:bg-white/60'
                                                 }`}
@@ -361,8 +363,9 @@ const GovHeader = ({
 
                                 {user && user.is_admin === true && role === 'admin' && (
                                     <button
+                                        id="gov-header-admin-panel-btn"
                                         onClick={onAdminPanelOpen}
-                                        className="bg-[#e67e00] hover:bg-[#d97706] text-white font-black text-[9px] uppercase px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm transition-all active:scale-95 whitespace-nowrap shrink-0"
+                                        className="bg-[#e67e00] hover:bg-[#d97706] text-white font-black text-[9px] uppercase px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm transition-all active:scale-95 whitespace-nowrap shrink-0 cursor-pointer"
                                         type="button"
                                     >
                                         <SettingsIcon size={14} />

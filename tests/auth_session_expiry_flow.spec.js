@@ -185,7 +185,7 @@ test.describe('DraftSetu Authentication Session-Expiry Behavior & UX Audit', () 
         });
 
         // Intercept admin endpoints to return 401
-        await page.route('**/api/admin/dashboard-stats', async (route) => {
+        await page.route(/.*\/api\/admin\/dashboard-stats.*/, async (route) => {
             await route.fulfill({
                 status: 401,
                 contentType: 'application/json',
@@ -193,7 +193,7 @@ test.describe('DraftSetu Authentication Session-Expiry Behavior & UX Audit', () 
             });
         });
 
-        await page.route('**/api/auth/me', async (route) => {
+        await page.route(/.*\/api\/auth\/me.*/, async (route) => {
             await route.fulfill({
                 status: 401,
                 contentType: 'application/json',
@@ -231,7 +231,7 @@ test.describe('DraftSetu Authentication Session-Expiry Behavior & UX Audit', () 
         await expect(authModal.first()).toBeVisible();
 
         // Intercept Google auth
-        await page.route('**/api/auth/google', async (route) => {
+        await page.route(/.*\/api\/auth\/google.*/, async (route) => {
             await route.fulfill({
                 status: 200,
                 contentType: 'application/json',
