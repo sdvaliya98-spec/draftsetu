@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Depends, status
+from fastapi import FastAPI, Request, Depends, status, Response
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text, or_
@@ -297,6 +297,66 @@ def health_check(db: Session = Depends(database.get_db)):
 def get_all_routes():
     url_list = [{"path": route.path, "name": route.name, "methods": list(route.methods)} for route in app.routes]
     return url_list
+
+# SEO Endpoints (sitemap.xml and robots.txt)
+@app.get("/sitemap.xml", response_class=Response)
+@app.get("/api/sitemap.xml", response_class=Response)
+def get_sitemap_xml(db: Session = Depends(database.get_db)):
+    base_url = "https://draftsetu.in"
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+
+    urls = [
+        {"loc": f"{base_url}/", "lastmod": today, "changefreq": "daily", "priority": "1.0"},
+        {"loc": f"{base_url}/privacy-policy", "lastmod": today, "changefreq": "monthly", "priority": "0.7"},
+        {"loc": f"{base_url}/terms-of-service", "lastmod": today, "changefreq": "monthly", "priority": "0.7"},
+    ]
+
+    try:
+        static_pages = db.query(models.StaticPage).filter(models.StaticPage.is_active == True).all()
+        for page in static_pages:
+            if page.slug:
+                clean_slug = page.slug.strip()
+                lastmod = page.updated_at.strftime("%Y-%m-%d") if page.updated_at else today
+                urls.append({
+                    "loc": f"{base_url}/page:{clean_slug}",
+                    "lastmod": lastmod,
+                    "changefreq": "monthly",
+                    "priority": "0.8"
+                })
+    except Exception as e:
+        logger.error(f"Error querying static pages for sitemap: {e}")
+
+    xml_lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+    ]
+    for item in urls:
+        xml_lines.append('  <url>')
+        xml_lines.append(f'    <loc>{item["loc"]}</loc>')
+        xml_lines.append(f'    <lastmod>{item["lastmod"]}</lastmod>')
+        xml_lines.append(f'    <changefreq>{item["changefreq"]}</changefreq>')
+        xml_lines.append(f'    <priority>{item["priority"]}</priority>')
+        xml_lines.append('  </url>')
+    xml_lines.append('</urlset>')
+
+    return Response(content="\n".join(xml_lines), media_type="application/xml")
+
+
+@app.get("/robots.txt", response_class=Response)
+@app.get("/api/robots.txt", response_class=Response)
+def get_robots_txt():
+    robots_content = """User-agent: *
+Allow: /
+Allow: /privacy-policy
+Allow: /terms-of-service
+Allow: /page:*
+Disallow: /api/
+Disallow: /debug/
+Disallow: /admin
+
+Sitemap: https://draftsetu.in/sitemap.xml
+"""
+    return Response(content=robots_content, media_type="text/plain")
 
 # Include Routers with /api prefix
 app.include_router(auth.router, prefix="/api")
