@@ -308,9 +308,9 @@ const GovHeader = ({
                             </svg>
                         </div>
                         <div className="shrink-0">
-                            <h1 className="text-base sm:text-lg xl:text-xl font-black tracking-tight text-slate-900 flex items-center gap-1.5 font-sans whitespace-nowrap">
+                            <div className="text-base sm:text-lg xl:text-xl font-black tracking-tight text-slate-900 flex items-center gap-1.5 font-sans whitespace-nowrap">
                                 DraftSetu <span className="font-gujarati text-blue-600 text-base sm:text-lg xl:text-xl font-bold">(ડ્રાફ્ટસેતુ)</span>
-                            </h1>
+                            </div>
                             <p className="text-[8px] sm:text-[9px] xl:text-[10px] font-black text-slate-400 tracking-wider font-sans uppercase leading-tight max-w-[120px] sm:max-w-[150px] xl:max-w-[200px]">
                                 Professional Legal Document Automation Platform
                             </p>

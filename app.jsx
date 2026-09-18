@@ -126,6 +126,7 @@ const App = () => {
     const [activeTemplateId, setActiveTemplateId] = useState('');
     const [role, setRole] = useState(() => localStorage.getItem('appRole') || 'user');
     const [isViewingDrafts, setIsViewingDrafts] = useState(false);
+    const [authModalContext, setAuthModalContext] = useState(null);
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(() => {
         try {
             const params = new URLSearchParams(window.location.search);
@@ -134,7 +135,10 @@ const App = () => {
             return false;
         }
     });
-    window.openAuthModal = () => setIsAuthModalOpen(true);
+    window.openAuthModal = (context = null) => {
+        setAuthModalContext(context || null);
+        setIsAuthModalOpen(true);
+    };
 
     const [isAuthHydrated, setIsAuthHydrated] = useState(false);
     const [currentUser, setCurrentUser] = useState(() => localStorage.getItem('currentUser') || null);
@@ -717,6 +721,15 @@ const App = () => {
 
         // Modals (Do not change view or push history)
         if (url === 'documents') {
+            if (!currentUser || !authToken) {
+                setAuthModalContext({
+                    title: 'મારા દસ્તાવેજો જોવા માટે Login કરો',
+                    message: 'તમારા સાચવેલા ડ્રાફ્ટ્સ અને દસ્તાવેજો ઍક્સેસ કરવા માટે કૃપા કરીને તમારા DraftSetu એકાઉન્ટમાં Login / Register કરો.',
+                    postLoginAction: 'open_my_docs'
+                });
+                setIsAuthModalOpen(true);
+                return;
+            }
             setIsViewingDrafts(true);
             return;
         }
@@ -1351,7 +1364,10 @@ const App = () => {
                 user={user}
                 role={role}
                 onRoleChange={handleRoleChange}
-                onLoginClick={() => setIsAuthModalOpen(true)}
+                onLoginClick={(context) => {
+                    setAuthModalContext(context || null);
+                    setIsAuthModalOpen(true);
+                }}
                 onLogout={async () => {
                     try {
                         await window.apiFetch('/api/logout', { method: 'POST' });
@@ -1390,7 +1406,10 @@ const App = () => {
                             <HomePage
                                 currentUser={currentUser}
                                 onNavigate={handleNavigate}
-                                onLogin={() => setIsAuthModalOpen(true)}
+                                onLogin={(context) => {
+                                    setAuthModalContext(context || null);
+                                    setIsAuthModalOpen(true);
+                                }}
                                 templates={allTemplates}
                                 isAuthHydrated={isAuthHydrated}
                             />
@@ -1438,7 +1457,10 @@ const App = () => {
                                         isFinalizing={isFinalizing}
                                         userCredits={userCredits}
                                         isLoggedIn={Boolean(currentUser && authToken)}
-                                        onLogin={() => setIsAuthModalOpen(true)}
+                                        onLogin={(context) => {
+                                            setAuthModalContext(context || null);
+                                            setIsAuthModalOpen(true);
+                                        }}
                                     />
                                 </div>
 
@@ -1455,7 +1477,10 @@ const App = () => {
                                         setIsDownloading={setIsDownloading}
                                         allTemplates={allTemplates}
                                         isLoggedIn={Boolean(currentUser && authToken)}
-                                        onLogin={() => setIsAuthModalOpen(true)}
+                                        onLogin={(context) => {
+                                            setAuthModalContext(context || null);
+                                            setIsAuthModalOpen(true);
+                                        }}
                                     />
                                 </div>
                             </div>
@@ -1580,7 +1605,11 @@ const App = () => {
                             return (p.get('reset_token') || p.get('token')) ? 'forgot-reset' : 'login';
                         } catch { return 'login'; }
                     })()}
-                    onClose={() => setIsAuthModalOpen(false)}
+                    authContext={authModalContext}
+                    onClose={() => {
+                        setIsAuthModalOpen(false);
+                        setAuthModalContext(null);
+                    }}
                     onLoginSuccess={(username, token, isAdmin) => {
                         setCurrentUser(username); setAuthToken(token); setIsAdminUser(isAdmin);
                         setRole(isAdmin ? 'admin' : 'user');
@@ -1590,6 +1619,10 @@ const App = () => {
                         localStorage.setItem('isAdminUser', String(isAdmin));
                         localStorage.setItem('appRole', isAdmin ? 'admin' : 'user');
                         setIsAuthModalOpen(false);
+                        if (authModalContext && authModalContext.postLoginAction === 'open_my_docs') {
+                            setIsViewingDrafts(true);
+                        }
+                        setAuthModalContext(null);
                     }}
                 />
             )}

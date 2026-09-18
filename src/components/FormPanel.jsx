@@ -772,20 +772,18 @@ const FormPanel = ({
 
     const handlePdfPreview = async () => {
         if (isVisitor) {
+            const context = {
+                title: 'PDF Preview માટે Login / Register કરો',
+                message: 'PDF Preview જોવા માટે તમારા DraftSetu Accountમાં Login કરો અથવા નવું Account બનાવો.'
+            };
             if (typeof onLogin === 'function') {
-                onLogin();
+                onLogin(context);
             } else if (typeof window.openAuthModal === 'function') {
-                window.openAuthModal();
+                window.openAuthModal(context);
             } else {
                 const headerBtn = document.querySelector('header button:has-text("Log In / Register")');
                 if (headerBtn) headerBtn.click();
             }
-            showAlertDialog({
-                title: 'Login Required',
-                subtitle: 'PDF Preview',
-                message: 'PDF Preview માટે Login / Register કરો (Login / Register to generate PDF)',
-                type: 'info'
-            });
             return;
         }
 
@@ -1370,34 +1368,79 @@ const FormPanel = ({
                                         </button>
                                         <div className="space-y-3 pt-2">
                                             {isVisitor ? (
-                                                <div id="form-panel-visitor-cta" className="p-5 bg-gradient-to-br from-blue-900 via-indigo-900 to-slate-900 rounded-2xl text-white shadow-xl space-y-4 border border-blue-700/50">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-900 flex items-center justify-center font-bold text-xl shadow-md flex-shrink-0">
-                                                            🚀
-                                                        </div>
-                                                        <div>
-                                                            <h4 className="font-bold text-sm text-white">દસ્તાવેજ બનાવવા માટે લૉગિન કરો</h4>
-                                                            <p className="text-blue-200 text-[11px]">Login / Register to Generate Document</p>
+                                                <div id="form-panel-visitor-cta" className="space-y-3">
+                                                    <div className="p-3 bg-blue-50/90 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-start gap-2.5">
+                                                        <span className="text-base flex-shrink-0">💡</span>
+                                                        <div className="leading-relaxed">
+                                                            <span className="font-bold">મુક્તપણે ફોર્મ ભરો:</span> દસ્તાવેજ સાચવવા, PDF Preview અથવા ફાઇનલ લોક કરવા માટે એકાઉન્ટ જરૂરી છે (નવા યુઝર્સને ૧૦૦ ફ્રી ક્રેડિટ મળે છે).
                                                         </div>
                                                     </div>
-                                                    <p className="text-blue-100 text-xs leading-relaxed">
-                                                        ડ્રાફ્ટ સાચવવા, વિગતો સંપાદિત કરવા અને અધિકૃત DOCX/PDF ડાઉનલોડ કરવા માટે મફત એકાઉન્ટ બનાવો (૧૦૦ ફ્રી ક્રેડિટ મેળવો).
-                                                    </p>
+
                                                     <button
                                                         type="button"
-                                                        id="btn-visitor-generate-login"
+                                                        onClick={handlePdfPreview}
+                                                        className="w-full py-2.5 rounded font-black transition flex items-center justify-center gap-2 text-white bg-amber-500 hover:bg-amber-600 shadow active:scale-[0.99] cursor-pointer"
+                                                        id="btn-pdf-preview-actions"
+                                                    >
+                                                        <span>📄 PDF Preview (પૂર્વદર્શન)</span>
+                                                        <span className="text-[10px] bg-amber-700/50 px-1.5 py-0.5 rounded text-amber-100 font-semibold">Login Required</span>
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
                                                         onClick={() => {
-                                                            if (typeof onLogin === 'function') onLogin();
-                                                            else if (typeof window.openAuthModal === 'function') window.openAuthModal();
+                                                            const context = {
+                                                                title: 'ડ્રાફ્ટ સેવ કરવા માટે Login કરો',
+                                                                message: 'તમારો દસ્તાવેજ સુરક્ષિત રીતે સેવ કરવા માટે કૃપા કરીને તમારા DraftSetu એકાઉન્ટમાં Login / Register કરો.'
+                                                            };
+                                                            if (typeof onLogin === 'function') onLogin(context);
+                                                            else if (typeof window.openAuthModal === 'function') window.openAuthModal(context);
                                                             else {
                                                                 const headerBtn = document.querySelector('header button:has-text("Log In / Register")');
                                                                 if (headerBtn) headerBtn.click();
                                                             }
                                                         }}
-                                                        className="w-full py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-900 font-black rounded-xl transition-all shadow-lg active:scale-95 text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer"
+                                                        className="w-full py-2.5 rounded font-bold transition border flex items-center justify-center gap-2 bg-white text-blue-600 border-blue-600 hover:bg-blue-50 shadow-sm cursor-pointer"
+                                                        id="btn-save-draft"
                                                     >
-                                                        <span>🚀 Login / Register → Generate Document</span>
+                                                        <span>સેવ ડ્રાફ્ટ (Save Draft)</span>
+                                                        <span className="text-[10px] bg-blue-100 px-1.5 py-0.5 rounded text-blue-700 font-semibold">Login Required</span>
                                                     </button>
+
+                                                    {(() => {
+                                                        const creditCost = activeTemplate ? (activeTemplate.credit_cost !== undefined ? activeTemplate.credit_cost : 10) : 10;
+                                                        return (
+                                                            <>
+                                                                <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-700 flex items-center gap-2">
+                                                                    <span>🪙</span>
+                                                                    <div className="flex-1">
+                                                                        આ ટેમ્પલેટ લોક કરવાની કિંમત: <span className="font-bold underline text-blue-700">{creditCost} ક્રેડિટ્સ</span>.
+                                                                    </div>
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        const context = {
+                                                                            title: 'દસ્તાવેજ લોક કરવા માટે Login કરો',
+                                                                            message: `આ દસ્તાવેજ (${creditCost} Credits) ફાઇનલ લોક કરવા માટે કૃપા કરીને તમારા DraftSetu એકાઉન્ટમાં Login / Register કરો.`
+                                                                        };
+                                                                        if (typeof onLogin === 'function') onLogin(context);
+                                                                        else if (typeof window.openAuthModal === 'function') window.openAuthModal(context);
+                                                                        else {
+                                                                            const headerBtn = document.querySelector('header button:has-text("Log In / Register")');
+                                                                            if (headerBtn) headerBtn.click();
+                                                                        }
+                                                                    }}
+                                                                    className="w-full py-2.5 rounded font-bold transition flex items-center justify-center gap-2 text-white bg-red-600 hover:bg-red-700 shadow cursor-pointer"
+                                                                    id="btn-final-lock"
+                                                                >
+                                                                    <LockIcon />
+                                                                    <span>ફાઈનલ લોક કરો (Final Lock - {creditCost} Credits)</span>
+                                                                    <span className="text-[10px] bg-red-800/60 px-1.5 py-0.5 rounded text-red-100 font-semibold">Login Required</span>
+                                                                </button>
+                                                            </>
+                                                        );
+                                                    })()}
                                                 </div>
                                             ) : (
                                                 <>

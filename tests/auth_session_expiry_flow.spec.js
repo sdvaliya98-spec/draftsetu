@@ -72,7 +72,7 @@ test.describe('DraftSetu Authentication Session-Expiry Behavior & UX Audit', () 
         await loginAgainBtn.click();
 
         // Verify Login Modal is opened
-        const authModal = page.locator('text=Log in to access your documents & wallet');
+        const authModal = page.locator('text=દસ્તાવેજ બનાવવા માટે Login કરો');
         await expect(authModal.first()).toBeVisible({ timeout: 5000 });
     });
 
@@ -220,16 +220,6 @@ test.describe('DraftSetu Authentication Session-Expiry Behavior & UX Audit', () 
     });
 
     test('J & F: Login / Google login succeeds and clears session expiry state', async ({ page }) => {
-        await page.goto('http://127.0.0.1:5500/');
-        await page.waitForLoadState('domcontentloaded');
-
-        // Open Auth modal
-        const loginBtn = page.locator('button:has-text("Log In / Register")');
-        await loginBtn.first().click();
-
-        const authModal = page.locator('text=Log in to access your documents & wallet');
-        await expect(authModal.first()).toBeVisible();
-
         // Intercept Google auth
         await page.route(/.*\/api\/auth\/google.*/, async (route) => {
             await route.fulfill({
@@ -244,6 +234,16 @@ test.describe('DraftSetu Authentication Session-Expiry Behavior & UX Audit', () 
                 })
             });
         });
+
+        await page.goto('http://127.0.0.1:5500/');
+        await page.waitForLoadState('domcontentloaded');
+
+        // Open Auth modal
+        const loginBtn = page.locator('button:has-text("Log In / Register")');
+        await loginBtn.first().click();
+
+        const authModal = page.locator('text=દસ્તાવેજ બનાવવા માટે Login કરો');
+        await expect(authModal.first()).toBeVisible();
 
         // Trigger mock Google login
         await page.evaluate(async () => {

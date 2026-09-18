@@ -1,7 +1,7 @@
 import React from 'react';
 import { showAlertDialog } from './CustomDialog.jsx';
 
-const AuthModal = ({ onClose, onLoginSuccess, initialView = 'login', initialToken = '' }) => {
+const AuthModal = ({ onClose, onLoginSuccess, initialView = 'login', initialToken = '', authContext = null }) => {
     const [view, setView] = React.useState(initialView); // 'login' | 'register' | 'forgot-request' | 'forgot-legacy' | 'forgot-reset'
     const [username, setUsername] = React.useState('');
     const [password, setPassword] = React.useState('');
@@ -488,17 +488,17 @@ const AuthModal = ({ onClose, onLoginSuccess, initialView = 'login', initialToke
                     >
                         ✕
                     </button>
-                    <h2 className="text-2xl font-bold pr-8">
-                        {view === 'login' && '👋 Welcome Back'}
-                        {view === 'register' && '🚀 Create Account'}
+                    <h2 className="text-xl sm:text-2xl font-bold pr-8 leading-snug">
+                        {view === 'login' && (authContext?.title || 'દસ્તાવેજ બનાવવા માટે Login કરો')}
+                        {view === 'register' && (authContext?.registerTitle || (authContext?.title ? authContext.title.replace(/Login/gi, 'Register') : 'DraftSetu પર તમારું Account બનાવો'))}
                         {view === 'forgot-request' && '🔑 Reset Password'}
                         {view === 'forgot-legacy' && '🔍 Verify Identity'}
                         {view === 'forgot-reset' && '🔒 Set New Password'}
                         {view === 'complete-profile' && '✨ Complete Your Profile'}
                     </h2>
-                    <p className="text-blue-200 text-sm mt-1">
-                        {view === 'login' && 'Log in to access your documents & wallet'}
-                        {view === 'register' && 'Join to save and manage documents with 100 free credits'}
+                    <p className="text-blue-100 text-xs sm:text-sm mt-1.5 leading-relaxed font-sans">
+                        {view === 'login' && (authContext?.message || 'તમારો દસ્તાવેજ Save કરવા, ફરીથી ખોલવા અને આગળનું કામ ચાલુ રાખવા માટે DraftSetu Account જરૂરી છે.')}
+                        {view === 'register' && (authContext?.registerMessage || (authContext?.message ? authContext.message : 'તમારા દસ્તાવેજો સાચવો અને જ્યાંથી કામ અટક્યું હોય ત્યાંથી આગળ ચાલુ કરો.'))}
                         {view === 'forgot-request' && 'Enter your username or email to receive reset instructions'}
                         {view === 'forgot-legacy' && 'Enter your registered details to verify identity'}
                         {view === 'forgot-reset' && 'Choose a strong new password for your account'}
