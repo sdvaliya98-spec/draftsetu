@@ -1,8 +1,16 @@
 import React from 'react';
 import { showAlertDialog } from './CustomDialog.jsx';
+import { trackEvent } from '../utils/analytics.js';
 
 const AuthModal = ({ onClose, onLoginSuccess, initialView = 'login', initialToken = '', authContext = null }) => {
     const [view, setView] = React.useState(initialView); // 'login' | 'register' | 'forgot-request' | 'forgot-legacy' | 'forgot-reset'
+
+    React.useEffect(() => {
+        trackEvent('auth_modal_opened', {
+            mode: initialView || 'login',
+            reason: authContext?.reason || 'other'
+        });
+    }, []);
     const [username, setUsername] = React.useState('');
     const [password, setPassword] = React.useState('');
     const [confirmPw, setConfirmPw] = React.useState('');
@@ -108,6 +116,7 @@ const AuthModal = ({ onClose, onLoginSuccess, initialView = 'login', initialToke
                 setCity(data.city || '');
                 setView('complete-profile');
             } else {
+                trackEvent('login_success', { method: 'google' });
                 onLoginSuccess(data.username, data.access_token, data.is_admin);
             }
         } catch (err) {
@@ -183,6 +192,7 @@ const AuthModal = ({ onClose, onLoginSuccess, initialView = 'login', initialToke
             if (!res.ok) {
                 throw new Error(data.detail || 'Failed to update profile.');
             }
+            trackEvent('signup_success', { method: 'google' });
             onLoginSuccess(data.username, authToken, googleProfileData?.isAdmin ?? data.is_admin);
         } catch (err) {
             console.error('❌ [Profile Completion Error]', err);
@@ -303,6 +313,7 @@ const AuthModal = ({ onClose, onLoginSuccess, initialView = 'login', initialToke
                     body: { username: username.trim(), password }
                 });
                 const data = await res.json();
+                trackEvent('login_success', { method: 'email' });
                 onLoginSuccess(data.username, data.access_token, data.is_admin);
             } catch (err) {
                 console.error('❌ [Login Error]', err);
@@ -336,6 +347,7 @@ const AuthModal = ({ onClose, onLoginSuccess, initialView = 'login', initialToke
                     }
                 });
                 const data = await res.json();
+                trackEvent('signup_success', { method: 'email' });
                 onLoginSuccess(data.username, data.access_token, data.is_admin);
             } catch (err) {
                 console.error('❌ [Register Error]', err);

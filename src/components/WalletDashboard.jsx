@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { trackEvent } from '../utils/analytics.js';
 const ensureRazorpayLoaded = () => {
     if (window.Razorpay) return Promise.resolve(true);
     if (window._razorpayLoadingPromise) return window._razorpayLoadingPromise;
@@ -209,6 +210,7 @@ const WalletDashboard = ({ onClose, token, userCredits, refreshCredits }) => {
                         }
 
                         const verifyData = await verifyRes.json();
+                        trackEvent('payment_success', { source: 'wallet_recharge' });
                         setAlertState({
                             type: 'success',
                             message: verifyData.message || `સફળતાપૂર્વક ${orderData.credits} ક્રેડિટ્સ તમારા ખાતામાં ઉમેરાઈ ગઈ છે!`
@@ -220,6 +222,7 @@ const WalletDashboard = ({ onClose, token, userCredits, refreshCredits }) => {
 
                     } catch (vErr) {
                         console.error("[Razorpay Checkout] Verification error:", vErr);
+                        trackEvent('payment_failed', { source: 'wallet_recharge' });
                         setAlertState({
                             type: 'error',
                             message: "ચુકવણી ચકાસણીમાં ભૂલ આવી: " + (vErr.message || "Unknown error")
@@ -234,6 +237,7 @@ const WalletDashboard = ({ onClose, token, userCredits, refreshCredits }) => {
                     handleback: true,
                     ondismiss: function() {
                         console.log("[Razorpay Checkout] User closed/dismissed Checkout modal.");
+                        trackEvent('payment_failed', { source: 'wallet_recharge' });
                         window.apiFetch('/api/wallet/payment-failed', {
                             method: 'POST',
                             headers: { 'Authorization': `Bearer ${token}` },
@@ -259,6 +263,8 @@ const WalletDashboard = ({ onClose, token, userCredits, refreshCredits }) => {
                     reason: err.reason
                 });
 
+                trackEvent('payment_failed', { source: 'wallet_recharge' });
+
                 window.apiFetch('/api/wallet/payment-failed', {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}` },
@@ -276,6 +282,7 @@ const WalletDashboard = ({ onClose, token, userCredits, refreshCredits }) => {
                 setIsProcessing(false);
             });
 
+            trackEvent('payment_checkout_opened', { source: 'wallet_recharge' });
             rzp.open();
 
         } catch (err) {

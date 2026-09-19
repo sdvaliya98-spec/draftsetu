@@ -4,6 +4,7 @@ import HybridDropdownField from './HybridDropdownField.jsx';
 import PreviewModal from './PreviewModal.jsx';
 import PdfPreviewModal from './PdfPreviewModal.jsx';
 import { showAlertDialog } from './CustomDialog.jsx';
+import { trackEvent } from '../utils/analytics.js';
 
 const {
     processFieldValue,
@@ -366,6 +367,15 @@ const FormPanel = ({
 
     const activeTemplate = templates.find(t => t.id === activeTemplateId);
     const selectedTemplate = activeTemplate;
+
+    useEffect(() => {
+        if (activeTemplateId) {
+            trackEvent('document_editor_opened', {
+                template_id: activeTemplateId,
+                template_category: activeTemplate?.category || 'General'
+            });
+        }
+    }, [activeTemplateId]);
 
     const vars = (() => {
         const v = activeTemplate?.variables;
@@ -771,8 +781,14 @@ const FormPanel = ({
     }, [previewBlob, previewOpen]);
 
     const handlePdfPreview = async () => {
+        trackEvent('pdf_preview_opened', {
+            template_id: activeTemplateId || '',
+            authenticated: !isVisitor
+        });
+
         if (isVisitor) {
             const context = {
+                reason: 'pdf_preview',
                 title: 'PDF Preview માટે Login / Register કરો',
                 message: 'PDF Preview જોવા માટે તમારા DraftSetu Accountમાં Login કરો અથવા નવું Account બનાવો.'
             };
@@ -1390,6 +1406,7 @@ const FormPanel = ({
                                                         type="button"
                                                         onClick={() => {
                                                             const context = {
+                                                                reason: 'save_draft',
                                                                 title: 'ડ્રાફ્ટ સેવ કરવા માટે Login કરો',
                                                                 message: 'તમારો દસ્તાવેજ સુરક્ષિત રીતે સેવ કરવા માટે કૃપા કરીને તમારા DraftSetu એકાઉન્ટમાં Login / Register કરો.'
                                                             };
@@ -1421,6 +1438,7 @@ const FormPanel = ({
                                                                     type="button"
                                                                     onClick={() => {
                                                                         const context = {
+                                                                            reason: 'final_lock',
                                                                             title: 'દસ્તાવેજ લોક કરવા માટે Login કરો',
                                                                             message: `આ દસ્તાવેજ (${creditCost} Credits) ફાઇનલ લોક કરવા માટે કૃપા કરીને તમારા DraftSetu એકાઉન્ટમાં Login / Register કરો.`
                                                                         };

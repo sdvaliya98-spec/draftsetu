@@ -6,6 +6,7 @@ import HomePage from './src/pages/HomePage.jsx';
 import StaticPageView from './src/pages/StaticPageView.jsx';
 import PrivacyPolicyPage from './src/pages/PrivacyPolicyPage.jsx';
 import TermsOfServicePage from './src/pages/TermsOfServicePage.jsx';
+import { trackPageView, trackEvent } from './src/utils/analytics.js';
 
 // ─── Global API Configuration and Helpers ───
 
@@ -356,6 +357,18 @@ const App = () => {
         refreshCredits();
     }, [currentUser, authToken]);
 
+    // SPA Analytics Page View Tracking
+    useEffect(() => {
+        let path = '/';
+        if (currentView === 'privacy-policy') path = '/privacy-policy';
+        else if (currentView === 'terms-of-service') path = '/terms-of-service';
+        else if (currentView === 'page' && currentPageSlug) path = `/page:${currentPageSlug}`;
+        else if (currentView === 'editor') path = activeTemplateId ? `/editor?template=${activeTemplateId}` : '/editor';
+        else path = '/';
+
+        trackPageView(path);
+    }, [currentView, currentPageSlug, activeTemplateId]);
+
 
     // Flat dictionary for all dynamic data inputs
     const [data, setData] = useState(DEFAULT_INITIAL_DATA);
@@ -506,6 +519,7 @@ const App = () => {
                 setTrackingId(null);
                 setIsLocked(false);
 
+                trackEvent('draft_saved', { template_id: targetTemplateId });
                 showToast("ડ્રાફ્ટ સફળતાપૂર્વક સેવ થયું (Draft saved to My Documents)", "success");
             } else {
                 throw new Error(resData.detail || `Server status ${response.status}`);
@@ -582,6 +596,11 @@ const App = () => {
                     console.warn("Could not pre-verify document count", e);
                 }
 
+                trackEvent('document_final_lock_attempt', {
+                    template_id: targetTemplateId,
+                    authenticated: Boolean(currentUser)
+                });
+
                 const normalizedData = normalizeDates(data);
                 const response = await window.apiFetch(`/api/documents/${trackingId}`, {
                     method: 'PUT',
@@ -621,6 +640,7 @@ const App = () => {
                     setTrackingId(null);
                     setIsLocked(false);
 
+                    trackEvent('document_final_locked', { template_id: targetTemplateId });
                     showToast("Document finalized successfully! View and download it from My Documents.", "success");
                     refreshCredits();
                 } else {
@@ -723,6 +743,7 @@ const App = () => {
         if (url === 'documents') {
             if (!currentUser || !authToken) {
                 setAuthModalContext({
+                    reason: 'my_documents',
                     title: 'મારા દસ્તાવેજો જોવા માટે Login કરો',
                     message: 'તમારા સાચવેલા ડ્રાફ્ટ્સ અને દસ્તાવેજો ઍક્સેસ કરવા માટે કૃપા કરીને તમારા DraftSetu એકાઉન્ટમાં Login / Register કરો.',
                     postLoginAction: 'open_my_docs'
@@ -941,6 +962,8 @@ const App = () => {
             if (isPromptingRecoveryRef.current) return;
             isPromptingRecoveryRef.current = true;
 
+            trackEvent('draft_recovery_shown', { template_id: activeTemplateId });
+
             showConfirmDialog({
                 title: 'Unsaved data found (અધૂરો ડેટા મળ્યો છે)',
                 message: 'તમારો અગાઉનો અધૂરો ડેટા મળ્યો છે. શું તમે તેને restore કરવા માંગો છો?\n\nUnsaved draft data from your previous session was found. Would you like to restore it?',
@@ -954,6 +977,7 @@ const App = () => {
                 if (!active) return;
 
                 if (userWantsRestore) {
+                    trackEvent('draft_recovery_restored', { template_id: activeTemplateId });
                     if (cachedTrackId && authToken) {
                         try {
                             const res = await window.apiFetch(`/api/documents/${cachedTrackId}`, {
@@ -1012,6 +1036,7 @@ const App = () => {
                     }
                 } else {
                     // User chose Discard
+                    trackEvent('draft_recovery_discarded', { template_id: activeTemplateId });
                     if (window.DraftCacheManager) window.DraftCacheManager.clear(activeTemplateId, currentUser);
                     setData(emptyState);
                     setTrackingId(null);
@@ -1236,6 +1261,12 @@ const App = () => {
             return;
         }
 
+        trackEvent('template_selected', {
+            template_id: newTpl.id || newTemplateId,
+            template_category: newTpl.category || 'General',
+            template_name: newTpl.name || ''
+        });
+
         const session = window.SessionManager.restoreSession(newTemplateId);
         if (session) {
             console.log(`[handleTemplateSelect] Restoring in-memory session for ${newTemplateId}`);
@@ -1365,7 +1396,8 @@ const App = () => {
                 role={role}
                 onRoleChange={handleRoleChange}
                 onLoginClick={(context) => {
-                    setAuthModalContext(context || null);
+                    const isExplicitContext = context && typeof context === 'object' && !context.nativeEvent && context.reason;
+                    setAuthModalContext(isExplicitContext ? context : { reason: 'header_login' });
                     setIsAuthModalOpen(true);
                 }}
                 onLogout={async () => {

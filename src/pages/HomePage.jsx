@@ -1,5 +1,6 @@
 import React from 'react';
 import Footer from '../components/Footer.jsx';
+import { trackEvent } from '../utils/analytics.js';
 
 const HomePage = ({ currentUser, onNavigate, onLogin, templates = [], isAuthHydrated = true }) => {
     const [selectedCategory, setSelectedCategory] = React.useState('All');
@@ -150,7 +151,13 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [], isAuthHydr
                         <div className="pt-2 flex flex-wrap items-center gap-3 sm:gap-4">
                             <button
                                 type="button"
-                                onClick={() => onNavigate(getTemplateUrl('Sale Deed', 'tpl_997fd57d', ['વેચાણ', 'sale_deed']))}
+                                onClick={() => {
+                                    trackEvent('homepage_cta_click', {
+                                        cta_name: 'start_document',
+                                        location: 'hero'
+                                    });
+                                    onNavigate(getTemplateUrl('Sale Deed', 'tpl_997fd57d', ['વેચાણ', 'sale_deed']));
+                                }}
                                 className="bg-blue-600 hover:bg-blue-500 text-white font-black text-xs sm:text-sm uppercase tracking-wider px-6 sm:px-7 py-3.5 sm:py-4 rounded-xl shadow-xl shadow-blue-900/40 transition transform hover:scale-[1.02] active:scale-95 flex items-center gap-2 cursor-pointer font-sans border-0"
                             >
                                 <span>🚀 દસ્તાવેજ બનાવવાનું શરૂ કરો</span>
@@ -159,6 +166,9 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [], isAuthHydr
                             <button
                                 type="button"
                                 onClick={() => {
+                                    trackEvent('homepage_how_it_works_click', {
+                                        location: 'hero'
+                                    });
                                     const target = document.getElementById('how-it-works');
                                     if (target) {
                                         target.scrollIntoView({ behavior: 'smooth' });

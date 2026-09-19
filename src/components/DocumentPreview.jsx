@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { trackEvent } from '../utils/analytics.js';
 /**
  * DocumentPreview — DOCX Template Engine Preview
  * ================================================
@@ -11,6 +12,13 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
     const hasAuthToken = Boolean(localStorage.getItem('authToken') || localStorage.getItem('token'));
     const isUserAuthenticated = isLoggedIn !== undefined ? Boolean(isLoggedIn) : hasAuthToken;
     const isVisitor = !isUserAuthenticated;
+
+    useEffect(() => {
+        const tId = template?.id || templateId;
+        if (tId) {
+            trackEvent('live_preview_opened', { template_id: tId });
+        }
+    }, [template?.id, templateId]);
 
     // Live Preview state
     const [isPreviewLoading, setIsPreviewLoading] = useState(false);

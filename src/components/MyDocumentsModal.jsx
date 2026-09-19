@@ -1,8 +1,15 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { CopyIcon } from './Icons.jsx';
+import { trackEvent } from '../utils/analytics.js';
 
 const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templates = [], isDownloading, setIsDownloading }) => {
+    React.useEffect(() => {
+        trackEvent('my_documents_opened', {
+            authenticated: Boolean(token)
+        });
+    }, []);
+
     const [drafts, setDrafts] = React.useState([]);
     const [docLimit, setDocLimit] = React.useState(10); // null means unlimited, positive int is limit
     const [loading, setLoading] = React.useState(true);
@@ -171,6 +178,20 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+
+            const doc = drafts.find(d => d.tracking_id === trackingId);
+            let tId = doc?.template_id || '';
+            if (!tId && doc?.data_json) {
+                try {
+                    const parsed = JSON.parse(doc.data_json);
+                    tId = parsed.template_id || '';
+                } catch (_) {}
+            }
+            trackEvent('document_generated', {
+                template_id: tId || 'unknown',
+                format: (format || 'pdf').toLowerCase()
+            });
+
             showToast('Download complete!');
         } catch { 
             showToast('Download failed. Please try again.'); 

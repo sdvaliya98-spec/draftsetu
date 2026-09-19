@@ -410,6 +410,7 @@ const PrivacyPolicyPage = ({ onNavigate }) => {
                         <ul className="list-disc pl-5 space-y-1 text-slate-700">
                             <li><strong>Razorpay:</strong> For secure payment gateway processing and transaction verification.</li>
                             <li><strong>Google Identity Services:</strong> For optional OAuth 2.0 single sign-on authentication.</li>
+                            <li><strong>Google Analytics (GA4):</strong> For anonymous aggregated website traffic and feature usage telemetry without collecting personal document drafting data or sensitive credentials.</li>
                             <li><strong>Cloud & Server Infrastructure:</strong> For hosting server software and secure database storage.</li>
                         </ul>
                         <p>
@@ -420,7 +421,7 @@ const PrivacyPolicyPage = ({ onNavigate }) => {
                     <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2 font-gujarati text-slate-700">
                         <span className="inline-block px-2.5 py-0.5 rounded-md bg-blue-100 text-blue-800 text-[11px] font-bold">ગુજરાતી સંસ્કરણ</span>
                         <p>
-                            અમે ચુકવણી માટે Razorpay, લોગિન માટે Google OAuth અને સર્વર ઇન્ફ્રાસ્ટ્રક્ચર સેવાઓનો ઉપયોગ કરીએ છીએ, જે પોતપોતાની સુરક્ષા નીતિઓ હેઠળ કાર્ય કરે છે.
+                            અમે ચુકવણી માટે Razorpay, લોગિન માટે Google OAuth, અનામી વપરાશ વિશ્લેષણ માટે Google Analytics (GA4) અને સર્વર ઇન્ફ્રાસ્ટ્રક્ચર સેવાઓનો ઉપયોગ કરીએ છીએ, જે પોતપોતાની સુરક્ષા નીતિઓ હેઠળ કાર્ય કરે છે.
                         </p>
                     </div>
                 </div>

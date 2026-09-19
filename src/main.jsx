@@ -11,6 +11,10 @@ import './utils/gujarati_utils.jsx';
 import './utils/draftCacheManager.js';
 import './utils/formUtils.js';
 import './services/sessionManager.js';
+import { initAnalytics } from './utils/analytics.js';
+
+// Initialize Analytics (Safe no-op if VITE_GA4_MEASUREMENT_ID is missing)
+initAnalytics();
 
 // Core components attached to window / imports
 import './components/Icons.jsx';
