@@ -6,7 +6,9 @@ import HomePage from './src/pages/HomePage.jsx';
 import StaticPageView from './src/pages/StaticPageView.jsx';
 import PrivacyPolicyPage from './src/pages/PrivacyPolicyPage.jsx';
 import TermsOfServicePage from './src/pages/TermsOfServicePage.jsx';
+import TemplateLandingPage from './src/pages/TemplateLandingPage.jsx';
 import { trackPageView, trackEvent } from './src/utils/analytics.js';
+import { getTemplateSlug, findTemplateBySlug } from './src/utils/slugUtils.js';
 
 // ─── Global API Configuration and Helpers ───
 
@@ -103,13 +105,15 @@ const App = () => {
             const path = window.location.pathname.toLowerCase();
             if (path === '/privacy-policy' || path === '/privacy-policy/') return 'privacy-policy';
             if (path === '/terms-of-service' || path === '/terms-of-service/') return 'terms-of-service';
+            if (path.startsWith('/templates/')) return 'template-landing';
             if (path.startsWith('/page:')) return 'page';
             const searchParams = new URLSearchParams(window.location.search);
             if (searchParams.get('view') === 'editor') return 'editor';
             if (searchParams.get('page')) return 'page';
+            if (searchParams.get('template_slug')) return 'template-landing';
         } catch { }
         return 'home';
-    }); // 'home' | 'editor' | 'page' | 'privacy-policy' | 'terms-of-service'
+    }); // 'home' | 'editor' | 'page' | 'privacy-policy' | 'terms-of-service' | 'template-landing'
     const [editingTemplate, setEditingTemplate] = useState(null); // null = closed, object = being edited
     const [isTemplateEditorOpen, setIsTemplateEditorOpen] = useState(false);
     const [currentPageSlug, setCurrentPageSlug] = useState(() => {
@@ -120,6 +124,17 @@ const App = () => {
             }
             const searchParams = new URLSearchParams(window.location.search);
             return searchParams.get('page') || '';
+        } catch { }
+        return '';
+    });
+    const [currentTemplateSlug, setCurrentTemplateSlug] = useState(() => {
+        try {
+            const path = window.location.pathname;
+            if (path.toLowerCase().startsWith('/templates/')) {
+                return path.slice(11).trim().replace(/\/+$/, '');
+            }
+            const searchParams = new URLSearchParams(window.location.search);
+            return searchParams.get('template_slug') || '';
         } catch { }
         return '';
     });
@@ -160,7 +175,7 @@ const App = () => {
     const [menuOpen, setMenuOpen] = useState(true);
     const [menuItems, setMenuItems] = useState([]);
     const [dbTpls, setDbTpls] = useState([]);
-    const [isTemplatesLoading, setIsTemplatesLoading] = useState(false);
+    const [isTemplatesLoading, setIsTemplatesLoading] = useState(true);
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
     const [templateLoadError, setTemplateLoadError] = useState(null);
     const [isDocServicesPanelOpen, setIsDocServicesPanelOpen] = useState(false);
@@ -363,11 +378,12 @@ const App = () => {
         if (currentView === 'privacy-policy') path = '/privacy-policy';
         else if (currentView === 'terms-of-service') path = '/terms-of-service';
         else if (currentView === 'page' && currentPageSlug) path = `/page:${currentPageSlug}`;
+        else if (currentView === 'template-landing' && currentTemplateSlug) path = `/templates/${currentTemplateSlug}`;
         else if (currentView === 'editor') path = activeTemplateId ? `/editor?template=${activeTemplateId}` : '/editor';
         else path = '/';
 
         trackPageView(path);
-    }, [currentView, currentPageSlug, activeTemplateId]);
+    }, [currentView, currentPageSlug, currentTemplateSlug, activeTemplateId]);
 
 
     // Flat dictionary for all dynamic data inputs
@@ -670,15 +686,23 @@ const App = () => {
                 if (state.view === 'privacy-policy') {
                     setCurrentView('privacy-policy');
                     setCurrentPageSlug('');
+                    setCurrentTemplateSlug('');
                 } else if (state.view === 'terms-of-service') {
                     setCurrentView('terms-of-service');
                     setCurrentPageSlug('');
+                    setCurrentTemplateSlug('');
                 } else if (state.view === 'page' && state.slug) {
                     setCurrentView('page');
                     setCurrentPageSlug(state.slug);
+                    setCurrentTemplateSlug('');
+                } else if (state.view === 'template-landing' && state.templateSlug) {
+                    setCurrentView('template-landing');
+                    setCurrentPageSlug('');
+                    setCurrentTemplateSlug(state.templateSlug);
                 } else if (state.view === 'editor') {
                     setCurrentView('editor');
                     setCurrentPageSlug('');
+                    setCurrentTemplateSlug('');
                     if (state.templateId) {
                         setActiveTemplateId(state.templateId);
                         if (typeof loadTemplate === 'function') loadTemplate(state.templateId);
@@ -686,6 +710,7 @@ const App = () => {
                 } else {
                     setCurrentView('home');
                     setCurrentPageSlug('');
+                    setCurrentTemplateSlug('');
                 }
                 return;
             }
@@ -694,21 +719,35 @@ const App = () => {
             if (path === '/privacy-policy' || path === '/privacy-policy/') {
                 setCurrentView('privacy-policy');
                 setCurrentPageSlug('');
+                setCurrentTemplateSlug('');
             } else if (path === '/terms-of-service' || path === '/terms-of-service/') {
                 setCurrentView('terms-of-service');
                 setCurrentPageSlug('');
+                setCurrentTemplateSlug('');
+            } else if (path.startsWith('/templates/')) {
+                setCurrentView('template-landing');
+                setCurrentPageSlug('');
+                setCurrentTemplateSlug(window.location.pathname.slice(11).trim().replace(/\/+$/, ''));
             } else if (path.startsWith('/page:')) {
                 setCurrentView('page');
                 setCurrentPageSlug(window.location.pathname.slice(6).trim());
+                setCurrentTemplateSlug('');
             } else {
                 const searchParams = new URLSearchParams(window.location.search);
                 const pageParam = searchParams.get('page');
+                const tplParam = searchParams.get('template_slug');
                 if (pageParam) {
                     setCurrentView('page');
                     setCurrentPageSlug(pageParam);
+                    setCurrentTemplateSlug('');
+                } else if (tplParam) {
+                    setCurrentView('template-landing');
+                    setCurrentPageSlug('');
+                    setCurrentTemplateSlug(tplParam);
                 } else {
                     setCurrentView('home');
                     setCurrentPageSlug('');
+                    setCurrentTemplateSlug('');
                 }
             }
         };
@@ -775,6 +814,7 @@ const App = () => {
                 // Stack empty -> graceful fallback to Home
                 setCurrentView('home');
                 setCurrentPageSlug('');
+                setCurrentTemplateSlug('');
                 if (window.location.pathname !== '/') {
                     window.history.pushState({ view: 'home' }, '', '/');
                 }
@@ -786,6 +826,7 @@ const App = () => {
             if (!target) {
                 setCurrentView('home');
                 setCurrentPageSlug('');
+                setCurrentTemplateSlug('');
                 if (window.location.pathname !== '/') {
                     window.history.pushState({ view: 'home' }, '', '/');
                 }
@@ -797,6 +838,7 @@ const App = () => {
             if (target.view === 'editor') {
                 setCurrentView('editor');
                 setCurrentPageSlug('');
+                setCurrentTemplateSlug('');
                 if (target.templateId) {
                     setActiveTemplateId(target.templateId);
                     if (typeof loadTemplate === 'function') loadTemplate(target.templateId);
@@ -804,21 +846,31 @@ const App = () => {
                 if (window.location.pathname !== '/') {
                     window.history.pushState({ view: 'editor', templateId: target.templateId }, '', '/');
                 }
+            } else if (target.view === 'template-landing' && target.templateSlug) {
+                setCurrentView('template-landing');
+                setCurrentPageSlug('');
+                setCurrentTemplateSlug(target.templateSlug);
+                if (window.location.pathname !== `/templates/${target.templateSlug}`) {
+                    window.history.pushState({ view: 'template-landing', templateSlug: target.templateSlug }, '', `/templates/${target.templateSlug}`);
+                }
             } else if (target.view === 'page' && target.slug) {
                 setCurrentView('page');
                 setCurrentPageSlug(target.slug);
+                setCurrentTemplateSlug('');
                 if (window.location.pathname !== '/') {
                     window.history.pushState({ view: 'page', slug: target.slug }, '', '/');
                 }
             } else if (target.view === 'privacy-policy') {
                 setCurrentView('privacy-policy');
                 setCurrentPageSlug('');
+                setCurrentTemplateSlug('');
                 if (window.location.pathname !== '/privacy-policy') {
                     window.history.pushState({ view: 'privacy-policy' }, '', '/privacy-policy');
                 }
             } else if (target.view === 'terms-of-service') {
                 setCurrentView('terms-of-service');
                 setCurrentPageSlug('');
+                setCurrentTemplateSlug('');
                 if (window.location.pathname !== '/terms-of-service') {
                     window.history.pushState({ view: 'terms-of-service' }, '', '/terms-of-service');
                 }
@@ -826,6 +878,7 @@ const App = () => {
                 // target is home
                 setCurrentView('home');
                 setCurrentPageSlug('');
+                setCurrentTemplateSlug('');
                 if (window.location.pathname !== '/') {
                     window.history.pushState({ view: 'home' }, '', '/');
                 }
@@ -839,6 +892,7 @@ const App = () => {
             viewHistoryRef.current = [];
             setCurrentView('home');
             setCurrentPageSlug('');
+            setCurrentTemplateSlug('');
             if (window.location.pathname !== '/') {
                 window.history.pushState({ view: 'home' }, '', '/');
             }
@@ -851,6 +905,7 @@ const App = () => {
         const currentSnapshot = {
             view: currentView,
             slug: currentPageSlug,
+            templateSlug: currentTemplateSlug,
             templateId: activeTemplateId || ''
         };
         viewHistoryRef.current.push(currentSnapshot);
@@ -861,6 +916,7 @@ const App = () => {
         if (url === '/privacy-policy' || url === 'privacy-policy') {
             setCurrentView('privacy-policy');
             setCurrentPageSlug('');
+            setCurrentTemplateSlug('');
             if (window.location.pathname !== '/privacy-policy') {
                 window.history.pushState({ view: 'privacy-policy' }, '', '/privacy-policy');
             }
@@ -871,8 +927,22 @@ const App = () => {
         if (url === '/terms-of-service' || url === 'terms-of-service') {
             setCurrentView('terms-of-service');
             setCurrentPageSlug('');
+            setCurrentTemplateSlug('');
             if (window.location.pathname !== '/terms-of-service') {
                 window.history.pushState({ view: 'terms-of-service' }, '', '/terms-of-service');
+            }
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            return;
+        }
+
+        if (url.startsWith('templates/') || url.startsWith('/templates/')) {
+            const raw = url.startsWith('/') ? url.slice(1) : url;
+            const slug = raw.slice(10).trim().replace(/\/+$/, '');
+            setCurrentView('template-landing');
+            setCurrentPageSlug('');
+            setCurrentTemplateSlug(slug);
+            if (window.location.pathname !== `/templates/${slug}`) {
+                window.history.pushState({ view: 'template-landing', templateSlug: slug }, '', `/templates/${slug}`);
             }
             window.scrollTo({ top: 0, behavior: 'instant' });
             return;
@@ -881,6 +951,7 @@ const App = () => {
         if (url.startsWith('editor')) {
             setCurrentView('editor');
             setCurrentPageSlug('');
+            setCurrentTemplateSlug('');
             const match = url.match(/template=([^&]+)/);
             const templateId = menuTemplateId || (match && match[1] ? match[1] : activeTemplateId);
             if (window.location.pathname !== '/') {
@@ -899,6 +970,7 @@ const App = () => {
             const slug = raw.slice(5).trim();
             setCurrentView('page');
             setCurrentPageSlug(slug);
+            setCurrentTemplateSlug('');
             if (window.location.pathname !== '/') {
                 window.history.pushState({ view: 'page', slug }, '', '/');
             }
@@ -1455,6 +1527,21 @@ const App = () => {
                     {currentView === 'terms-of-service' && (
                         <div className="flex-1 overflow-y-auto">
                             <TermsOfServicePage onNavigate={handleNavigate} />
+                        </div>
+                    )}
+                    {currentView === 'template-landing' && (
+                        <div className="flex-1 overflow-y-auto">
+                            <TemplateLandingPage
+                                templateSlug={currentTemplateSlug}
+                                templates={allTemplates}
+                                isTemplatesLoading={isTemplatesLoading}
+                                onNavigate={handleNavigate}
+                                onLogin={(context) => {
+                                    setAuthModalContext(context || null);
+                                    setIsAuthModalOpen(true);
+                                }}
+                                currentUser={currentUser}
+                            />
                         </div>
                     )}
                     {currentView === 'page' && (

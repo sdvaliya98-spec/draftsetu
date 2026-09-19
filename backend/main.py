@@ -9,6 +9,7 @@ import logging
 from datetime import datetime
 from dotenv import load_dotenv
 from backend.utils.maintenance import backup_database, cleanup_old_outputs, cleanup_temp_previews
+from backend.utils.slug import get_template_slug
 
 from backend.core.config import settings
 from backend.core.constants import DEMO_DATASET_DIR
@@ -312,6 +313,39 @@ def get_sitemap_xml(db: Session = Depends(database.get_db)):
     ]
 
     try:
+        # 1. Active Public Templates
+        active_templates = db.query(models.DBTemplate).filter(
+            models.DBTemplate.is_active == True,
+            models.DBTemplate.status == "ACTIVE"
+        ).all()
+        for tpl in active_templates:
+            tpl_id = tpl.template_id or str(tpl.id)
+            slug = get_template_slug(tpl.name, tpl_id)
+            lastmod = today
+            if getattr(tpl, 'updated_at', None):
+                up = tpl.updated_at
+                if isinstance(up, datetime):
+                    lastmod = up.strftime("%Y-%m-%d")
+                elif isinstance(up, str) and len(up) >= 10:
+                    lastmod = up[:10]
+            elif getattr(tpl, 'created_at', None):
+                cr = tpl.created_at
+                if isinstance(cr, datetime):
+                    lastmod = cr.strftime("%Y-%m-%d")
+                elif isinstance(cr, str) and len(cr) >= 10:
+                    lastmod = cr[:10]
+
+            urls.append({
+                "loc": f"{base_url}/templates/{slug}",
+                "lastmod": lastmod,
+                "changefreq": "weekly",
+                "priority": "0.9"
+            })
+    except Exception as e:
+        logger.error(f"Error querying active templates for sitemap: {e}")
+
+    try:
+        # 2. Active Static Pages
         static_pages = db.query(models.StaticPage).filter(models.StaticPage.is_active == True).all()
         for page in static_pages:
             if page.slug:
@@ -349,6 +383,7 @@ def get_robots_txt():
 Allow: /
 Allow: /privacy-policy
 Allow: /terms-of-service
+Allow: /templates/*
 Allow: /page:*
 Disallow: /api/
 Disallow: /debug/

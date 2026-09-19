@@ -1,6 +1,7 @@
 import React from 'react';
 import Footer from '../components/Footer.jsx';
 import { trackEvent } from '../utils/analytics.js';
+import { getTemplateSlug } from '../utils/slugUtils.js';
 
 const HomePage = ({ currentUser, onNavigate, onLogin, templates = [], isAuthHydrated = true }) => {
     const [selectedCategory, setSelectedCategory] = React.useState('All');
@@ -31,6 +32,7 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [], isAuthHydr
             if (targetTpl) {
                 return `editor?template=${targetTpl.template_id || targetTpl.id}`;
             }
+            return `editor?template=${targetTemplateId}`;
         }
         // 2. Direct category match
         const categoryMatch = activeTemplates.find(t => (t.category || '').toLowerCase() === (categoryName || '').toLowerCase());
@@ -39,10 +41,8 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [], isAuthHydr
         }
         // 3. Fallback to search keywords if needed
         const keywordMatch = activeTemplates.find(t => {
-            return searchKeywords.some(keyword => 
-                (t.name || '').toLowerCase().includes(keyword.toLowerCase()) || 
-                (t.template_id || t.id || '').toLowerCase().includes(keyword.toLowerCase())
-            );
+            const text = `${t.name || ''} ${t.category || ''} ${t.content || ''}`.toLowerCase();
+            return searchKeywords.some(kw => text.includes(kw.toLowerCase()));
         });
         if (keywordMatch) {
             return `editor?template=${keywordMatch.template_id || keywordMatch.id}`;
@@ -473,7 +473,7 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [], isAuthHydr
                                     </div>
                                     <button
                                         type="button"
-                                        onClick={() => onNavigate(`editor?template=${t.template_id || t.id}`)}
+                                        onClick={() => onNavigate(`templates/${getTemplateSlug(t)}`)}
                                         className="mt-6 w-full py-2.5 bg-indigo-50 group-hover:bg-indigo-600 text-indigo-700 group-hover:text-white rounded-xl text-xs font-black transition-all border border-indigo-100 group-hover:border-indigo-600 text-center tracking-wider font-sans shadow-sm cursor-pointer"
                                     >
                                         દસ્તાવેજ પસંદ કરો &rarr;
