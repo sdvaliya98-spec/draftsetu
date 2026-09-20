@@ -111,6 +111,8 @@ const App = () => {
             if (searchParams.get('view') === 'editor') return 'editor';
             if (searchParams.get('page')) return 'page';
             if (searchParams.get('template_slug')) return 'template-landing';
+            const storedView = localStorage.getItem('currentView');
+            if (storedView) return storedView;
         } catch { }
         return 'home';
     }); // 'home' | 'editor' | 'page' | 'privacy-policy' | 'terms-of-service' | 'template-landing'
@@ -139,7 +141,13 @@ const App = () => {
         return '';
     });
     const [templates, setTemplates] = useState([]);
-    const [activeTemplateId, setActiveTemplateId] = useState('');
+    const [activeTemplateId, setActiveTemplateId] = useState(() => {
+        try {
+            const searchParams = new URLSearchParams(window.location.search);
+            return searchParams.get('template') || localStorage.getItem('activeTemplateId') || '';
+        } catch { }
+        return '';
+    });
     const [role, setRole] = useState(() => localStorage.getItem('appRole') || 'user');
     const [isViewingDrafts, setIsViewingDrafts] = useState(false);
     const [authModalContext, setAuthModalContext] = useState(null);
@@ -446,6 +454,51 @@ const App = () => {
         return normalized;
     };
 
+    const showDocumentLimitDialog = async () => {
+        const shouldOpenMyDocs = await showConfirmDialog({
+            title: '10-Document Limit Reached',
+            message: 'તમારા accountમાં maximum 10 saved documents રાખી શકાય છે.\n\nનવું document save કરવા માટે પહેલા My Documents માંથી કોઈ એક જૂનું document delete કરો.',
+            confirmText: 'My Documents',
+            cancelText: 'OK',
+            type: 'warning',
+            icon: '⚠️'
+        });
+        if (shouldOpenMyDocs) {
+            setIsViewingDrafts(true);
+        }
+    };
+
+    const handleNewDocument = (targetTemplateId = activeTemplateId) => {
+        const tId = targetTemplateId || activeTemplateId;
+        if (!tId) return;
+
+        // Clear in-memory session & local recovery cache for this template
+        if (window.SessionManager) {
+            window.SessionManager.clearSession(tId);
+        }
+        if (window.DraftCacheManager) {
+            window.DraftCacheManager.clear(tId, currentUser);
+        } else {
+            localStorage.removeItem(`temp_draft_${tId}`);
+            localStorage.removeItem(`temp_tracking_id_${tId}`);
+            localStorage.removeItem(`temp_locked_${tId}`);
+        }
+
+        const activeTemplate = allTemplates.find(t => t.id === tId);
+        const emptyState = getTemplateEmptyState(activeTemplate, false);
+
+        setData(emptyState);
+        setTrackingId(null);
+        setIsLocked(false);
+        setDraftError(null);
+
+        if (window.SessionManager) {
+            window.SessionManager.saveSession(tId, { data: emptyState, trackingId: null, isLocked: false });
+        }
+
+        showToast("નવા દસ્તાવેજ માટે ફોર્મ તૈયાર છે (Ready for new document)", "info");
+    };
+
     const handleSaveDraft = async () => {
         if (!currentUser) {
             setIsAuthModalOpen(true);
@@ -477,6 +530,7 @@ const App = () => {
                                 const limitMsg = `Maximum ${effectiveLimit} saved documents allowed. Please delete old documents before saving new ones.`;
                                 setDraftError(limitMsg);
                                 showToast(limitMsg, "error");
+                                showDocumentLimitDialog();
                             }
                             setIsSavingDraft(false);
                             return;
@@ -516,26 +570,25 @@ const App = () => {
                     saveDebounceRef.current = null;
                 }
 
-                // Clear session in SessionManager
-                window.SessionManager.clearSession(targetTemplateId);
-
-                // Clear cache
-                if (window.DraftCacheManager) {
-                    window.DraftCacheManager.clear(targetTemplateId, currentUser);
-                } else {
-                    localStorage.removeItem(`temp_draft_${targetTemplateId}`);
-                    localStorage.removeItem(`temp_tracking_id_${targetTemplateId}`);
-                    localStorage.removeItem(`temp_locked_${targetTemplateId}`);
-                }
-
-                // Reinitialize template to fresh empty state
-                const activeTemplate = allTemplates.find(t => t.id === targetTemplateId);
-                const emptyState = getTemplateEmptyState(activeTemplate, false);
-                setData(emptyState);
-                setTrackingId(null);
+                const savedTrackingId = resData.tracking_id || trackingId;
+                setTrackingId(savedTrackingId);
                 setIsLocked(false);
 
-                trackEvent('draft_saved', { template_id: targetTemplateId });
+                // Update session in SessionManager
+                if (window.SessionManager) {
+                    window.SessionManager.saveSession(targetTemplateId, {
+                        data: normalizedData,
+                        trackingId: savedTrackingId,
+                        isLocked: false
+                    });
+                }
+
+                // Update cache in DraftCacheManager
+                if (window.DraftCacheManager) {
+                    window.DraftCacheManager.save(targetTemplateId, normalizedData, savedTrackingId, false, currentUser);
+                }
+
+                trackEvent('draft_saved', { template_id: targetTemplateId, tracking_id: savedTrackingId });
                 showToast("ડ્રાફ્ટ સફળતાપૂર્વક સેવ થયું (Draft saved to My Documents)", "success");
             } else {
                 throw new Error(resData.detail || `Server status ${response.status}`);
@@ -548,6 +601,9 @@ const App = () => {
                 : (err.message || 'ડ્રાફ્ટ સેવ કરવામાં નિષ્ફળતા (Failed to save draft).');
             setDraftError(msg);
             showToast("ડ્રાફ્ટ સેવ કરવામાં ભૂલ આવી", "error");
+            if (typeof msg === 'string' && msg.toLowerCase().includes('maximum') && msg.toLowerCase().includes('saved documents allowed')) {
+                showDocumentLimitDialog();
+            }
         } finally {
             if (activeTemplateId === targetTemplateId) {
                 setIsSavingDraft(false);
@@ -603,6 +659,7 @@ const App = () => {
                                 const limitMsg = `Maximum ${effectiveLimit} saved documents allowed. Please delete old documents before saving new ones.`;
                                 setDraftError(limitMsg);
                                 showToast(limitMsg, "error");
+                                showDocumentLimitDialog();
                             }
                             setIsFinalizing(false);
                             return;
@@ -670,6 +727,9 @@ const App = () => {
                     : (err.message || 'દસ્તાવેજ લોક કરવામાં નિષ્ફળતા (Failed to lock document).');
                 setDraftError(msg);
                 showToast("દસ્તાવેજ લોક કરવામાં ભૂલ આવી", "error");
+                if (typeof msg === 'string' && msg.toLowerCase().includes('maximum') && msg.toLowerCase().includes('saved documents allowed')) {
+                    showDocumentLimitDialog();
+                }
             } finally {
                 if (activeTemplateId === targetTemplateId) {
                     setIsFinalizing(false);
@@ -987,9 +1047,13 @@ const App = () => {
 
     useEffect(() => {
         try {
-            localStorage.removeItem('currentView');
-            localStorage.removeItem('currentPageSlug');
+            if (currentView) {
+                localStorage.setItem('currentView', currentView);
+            }
         } catch (e) { }
+    }, [currentView]);
+
+    useEffect(() => {
         const savedTemplates = localStorage.getItem('customTemplates');
         const savedRole = localStorage.getItem('appRole');
         if (savedTemplates) { try { setTemplates(JSON.parse(savedTemplates)); } catch (e) { } }
@@ -1019,6 +1083,10 @@ const App = () => {
         const existingSession = window.SessionManager ? window.SessionManager.restoreSession(activeTemplateId) : null;
         if (existingSession && window.DraftCacheManager && window.DraftCacheManager.isMeaningfulDraft(existingSession.data, getTemplateEmptyState(allTemplates.find(t => t.id === activeTemplateId), false))) {
             // Already actively working in memory for this session
+            if (!active) return;
+            setData(existingSession.data);
+            setTrackingId(existingSession.trackingId || null);
+            setIsLocked(Boolean(existingSession.isLocked));
             return;
         }
 
@@ -1029,8 +1097,93 @@ const App = () => {
         const cachedDraft = window.DraftCacheManager ? window.DraftCacheManager.load(activeTemplateId, currentUser) : null;
 
         if (cachedDraft && !cachedDraft.isLocked && window.DraftCacheManager && window.DraftCacheManager.isMeaningfulDraft(cachedDraft.data, emptyState)) {
+            // Safeguard B: Ensure cached template ID matches active template ID
+            if (cachedDraft.templateId && cachedDraft.templateId !== activeTemplateId) {
+                if (!active) return;
+                setData(emptyState);
+                setTrackingId(null);
+                setIsLocked(false);
+                window.SessionManager.saveSession(activeTemplateId, { data: emptyState, trackingId: null, isLocked: false });
+                return;
+            }
+
             const { data: cachedData, trackingId: cachedTrackId } = cachedDraft;
 
+            // Scenario 1: Saved draft with trackingId -> Auto-restore from backend (source of truth)
+            if (cachedTrackId && authToken) {
+                (async () => {
+                    try {
+                        const res = await window.apiFetch(`/api/documents/${cachedTrackId}`, {
+                            headers: { 'Authorization': `Bearer ${authToken}` }
+                        });
+                        if (!active) return;
+                        if (res.ok) {
+                            const docData = await res.json();
+                            // Safeguard: Ensure document template matches active template
+                            if (docData.template_id && docData.template_id !== activeTemplateId && docData.template_id !== '—') {
+                                setData(emptyState);
+                                setTrackingId(null);
+                                setIsLocked(false);
+                                return;
+                            }
+                            if (docData.is_locked) {
+                                if (window.DraftCacheManager) window.DraftCacheManager.clear(activeTemplateId, currentUser);
+                                setTrackingId(docData.tracking_id);
+                                setIsLocked(true);
+                                try {
+                                    const parsed = typeof docData.data_json === 'string' ? JSON.parse(docData.data_json) : (docData.data_json || {});
+                                    setData(parsed);
+                                    window.SessionManager.saveSession(activeTemplateId, { data: parsed, trackingId: docData.tracking_id, isLocked: true });
+                                } catch (e) {
+                                    setData(cachedData);
+                                }
+                                return;
+                            }
+                            try {
+                                const parsed = typeof docData.data_json === 'string' ? JSON.parse(docData.data_json) : (docData.data_json || {});
+                                setData(parsed);
+                                setTrackingId(docData.tracking_id);
+                                setIsLocked(false);
+                                if (window.DraftCacheManager) window.DraftCacheManager.save(activeTemplateId, parsed, docData.tracking_id, false, currentUser);
+                                window.SessionManager.saveSession(activeTemplateId, { data: parsed, trackingId: docData.tracking_id, isLocked: false });
+                                showToast("ડ્રાફ્ટ સફળતાપૂર્વક પુનઃપ્રાપ્ત થયો (Draft restored)", "success");
+                            } catch (e) {
+                                console.error("❌ [App] Error parsing database draft JSON:", e);
+                                setData(cachedData);
+                                setTrackingId(docData.tracking_id);
+                                setIsLocked(false);
+                                window.SessionManager.saveSession(activeTemplateId, { data: cachedData, trackingId: docData.tracking_id, isLocked: false });
+                                showToast("ડ્રાફ્ટ સફળતાપૂર્વક પુનઃપ્રાપ્ત થયો (Draft restored)", "success");
+                            }
+                        } else if (res.status === 404) {
+                            // Saved draft was deleted from DB -> clean up stale local reference safely
+                            if (window.DraftCacheManager) window.DraftCacheManager.clear(activeTemplateId, currentUser);
+                            if (window.SessionManager) window.SessionManager.clearSession(activeTemplateId);
+                            setData(emptyState);
+                            setTrackingId(null);
+                            setIsLocked(false);
+                        } else {
+                            // Server error fallback
+                            setData(cachedData);
+                            setTrackingId(cachedTrackId);
+                            setIsLocked(false);
+                            window.SessionManager.saveSession(activeTemplateId, { data: cachedData, trackingId: cachedTrackId, isLocked: false });
+                            showToast("ડ્રાફ્ટ સફળતાપૂર્વક પુનઃપ્રાપ્ત થયો (Draft restored)", "success");
+                        }
+                    } catch (err) {
+                        if (!active) return;
+                        console.error("❌ [App] Network exception during draft restore verification:", err);
+                        setData(cachedData);
+                        setTrackingId(cachedTrackId);
+                        setIsLocked(false);
+                        window.SessionManager.saveSession(activeTemplateId, { data: cachedData, trackingId: cachedTrackId, isLocked: false });
+                        showToast("ડ્રાફ્ટ સફળતાપૂર્વક પુનઃપ્રાપ્ત થયો (Draft restored)", "success");
+                    }
+                })();
+                return;
+            }
+
+            // Scenario 2: Truly unsaved local input (no trackingId) -> Prompt user
             if (isPromptingRecoveryRef.current) return;
             isPromptingRecoveryRef.current = true;
 
@@ -1044,68 +1197,17 @@ const App = () => {
                 type: 'primary',
                 icon: '📝',
                 closeOnOverlayClick: false
-            }).then(async (userWantsRestore) => {
+            }).then((userWantsRestore) => {
                 isPromptingRecoveryRef.current = false;
                 if (!active) return;
 
                 if (userWantsRestore) {
                     trackEvent('draft_recovery_restored', { template_id: activeTemplateId });
-                    if (cachedTrackId && authToken) {
-                        try {
-                            const res = await window.apiFetch(`/api/documents/${cachedTrackId}`, {
-                                headers: { 'Authorization': `Bearer ${authToken}` }
-                            });
-                            if (!active) return;
-                            if (res.ok) {
-                                const docData = await res.json();
-                                if (docData.is_locked) {
-                                    if (window.DraftCacheManager) window.DraftCacheManager.clear(activeTemplateId, currentUser);
-                                    setTrackingId(null);
-                                    setIsLocked(false);
-                                    setData(emptyState);
-                                    window.SessionManager.saveSession(activeTemplateId, { data: emptyState, trackingId: null, isLocked: false });
-                                    showToast("આ દસ્તાવેજ ફાઇનલ લોક કરેલ છે અને તેમાં ફેરફાર કરી શકાશે નહીં. (This document has been locked and cannot be edited.)", "error");
-                                    return;
-                                }
-                                try {
-                                    const parsed = JSON.parse(docData.data_json);
-                                    setData(parsed);
-                                    setTrackingId(docData.tracking_id);
-                                    setIsLocked(false);
-                                    if (window.DraftCacheManager) window.DraftCacheManager.save(activeTemplateId, parsed, docData.tracking_id, false, currentUser);
-                                    window.SessionManager.saveSession(activeTemplateId, { data: parsed, trackingId: docData.tracking_id, isLocked: false });
-                                    showToast("ડ્રાફ્ટ સફળતાપૂર્વક પુનઃપ્રાપ્ત થયો (Draft restored)", "success");
-                                } catch (e) {
-                                    console.error("❌ [App] Error parsing database draft JSON:", e);
-                                    setData(cachedData);
-                                    setTrackingId(docData.tracking_id);
-                                    setIsLocked(false);
-                                    window.SessionManager.saveSession(activeTemplateId, { data: cachedData, trackingId: docData.tracking_id, isLocked: false });
-                                    showToast("ડ્રાફ્ટ સફળતાપૂર્વક પુનઃપ્રાપ્ત થયો (Draft restored)", "success");
-                                }
-                            } else {
-                                setData(cachedData);
-                                setTrackingId(cachedTrackId);
-                                setIsLocked(false);
-                                window.SessionManager.saveSession(activeTemplateId, { data: cachedData, trackingId: cachedTrackId, isLocked: false });
-                                showToast("ડ્રાફ્ટ સફળતાપૂર્વક પુનઃપ્રાપ્ત થયો (Draft restored)", "success");
-                            }
-                        } catch (err) {
-                            if (!active) return;
-                            console.error("❌ [App] Network exception during draft restore verification:", err);
-                            setData(cachedData);
-                            setTrackingId(cachedTrackId);
-                            setIsLocked(false);
-                            window.SessionManager.saveSession(activeTemplateId, { data: cachedData, trackingId: cachedTrackId, isLocked: false });
-                            showToast("ડ્રાફ્ટ સફળતાપૂર્વક પુનઃપ્રાપ્ત થયો (Draft restored)", "success");
-                        }
-                    } else {
-                        setData(cachedData);
-                        setTrackingId(null);
-                        setIsLocked(false);
-                        window.SessionManager.saveSession(activeTemplateId, { data: cachedData, trackingId: null, isLocked: false });
-                        showToast("ડ્રાફ્ટ સફળતાપૂર્વક પુનઃપ્રાપ્ત થયો (Draft restored)", "success");
-                    }
+                    setData(cachedData);
+                    setTrackingId(null);
+                    setIsLocked(false);
+                    window.SessionManager.saveSession(activeTemplateId, { data: cachedData, trackingId: null, isLocked: false });
+                    showToast("ડ્રાફ્ટ સફળતાપૂર્વક પુનઃપ્રાપ્ત થયો (Draft restored)", "success");
                 } else {
                     // User chose Discard
                     trackEvent('draft_recovery_discarded', { template_id: activeTemplateId });
@@ -1374,6 +1476,24 @@ const App = () => {
 
     loadTemplate = handleTemplateSelect;
 
+    useEffect(() => {
+        try {
+            if (activeTemplateId) {
+                localStorage.setItem('activeTemplateId', activeTemplateId);
+            }
+        } catch (e) { }
+    }, [activeTemplateId]);
+
+    useEffect(() => {
+        if (currentView === 'editor' && !activeTemplateId && allTemplates.length > 0) {
+            const savedTplId = localStorage.getItem('activeTemplateId');
+            const targetTpl = (savedTplId && allTemplates.find(t => t.id === savedTplId)) || allTemplates[0];
+            if (targetTpl) {
+                handleTemplateSelect(targetTpl.id);
+            }
+        }
+    }, [currentView, activeTemplateId, allTemplates]);
+
     const dynamicMenuItems = useMemo(() => {
         if (!menuItems || menuItems.length === 0) return [];
 
@@ -1580,6 +1700,7 @@ const App = () => {
                                             setAuthModalContext(context || null);
                                             setIsAuthModalOpen(true);
                                         }}
+                                        onNewDocument={handleNewDocument}
                                     />
                                 </div>
 

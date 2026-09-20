@@ -360,7 +360,8 @@ const FormPanel = ({
     isFinalizing,
     userCredits,
     isLoggedIn,
-    onLogin
+    onLogin,
+    onNewDocument
 }) => {
     const hasAuthToken = Boolean(localStorage.getItem('authToken') || localStorage.getItem('token'));
     const isVisitor = isLoggedIn !== undefined ? !isLoggedIn : !hasAuthToken;
@@ -1036,14 +1037,49 @@ const FormPanel = ({
                 {activeTemplate && (
                     <div className={`flex items-center gap-2 text-xs font-bold mt-2 px-2 py-1.5 rounded-lg ${activeTemplate.file_path ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
                         <span>{activeTemplate.file_path ? '✓' : '⚠'}</span>
-                        <span>{activeTemplate.file_path
+                        <span className="flex-1 truncate">{activeTemplate.file_path
                             ? `DOCX template: ${activeTemplate.file_path.split('/').pop() || activeTemplate.file_path}`
                             : 'No DOCX file — upload in Admin Panel'}
                         </span>
                     </div>
                 )}
 
-                <p className="text-xs text-gray-400 mt-1">Form auto-generated from DOCX template variables.</p>
+                {/* Document Session Actions */}
+                {activeTemplate && (
+                    <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-slate-100 gap-2">
+                        <div className="text-[11px] font-semibold truncate">
+                            {trackingId ? (
+                                <span className="text-amber-700 font-bold inline-flex items-center gap-1">
+                                    <span>📝 Draft:</span>
+                                    <span className="font-mono text-slate-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 text-[10px] font-bold">{trackingId}</span>
+                                </span>
+                            ) : isLocked ? (
+                                <span className="text-emerald-700 font-bold inline-flex items-center gap-1">
+                                    <span>🔒 Locked:</span>
+                                    <span className="font-mono text-slate-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 text-[10px] font-bold">{trackingId}</span>
+                                </span>
+                            ) : (
+                                <span className="text-slate-400">✨ નવો દસ્તાવેજ સત્ર (New Session)</span>
+                            )}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (typeof onNewDocument === 'function') {
+                                    onNewDocument();
+                                }
+                            }}
+                            className="px-2.5 py-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-all border border-blue-200 flex items-center gap-1 shadow-sm active:scale-95 shrink-0"
+                            id="btn-new-document"
+                            title="Start a fresh new document session with empty fields"
+                        >
+                            <span>➕</span>
+                            <span>નવો દસ્તાવેજ (New Document)</span>
+                        </button>
+                    </div>
+                )}
+
+                <p className="text-[11px] text-gray-400 mt-1.5">Form auto-generated from DOCX template variables.</p>
             </div>
 
             {/* Input Fields & Actions Block (only if activeTemplate exists) */}
@@ -1058,7 +1094,7 @@ const FormPanel = ({
                     </div>
                 </div>
             ) : (
-                <div className="flex-1 overflow-y-auto p-6 custom-scrollbar flex flex-col">
+                <div id="form-panel-content" className="flex-1 overflow-y-auto p-6 custom-scrollbar flex flex-col">
                     <h2 className="text-xl font-bold mb-4 text-primary">
                         2. માહિતી દાખલ કરો (Data Input)
                     </h2>
@@ -1278,9 +1314,24 @@ const FormPanel = ({
                                             ID: {trackingId}
                                         </span>
                                     </div>
-                                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm font-semibold text-amber-800 flex items-start gap-3">
-                                        <span className="text-lg">ℹ️</span>
-                                        <div>This document has been finalized and can no longer be edited. To make changes, please create a new document.</div>
+                                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm font-semibold text-amber-800 flex flex-col gap-3">
+                                        <div className="flex items-start gap-3">
+                                            <span className="text-lg">ℹ️</span>
+                                            <div>This document has been finalized and can no longer be edited. To make changes, please create a new document.</div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (typeof onNewDocument === 'function') {
+                                                    onNewDocument();
+                                                }
+                                            }}
+                                            className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                                            id="btn-new-document-locked"
+                                        >
+                                            <span>➕</span>
+                                            <span>નવો દસ્તાવેજ બનાવો (Create New Document)</span>
+                                        </button>
                                     </div>
                                 </>
                             ) : (

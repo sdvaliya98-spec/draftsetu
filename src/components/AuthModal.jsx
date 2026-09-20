@@ -1006,7 +1006,7 @@ const AuthModal = ({ onClose, onLoginSuccess, initialView = 'login', initialToke
                         {view === 'login' && (
                             <>
                                 Don't have an account?{' '}
-                                <button onClick={handleSwitchToRegister} className="text-blue-600 font-bold hover:underline bg-transparent border-0 cursor-pointer">
+                                <button id="btn-switch-register" onClick={handleSwitchToRegister} className="text-blue-600 font-bold hover:underline bg-transparent border-0 cursor-pointer">
                                     Sign Up
                                 </button>
                             </>
@@ -1014,7 +1014,7 @@ const AuthModal = ({ onClose, onLoginSuccess, initialView = 'login', initialToke
                         {view === 'register' && (
                             <>
                                 Already have an account?{' '}
-                                <button onClick={handleSwitchToLogin} className="text-blue-600 font-bold hover:underline bg-transparent border-0 cursor-pointer">
+                                <button id="btn-switch-login" onClick={handleSwitchToLogin} className="text-blue-600 font-bold hover:underline bg-transparent border-0 cursor-pointer">
                                     Log In
                                 </button>
                             </>

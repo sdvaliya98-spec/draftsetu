@@ -427,6 +427,7 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
             }}
         >
             <div 
+                id="my-documents-modal-dialog"
                 className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] h-[88vh] flex flex-col overflow-hidden animate-fade-in"
                 onClick={e => e.stopPropagation()}
             >

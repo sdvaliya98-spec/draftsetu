@@ -103,6 +103,7 @@ const DraftCacheManager = {
             }
 
             return {
+                templateId: templateId,
                 data: parsedData,
                 trackingId: cachedTrackingId || null,
                 isLocked: cachedLocked === 'true',
