@@ -49,6 +49,8 @@ const TemplateLandingPage = ({ templateSlug, templates = [], isTemplatesLoading 
     useEffect(() => {
         if (!matchedTemplate || !isAccessible) {
             document.title = 'Template ઉપલબ્ધ નથી | DraftSetu';
+            const staleBreadcrumb = document.getElementById('schema-template-breadcrumb');
+            if (staleBreadcrumb) staleBreadcrumb.remove();
             return;
         }
 
@@ -96,6 +98,41 @@ const TemplateLandingPage = ({ templateSlug, templates = [], isTemplatesLoading 
         setMetaTag('name', 'twitter:title', pageTitle);
         setMetaTag('name', 'twitter:description', descriptionContent);
 
+        // Schema.org BreadcrumbList JSON-LD
+        const breadcrumbData = {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+                {
+                    "@type": "ListItem",
+                    "position": 1,
+                    "name": "Home",
+                    "item": "https://draftsetu.in/"
+                },
+                {
+                    "@type": "ListItem",
+                    "position": 2,
+                    "name": "Templates",
+                    "item": "https://draftsetu.in/#quick-services"
+                },
+                {
+                    "@type": "ListItem",
+                    "position": 3,
+                    "name": templateName,
+                    "item": canonicalUrl
+                }
+            ]
+        };
+
+        let breadcrumbScript = document.getElementById('schema-template-breadcrumb');
+        if (!breadcrumbScript) {
+            breadcrumbScript = document.createElement('script');
+            breadcrumbScript.id = 'schema-template-breadcrumb';
+            breadcrumbScript.type = 'application/ld+json';
+            document.head.appendChild(breadcrumbScript);
+        }
+        breadcrumbScript.textContent = JSON.stringify(breadcrumbData, null, 2);
+
         // GA4 Telemetry for Template Landing View
         const templateId = matchedTemplate.template_id || matchedTemplate.id || '';
         trackEvent('template_landing_view', {
@@ -103,6 +140,13 @@ const TemplateLandingPage = ({ templateSlug, templates = [], isTemplatesLoading 
             template_category: category,
             template_name: templateName
         });
+
+        return () => {
+            const script = document.getElementById('schema-template-breadcrumb');
+            if (script) {
+                script.remove();
+            }
+        };
 
     }, [matchedTemplate, isAccessible, canonicalSlug]);
 

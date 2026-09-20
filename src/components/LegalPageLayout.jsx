@@ -15,6 +15,7 @@ const LegalPageLayout = ({
     lastUpdated = '06 September 2026',
     pageType = 'Policy', // 'Policy' | 'Terms'
     seoTitle = 'DraftSetu Legal',
+    canonicalUrl,
     tocItems = [],
     onNavigate,
     children
@@ -22,7 +23,30 @@ const LegalPageLayout = ({
     useEffect(() => {
         document.title = seoTitle;
         window.scrollTo({ top: 0, behavior: 'instant' });
-    }, [seoTitle]);
+
+        const targetCanonical = canonicalUrl || (
+            (pageType === 'Privacy Policy' || titleEn === 'Privacy Policy')
+                ? 'https://draftsetu.in/privacy-policy'
+                : (pageType === 'Terms of Service' || titleEn === 'Terms of Service')
+                    ? 'https://draftsetu.in/terms-of-service'
+                    : 'https://draftsetu.in/'
+        );
+
+        let canonicalLink = document.querySelector('link[rel="canonical"]');
+        if (!canonicalLink) {
+            canonicalLink = document.createElement('link');
+            canonicalLink.setAttribute('rel', 'canonical');
+            document.head.appendChild(canonicalLink);
+        }
+        canonicalLink.setAttribute('href', targetCanonical);
+
+        return () => {
+            const currentLink = document.querySelector('link[rel="canonical"]');
+            if (currentLink) {
+                currentLink.setAttribute('href', 'https://draftsetu.in/');
+            }
+        };
+    }, [seoTitle, canonicalUrl, pageType, titleEn]);
 
     const handleHome = () => {
         if (typeof onNavigate === 'function') {

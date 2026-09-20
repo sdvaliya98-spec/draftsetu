@@ -346,4 +346,40 @@ test.describe('Template-Specific Shareable Links & WhatsApp Share Suite', () => 
         expect(xmlText).toContain('https://draftsetu.in/templates/vechan-banakhat-kabja-sathe-1ee12a63');
         expect(xmlText).toContain('https://draftsetu.in/templates/hakk-release-no-lekh-737760b1');
     });
+
+    test('9. Template Landing Page Schema.org BreadcrumbList JSON-LD lifecycle and validity', async ({ page }) => {
+        // 1. Visit Template A
+        await page.goto('http://127.0.0.1:5500/templates/vechan-khetini-jaminno-dastavej-997fd57d', { waitUntil: 'domcontentloaded' });
+        await expect(page.locator('h1').first()).toHaveText('વેચાણ ખેતીની જમીનનો દસ્તાવેજ');
+
+        // Verify exactly one BreadcrumbList script
+        let breadcrumbs = page.locator('script#schema-template-breadcrumb');
+        await expect(breadcrumbs).toHaveCount(1);
+
+        let jsonA = JSON.parse(await breadcrumbs.textContent());
+        expect(jsonA['@type']).toBe('BreadcrumbList');
+        expect(jsonA.itemListElement).toHaveLength(3);
+        expect(jsonA.itemListElement[0].name).toBe('Home');
+        expect(jsonA.itemListElement[0].item).toBe('https://draftsetu.in/');
+        expect(jsonA.itemListElement[1].name).toBe('Templates');
+        expect(jsonA.itemListElement[1].item).toBe('https://draftsetu.in/#quick-services');
+        expect(jsonA.itemListElement[2].name).toBe('વેચાણ ખેતીની જમીનનો દસ્તાવેજ');
+        expect(jsonA.itemListElement[2].item).toBe('https://draftsetu.in/templates/vechan-khetini-jaminno-dastavej-997fd57d');
+
+        // 2. Navigate directly to Template B
+        await page.goto('http://127.0.0.1:5500/templates/hakk-release-no-lekh-737760b1', { waitUntil: 'domcontentloaded' });
+        await expect(page.locator('h1').first()).toHaveText('હક્ક રીલીઝનો લેખ');
+
+        // Check that BreadcrumbList updated correctly with zero duplicates
+        breadcrumbs = page.locator('script#schema-template-breadcrumb');
+        await expect(breadcrumbs).toHaveCount(1);
+        let jsonB = JSON.parse(await breadcrumbs.textContent());
+        expect(jsonB.itemListElement[2].name).toBe('હક્ક રીલીઝનો લેખ');
+        expect(jsonB.itemListElement[2].item).toBe('https://draftsetu.in/templates/hakk-release-no-lekh-737760b1');
+
+        // 3. Visit Invalid template page -> BreadcrumbList should not be rendered
+        await page.goto('http://127.0.0.1:5500/templates/invalid-slug-999999');
+        await expect(page.locator('h1:has-text("Template ઉપલબ્ધ નથી")')).toBeVisible();
+        await expect(page.locator('script#schema-template-breadcrumb')).toHaveCount(0);
+    });
 });

@@ -40,6 +40,7 @@ const TermsOfServicePage = ({ onNavigate }) => {
             lastUpdated="06 September 2026"
             pageType="Terms of Service"
             seoTitle="Terms of Service | DraftSetu"
+            canonicalUrl="https://draftsetu.in/terms-of-service"
             tocItems={tocItems}
             onNavigate={onNavigate}
         >

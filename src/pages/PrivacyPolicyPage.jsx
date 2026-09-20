@@ -36,6 +36,7 @@ const PrivacyPolicyPage = ({ onNavigate }) => {
             lastUpdated="06 September 2026"
             pageType="Privacy Policy"
             seoTitle="Privacy Policy | DraftSetu"
+            canonicalUrl="https://draftsetu.in/privacy-policy"
             tocItems={tocItems}
             onNavigate={onNavigate}
         >
