@@ -105,14 +105,28 @@ const App = () => {
             const path = window.location.pathname.toLowerCase();
             if (path === '/privacy-policy' || path === '/privacy-policy/') return 'privacy-policy';
             if (path === '/terms-of-service' || path === '/terms-of-service/') return 'terms-of-service';
-            if (path.startsWith('/templates/')) return 'template-landing';
-            if (path.startsWith('/page:')) return 'page';
+            if (path === '/non-agricultural' || path === '/non-agricultural/') return 'page';
+            if (path.startsWith('/templates/')) {
+                const slug = path.slice(11).trim().replace(/\/+$/, '');
+                if (slug) return 'template-landing';
+            }
+            if (path.startsWith('/page:')) {
+                const slug = path.slice(6).trim();
+                if (slug) return 'page';
+            }
             const searchParams = new URLSearchParams(window.location.search);
-            if (searchParams.get('view') === 'editor') return 'editor';
-            if (searchParams.get('page')) return 'page';
-            if (searchParams.get('template_slug')) return 'template-landing';
+            if (searchParams.get('view') === 'editor' || searchParams.get('template')) return 'editor';
+            const pageParam = searchParams.get('page');
+            if (pageParam && pageParam.trim()) return 'page';
+            const tplParam = searchParams.get('template_slug');
+            if (tplParam && tplParam.trim()) return 'template-landing';
+
             const storedView = localStorage.getItem('currentView');
-            if (storedView) return storedView;
+            if (storedView === 'editor') {
+                return 'editor';
+            } else if (storedView) {
+                localStorage.removeItem('currentView');
+            }
         } catch { }
         return 'home';
     }); // 'home' | 'editor' | 'page' | 'privacy-policy' | 'terms-of-service' | 'template-landing'
@@ -121,11 +135,17 @@ const App = () => {
     const [currentPageSlug, setCurrentPageSlug] = useState(() => {
         try {
             const path = window.location.pathname;
-            if (path.toLowerCase().startsWith('/page:')) {
-                return path.slice(6).trim();
+            const lowerPath = path.toLowerCase();
+            if (lowerPath === '/non-agricultural' || lowerPath === '/non-agricultural/') {
+                return 'non-agricultural';
+            }
+            if (lowerPath.startsWith('/page:')) {
+                const slug = path.slice(6).trim();
+                if (slug) return slug;
             }
             const searchParams = new URLSearchParams(window.location.search);
-            return searchParams.get('page') || '';
+            const pageParam = searchParams.get('page');
+            if (pageParam && pageParam.trim()) return pageParam.trim();
         } catch { }
         return '';
     });
@@ -133,10 +153,12 @@ const App = () => {
         try {
             const path = window.location.pathname;
             if (path.toLowerCase().startsWith('/templates/')) {
-                return path.slice(11).trim().replace(/\/+$/, '');
+                const slug = path.slice(11).trim().replace(/\/+$/, '');
+                if (slug) return slug;
             }
             const searchParams = new URLSearchParams(window.location.search);
-            return searchParams.get('template_slug') || '';
+            const tplParam = searchParams.get('template_slug');
+            if (tplParam && tplParam.trim()) return tplParam.trim();
         } catch { }
         return '';
     });
@@ -385,6 +407,7 @@ const App = () => {
         let path = '/';
         if (currentView === 'privacy-policy') path = '/privacy-policy';
         else if (currentView === 'terms-of-service') path = '/terms-of-service';
+        else if (currentView === 'page' && currentPageSlug === 'non-agricultural') path = '/non-agricultural';
         else if (currentView === 'page' && currentPageSlug) path = `/page:${currentPageSlug}`;
         else if (currentView === 'template-landing' && currentTemplateSlug) path = `/templates/${currentTemplateSlug}`;
         else if (currentView === 'editor') path = activeTemplateId ? `/editor?template=${activeTemplateId}` : '/editor';
@@ -784,6 +807,10 @@ const App = () => {
                 setCurrentView('terms-of-service');
                 setCurrentPageSlug('');
                 setCurrentTemplateSlug('');
+            } else if (path === '/non-agricultural' || path === '/non-agricultural/') {
+                setCurrentView('page');
+                setCurrentPageSlug('non-agricultural');
+                setCurrentTemplateSlug('');
             } else if (path.startsWith('/templates/')) {
                 setCurrentView('template-landing');
                 setCurrentPageSlug('');
@@ -917,8 +944,9 @@ const App = () => {
                 setCurrentView('page');
                 setCurrentPageSlug(target.slug);
                 setCurrentTemplateSlug('');
-                if (window.location.pathname !== '/') {
-                    window.history.pushState({ view: 'page', slug: target.slug }, '', '/');
+                const targetUrl = target.slug === 'non-agricultural' ? '/non-agricultural' : '/';
+                if (window.location.pathname !== targetUrl) {
+                    window.history.pushState({ view: 'page', slug: target.slug }, '', targetUrl);
                 }
             } else if (target.view === 'privacy-policy') {
                 setCurrentView('privacy-policy');
@@ -971,6 +999,17 @@ const App = () => {
         viewHistoryRef.current.push(currentSnapshot);
         if (viewHistoryRef.current.length > 50) {
             viewHistoryRef.current.shift();
+        }
+
+        if (url === '/non-agricultural' || url === 'non-agricultural' || url === 'page:non-agricultural' || url === '/page:non-agricultural') {
+            setCurrentView('page');
+            setCurrentPageSlug('non-agricultural');
+            setCurrentTemplateSlug('');
+            if (window.location.pathname !== '/non-agricultural') {
+                window.history.pushState({ view: 'page', slug: 'non-agricultural' }, '', '/non-agricultural');
+            }
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            return;
         }
 
         if (url === '/privacy-policy' || url === 'privacy-policy') {
@@ -1047,13 +1086,29 @@ const App = () => {
 
     useEffect(() => {
         try {
-            if (currentView) {
-                localStorage.setItem('currentView', currentView);
+            if (currentView === 'editor') {
+                localStorage.setItem('currentView', 'editor');
+            } else {
+                localStorage.removeItem('currentView');
             }
+            // Always purge any stale slug keys
+            localStorage.removeItem('currentPageSlug');
+            localStorage.removeItem('currentTemplateSlug');
+            localStorage.removeItem('pageSlug');
         } catch (e) { }
     }, [currentView]);
 
     useEffect(() => {
+        try {
+            // Clean up any legacy or stale navigation state keys from earlier versions
+            if (localStorage.getItem('currentView') !== 'editor') {
+                localStorage.removeItem('currentView');
+            }
+            localStorage.removeItem('currentPageSlug');
+            localStorage.removeItem('currentTemplateSlug');
+            localStorage.removeItem('pageSlug');
+        } catch (e) { }
+
         const savedTemplates = localStorage.getItem('customTemplates');
         const savedRole = localStorage.getItem('appRole');
         if (savedTemplates) { try { setTemplates(JSON.parse(savedTemplates)); } catch (e) { } }

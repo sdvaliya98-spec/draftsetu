@@ -95,6 +95,35 @@ def seed_database():
                             <p class="font-bold text-blue-950">DraftSetu અરજી સહાય:</p>
                             <p class="text-blue-900">તમે અમારા દસ્તાવેજ પ્રવાહનો ઉપયોગ કરીને સંબંધિત સોગંદનામા અને અરજી પત્રકો ઓટોમેટેડ રીતે જનરેટ કરી શકો છો.</p>
                         </div>
+
+                        <!-- Professional Advocate Support Card -->
+                        <div class="mt-8 border border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50/40 rounded-2xl p-6 shadow-sm">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
+                                <div class="space-y-1.5">
+                                    <div class="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-900 rounded-full text-xs font-bold uppercase tracking-wider">
+                                        <span>⚖️</span>
+                                        <span>કાનૂની સહાય • Legal Assistance</span>
+                                    </div>
+                                    <h3 class="text-xl font-black text-slate-800">
+                                        બિનખેતી (NA) માટે કાનૂની સહાય
+                                    </h3>
+                                    <p class="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                                        Legal Assistance for Non-Agricultural (NA) Land
+                                    </p>
+                                    <div class="pt-2 text-sm text-slate-700 font-semibold space-y-0.5">
+                                        <p class="text-base font-black text-blue-950">Advocate Prakash Solanki</p>
+                                        <p class="text-xs text-slate-500 font-medium">અમદાવાદ • Ahmedabad</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex-shrink-0 pt-2 sm:pt-0">
+                                    <a href="tel:7861029433" class="inline-flex items-center justify-center gap-2.5 px-6 py-3.5 bg-blue-900 hover:bg-blue-800 active:scale-95 text-white font-bold rounded-xl shadow-md transition-all text-sm w-full sm:w-auto no-underline">
+                                        <span class="text-base">📞</span>
+                                        <span class="font-sans font-black tracking-wide">7861029433</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 """
             },

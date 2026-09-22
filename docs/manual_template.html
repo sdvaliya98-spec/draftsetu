@@ -10,7 +10,7 @@
     <style>
         @page {
             size: A4;
-            margin: 15mm 14mm 15mm 14mm;
+            margin: 14mm 13mm 14mm 13mm;
             @top-center {
                 content: "DraftSetu – Document Creation User Manual | દસ્તાવેજ નિર્માણ માર્ગદર્શિકા";
                 font-family: 'Plus Jakarta Sans', 'Noto Sans Gujarati', sans-serif;
@@ -52,11 +52,11 @@
         body {
             font-family: 'Noto Sans Gujarati', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             color: #1e293b;
-            line-height: 1.52;
+            line-height: 1.5;
             margin: 0;
             padding: 0;
             background-color: #ffffff;
-            font-size: 9.2pt;
+            font-size: 9pt;
         }
 
         .cover-page {
@@ -65,7 +65,7 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            padding: 38mm 25mm 28mm 25mm;
+            padding: 36mm 24mm 26mm 24mm;
             background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
             color: #ffffff;
             position: relative;
@@ -96,7 +96,7 @@
             border: 1px solid rgba(255, 255, 255, 0.2);
             padding: 8px 18px;
             border-radius: 9999px;
-            margin-bottom: 25px;
+            margin-bottom: 22px;
         }
 
         .cover-logo-text {
@@ -109,7 +109,7 @@
 
         .cover-title {
             font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 26pt;
+            font-size: 25pt;
             font-weight: 800;
             line-height: 1.2;
             margin: 0 0 10px 0;
@@ -118,30 +118,30 @@
         }
 
         .cover-subtitle {
-            font-size: 16.5pt;
+            font-size: 16pt;
             font-weight: 700;
             color: #38bdf8;
-            margin: 0 0 20px 0;
+            margin: 0 0 18px 0;
             line-height: 1.4;
         }
 
         .cover-desc {
-            font-size: 10.5pt;
+            font-size: 10pt;
             color: #94a3b8;
             max-width: 540px;
             line-height: 1.6;
-            margin-bottom: 35px;
+            margin-bottom: 30px;
         }
 
         .cover-meta-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 14px;
+            gap: 12px;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 14px;
-            padding: 18px;
-            margin-bottom: 30px;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 25px;
         }
 
         .meta-item-label {
@@ -150,11 +150,11 @@
             letter-spacing: 1px;
             color: #94a3b8;
             font-weight: 700;
-            margin-bottom: 4px;
+            margin-bottom: 3px;
         }
 
         .meta-item-value {
-            font-size: 10pt;
+            font-size: 9.8pt;
             color: #ffffff;
             font-weight: 600;
         }
@@ -162,7 +162,7 @@
         .cover-footer {
             z-index: 2;
             border-top: 1px solid rgba(255, 255, 255, 0.15);
-            padding-top: 18px;
+            padding-top: 16px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -172,7 +172,7 @@
 
         .manual-page {
             page-break-after: always;
-            height: 100%;
+            min-height: 100%;
             display: flex;
             flex-direction: column;
             justify-content: flex-start;
@@ -189,39 +189,39 @@
         }
 
         h1 {
-            font-size: 13.5pt;
+            font-size: 13pt;
             border-bottom: 2px solid #2563eb;
-            padding-bottom: 5px;
-            margin-bottom: 10px;
+            padding-bottom: 4px;
+            margin-bottom: 8px;
             display: flex;
             align-items: center;
             gap: 8px;
         }
 
         h2 {
-            font-size: 11pt;
+            font-size: 10.5pt;
             color: #1e40af;
-            margin-top: 12px;
-            margin-bottom: 6px;
+            margin-top: 10px;
+            margin-bottom: 5px;
         }
 
         h3 {
-            font-size: 9.5pt;
+            font-size: 9.2pt;
             color: #334155;
             margin-top: 8px;
             margin-bottom: 4px;
         }
 
         p {
-            margin: 0 0 6px 0;
-            line-height: 1.5;
+            margin: 0 0 5px 0;
+            line-height: 1.48;
         }
 
         .badge-step {
             background: #2563eb;
             color: #ffffff;
             font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 8pt;
+            font-size: 7.5pt;
             font-weight: 800;
             padding: 2px 7px;
             border-radius: 4px;
@@ -232,9 +232,9 @@
 
         .callout {
             border-radius: 8px;
-            padding: 8px 12px;
-            margin: 8px 0;
-            font-size: 8.8pt;
+            padding: 7px 11px;
+            margin: 7px 0;
+            font-size: 8.5pt;
             border-left: 4px solid;
             background: #f8fafc;
             page-break-inside: avoid;
@@ -276,16 +276,16 @@
             background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
             border: 1.5px solid #bfdbfe;
             border-radius: 10px;
-            padding: 10px 14px;
-            margin: 10px 0;
+            padding: 8px 12px;
+            margin: 8px 0;
             page-break-inside: avoid;
         }
 
         .workflow-title {
-            font-size: 9.5pt;
+            font-size: 9pt;
             font-weight: 800;
             color: #1e3a8a;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             display: flex;
             align-items: center;
             gap: 6px;
@@ -295,16 +295,16 @@
             display: flex;
             flex-wrap: wrap;
             align-items: center;
-            gap: 5px;
-            font-size: 8pt;
+            gap: 4px;
+            font-size: 7.8pt;
             font-weight: 700;
         }
 
         .wf-node {
             background: #ffffff;
             border: 1px solid #cbd5e1;
-            padding: 3px 7px;
-            border-radius: 6px;
+            padding: 3px 6px;
+            border-radius: 5px;
             color: #0f172a;
             box-shadow: 0 1px 2px rgba(0,0,0,0.04);
             white-space: nowrap;
@@ -318,7 +318,7 @@
 
         .wf-arrow {
             color: #94a3b8;
-            font-size: 9pt;
+            font-size: 8.5pt;
             font-weight: 800;
         }
 
@@ -326,15 +326,15 @@
             padding-left: 0;
             list-style: none;
             counter-reset: step-counter;
-            margin: 8px 0;
+            margin: 6px 0;
         }
 
         .step-list li {
             counter-increment: step-counter;
             position: relative;
-            padding-left: 28px;
-            margin-bottom: 6px;
-            font-size: 8.8pt;
+            padding-left: 26px;
+            margin-bottom: 5px;
+            font-size: 8.6pt;
             line-height: 1.45;
         }
 
@@ -343,23 +343,23 @@
             position: absolute;
             left: 0;
             top: 0;
-            width: 20px;
-            height: 20px;
+            width: 19px;
+            height: 19px;
             background: #e0e7ff;
             color: #3730a3;
             font-weight: 800;
             font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 8pt;
+            font-size: 7.8pt;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            line-height: 20px;
+            line-height: 19px;
             text-align: center;
         }
 
         .screenshot-container {
-            margin: 8px 0;
+            margin: 7px 0;
             border: 1px solid #cbd5e1;
             border-radius: 8px;
             overflow: hidden;
@@ -371,14 +371,14 @@
         .screenshot-container img {
             width: 100%;
             display: block;
-            max-height: 200px;
+            max-height: 180px;
             object-fit: contain;
             background: #ffffff;
         }
 
         .screenshot-caption {
             background: #f1f5f9;
-            padding: 4px 10px;
+            padding: 3px 9px;
             font-size: 7.2pt;
             color: #475569;
             font-weight: 600;
@@ -394,7 +394,7 @@
             border: 1px solid #cbd5e1;
             border-radius: 4px;
             padding: 1px 4px;
-            font-size: 7.2pt;
+            font-size: 7pt;
             font-weight: 700;
             color: #0f172a;
         }
@@ -402,8 +402,8 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            margin: 8px 0;
-            font-size: 8.2pt;
+            margin: 7px 0;
+            font-size: 8pt;
             page-break-inside: avoid;
         }
 
@@ -412,12 +412,12 @@
             color: #0f172a;
             font-weight: 700;
             text-align: left;
-            padding: 5px 7px;
+            padding: 4px 6px;
             border: 1px solid #cbd5e1;
         }
 
         td {
-            padding: 5px 7px;
+            padding: 4px 6px;
             border: 1px solid #cbd5e1;
             vertical-align: top;
         }
@@ -429,19 +429,19 @@
         .toc-grid {
             display: grid;
             grid-template-columns: 1fr;
-            gap: 5px;
-            margin: 10px 0;
+            gap: 4px;
+            margin: 8px 0;
         }
 
         .toc-item {
             display: flex;
             justify-content: space-between;
             align-items: baseline;
-            padding: 4px 8px;
+            padding: 3px 7px;
             background: #f8fafc;
-            border-radius: 6px;
+            border-radius: 5px;
             border: 1px solid #e2e8f0;
-            font-size: 8.8pt;
+            font-size: 8.5pt;
         }
 
         .toc-title {
@@ -450,33 +450,33 @@
         }
 
         .toc-subtitle {
-            font-size: 7.8pt;
+            font-size: 7.5pt;
             color: #64748b;
-            margin-left: 6px;
+            margin-left: 5px;
         }
 
         .toc-num {
             font-weight: 800;
             color: #2563eb;
             font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 8.2pt;
+            font-size: 8pt;
         }
 
         .checklist-item {
             display: flex;
             align-items: flex-start;
-            gap: 8px;
-            padding: 5px 8px;
+            gap: 7px;
+            padding: 4px 7px;
             background: #ffffff;
             border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            margin-bottom: 4px;
-            font-size: 8.8pt;
+            border-radius: 5px;
+            margin-bottom: 3px;
+            font-size: 8.5pt;
         }
 
         .check-box {
-            width: 13px;
-            height: 13px;
+            width: 12px;
+            height: 12px;
             border: 2px solid #3b82f6;
             border-radius: 3px;
             margin-top: 2px;
@@ -487,9 +487,9 @@
             background: #f8fafc;
             border: 1px solid #cbd5e1;
             border-radius: 8px;
-            padding: 10px 12px;
-            margin-top: 10px;
-            font-size: 8.2pt;
+            padding: 9px 11px;
+            margin-top: 8px;
+            font-size: 8pt;
             color: #475569;
             line-height: 1.45;
             page-break-inside: avoid;
@@ -508,7 +508,7 @@
             <h1 class="cover-title">Document Creation<br>User Manual</h1>
             <div class="cover-subtitle">દસ્તાવેજ કેવી રીતે બનાવવો? સંપૂર્ણ માર્ગદર્શિકા</div>
             <div class="cover-desc">
-                ડ્રાફ્ટસેતુ પ્લેટફોર્મ પર લોગિનથી લઈને દસ્તાવેજ પસંદગી, ડેટા એન્ટ્રી, લાઈવ પ્રિવ્યૂ, વોટરમાર્ક્ડ પીડીએફ વેરિફિકેશન, ક્રેડિટ્સ અને ફાઇનલ અધિકૃત DOCX/PDF ડાઉનલોડ સુધીની સ્ટેપ-બાય-સ્ટેપ સંપૂર્ણ માર્ગદર્શિકા.
+                ડ્રાફ્ટસેતુ પ્લેટફોર્મ પર લોગિનથી લઈને દસ્તાવેજ પસંદગી, ડેટા એન્ટ્રી, રીપીટર ગ્રુપ્સ, સેવ ડ્રાફ્ટ અને સેશન રિકવરી, લાઈવ પ્રિવ્યૂ, વોટરમાર્ક્ડ પીડીએફ વેરિફિકેશન, ક્રેડિટ્સ અને ફાઇનલ અધિકૃત DOCX/PDF ડાઉનલોડ સુધીની સ્ટેપ-બાય-સ્ટેપ સંપૂર્ણ માર્ગદર્શિકા.
             </div>
 
             <div class="cover-meta-grid">
@@ -522,7 +522,7 @@
                 </div>
                 <div>
                     <div class="meta-item-label">Manual Version & Release</div>
-                    <div class="meta-item-value">v1.0 (September 2026 Edition)</div>
+                    <div class="meta-item-value">v2.0 (Production Edition • Commit 3e1571b)</div>
                 </div>
                 <div>
                     <div class="meta-item-label">Official Support</div>
@@ -532,8 +532,8 @@
         </div>
 
         <div class="cover-footer">
-            <div>© 2026 DraftSetu. All Rights Reserved.</div>
-            <div>Official User Documentation</div>
+            <div>© 2026 DraftSetu (https://draftsetu.in). All Rights Reserved.</div>
+            <div>Official Production User Documentation</div>
         </div>
     </div>
 
@@ -547,11 +547,11 @@
                 <span class="toc-num">વિભાગ ૧</span>
             </div>
             <div class="toc-item">
-                <div><span class="toc-title">૨. સાઇન-અપ અને લોગિન પ્રક્રિયા</span> <span class="toc-subtitle">(Signup & Login Flow)</span></div>
+                <div><span class="toc-title">૨. સાઇન-અપ અને લોગિન પ્રક્રિયા</span> <span class="toc-subtitle">(Signup, Login & Security)</span></div>
                 <span class="toc-num">વિભાગ ૨</span>
             </div>
             <div class="toc-item">
-                <div><span class="toc-title">૩. હોમ પેજ અને દસ્તાવેજ શોધ</span> <span class="toc-subtitle">(Home Page & Document Search)</span></div>
+                <div><span class="toc-title">૩. હોમ પેજ અને સર્વિસ શોધ</span> <span class="toc-subtitle">(Home Page & Document Search)</span></div>
                 <span class="toc-num">વિભાગ ૩</span>
             </div>
             <div class="toc-item">
@@ -559,7 +559,7 @@
                 <span class="toc-num">વિભાગ ૪</span>
             </div>
             <div class="toc-item">
-                <div><span class="toc-title">૫. Step 2 – Data Input અને ફોર્મ ફીલ્ડ્સ</span> <span class="toc-subtitle">(Form Fields & Gujarati Input)</span></div>
+                <div><span class="toc-title">૫. Step 2 – Data Input અને ગુજરાતી ટાઇપિંગ</span> <span class="toc-subtitle">(Form Fields & Validation)</span></div>
                 <span class="toc-num">વિભાગ ૫</span>
             </div>
             <div class="toc-item">
@@ -579,33 +579,37 @@
                 <span class="toc-num">વિભાગ ૯</span>
             </div>
             <div class="toc-item">
-                <div><span class="toc-title">૧૦. Draft Save અને 10-Document Limit</span> <span class="toc-subtitle">(Draft Save & 10-Document Limit)</span></div>
+                <div><span class="toc-title">૧૦. Save Draft, સેશન આઇસોલેશન અને રિકવરી</span> <span class="toc-subtitle">(Draft Lifecycle & Refresh Recovery)</span></div>
                 <span class="toc-num">વિભાગ ૧૦</span>
             </div>
             <div class="toc-item">
-                <div><span class="toc-title">૧૧. Final Lock / Finalize અને ક્રેડિટ્સ પ્રક્રિયા</span> <span class="toc-subtitle">(Final Lock, Credits & Wallet)</span></div>
+                <div><span class="toc-title">૧૧. New Document અને સ્વતંત્ર સેશન્સ</span> <span class="toc-subtitle">(New Document Session Reset)</span></div>
                 <span class="toc-num">વિભાગ ૧૧</span>
             </div>
             <div class="toc-item">
-                <div><span class="toc-title">૧૨. અંતિમ સ્વચ્છ DOCX / PDF ડાઉનલોડ</span> <span class="toc-subtitle">(Final Clean Document Generation)</span></div>
+                <div><span class="toc-title">૧૨. 10-Document Limit અને Custom Popup Dialog</span> <span class="toc-subtitle">(10-Document Limit & Storage Rules)</span></div>
                 <span class="toc-num">વિભાગ ૧૨</span>
             </div>
             <div class="toc-item">
-                <div><span class="toc-title">૧૩. My Documents / દસ્તાવેજ ફોલ્ડર</span> <span class="toc-subtitle">(Accessing Previously Created Documents)</span></div>
+                <div><span class="toc-title">૧૩. Final Lock / Finalize અને ક્રેડિટ્સ કપાત</span> <span class="toc-subtitle">(Dynamic Cost & Wallet Deduction)</span></div>
                 <span class="toc-num">વિભાગ ૧૩</span>
             </div>
             <div class="toc-item">
-                <div><span class="toc-title">૧૪. ભૂલો સુધારવી અને સાવચેતીઓની ચેકલિસ્ટ</span> <span class="toc-subtitle">(Pre-Finalize Checklist & Common Errors)</span></div>
+                <div><span class="toc-title">૧૪. અંતિમ સ્વચ્છ DOCX / PDF ડાઉનલોડ</span> <span class="toc-subtitle">(Final Clean Document Generation)</span></div>
                 <span class="toc-num">વિભાગ ૧૪</span>
             </div>
             <div class="toc-item">
-                <div><span class="toc-title">૧૫. સહાય કેન્દ્ર અને સંપર્ક</span> <span class="toc-subtitle">(Help Center & Customer Support)</span></div>
+                <div><span class="toc-title">૧૫. My Documents Vault અને ડ્રાફ્ટ એડિટ</span> <span class="toc-subtitle">(Managing Vault & Edit Draft)</span></div>
                 <span class="toc-num">વિભાગ ૧૫</span>
+            </div>
+            <div class="toc-item">
+                <div><span class="toc-title">૧૬. સાવચેતીઓની ચેકલિસ્ટ, FAQ અને સપોર્ટ</span> <span class="toc-subtitle">(Pre-Finalize Checklist & Support)</span></div>
+                <span class="toc-num">વિભાગ ૧૬</span>
             </div>
         </div>
 
         <div class="legal-box">
-            <div style="font-weight: 800; color: #1e293b; margin-bottom: 4px; font-size: 8.8pt;">⚠️ કાનૂની અસ્વીકરણ / Legal Notice</div>
+            <div style="font-weight: 800; color: #1e293b; margin-bottom: 3px; font-size: 8.5pt;">⚠️ કાનૂની અસ્વીકરણ / Legal Notice</div>
             <p><strong>ગુજરાતી:</strong> DraftSetu દસ્તાવેજ ડ્રાફ્ટિંગ અને ઓટોમેશન પ્લેટફોર્મ છે. દસ્તાવેજ Finalize કરતા પહેલાં, સહી કરતા પહેલાં અથવા સત્તાવાર ઉપયોગ કરતાં પહેલાં તેમાં દર્શાવેલી તમામ માહિતીની કાળજીપૂર્વક ચકાસણી કરવી વપરાશકર્તાની જવાબદારી છે. જરૂરી હોય ત્યારે યોગ્ય કાનૂની નિષ્ણાતની સલાહ લેવી.</p>
             <p style="margin-bottom: 0;"><strong>English:</strong> DraftSetu is a document drafting and automation platform. Users should carefully verify all information in a generated document before finalization, signing, filing, registration or official use. Where appropriate, users should obtain professional legal advice.</p>
         </div>
@@ -615,13 +619,13 @@
     <div class="manual-page">
         <h1><span class="badge-step">વિભાગ ૧</span> DraftSetu નો પરિચય (Introduction & Complete Workflow)</h1>
         <p>
-            <strong>DraftSetu (ડ્રાફ્ટસેતુ)</strong> એ ગુજરાતના મહેસૂલી, કાનૂની અને સોગંદનામા દસ્તાવેજોને સરળ, સચોટ અને ઝડપી રીતે તૈયાર કરવા માટેનું અદ્યતન દસ્તાવેજ ઓટોમેશન પ્લેટફોર્મ છે.
+            <strong>DraftSetu (ડ્રાફ્ટસેતુ)</strong> એ ગુજરાતના મહેસૂલી, કાનૂની, સોગંદનામા અને સ્ટેમ્પ ડ્રાફ્ટિંગ દસ્તાવેજોને સરળ, સચોટ અને ઝડપી રીતે તૈયાર કરવા માટેનું અદ્યતન દસ્તાવેજ ઓટોમેશન પ્લેટફોર્મ છે.
         </p>
 
         <!-- Complete End-to-End Workflow Diagram Box -->
         <div class="workflow-box">
             <div class="workflow-title">
-                <span>🔄</span> Complete Document Creation Workflow (સંપૂર્ણ દસ્તાવેજ નિર્માણ પ્રક્રિયા)
+                <span>🔄</span> Complete Document Creation Lifecycle (સંપૂર્ણ દસ્તાવેજ નિર્માણ પ્રક્રિયા)
             </div>
             <div class="workflow-steps-flex">
                 <span class="wf-node active">📄 Document Selection</span>
@@ -630,27 +634,23 @@
                 <span class="wf-arrow">➔</span>
                 <span class="wf-node">👁️ Live Preview</span>
                 <span class="wf-arrow">➔</span>
-                <span class="wf-node">💾 Save Draft</span>
+                <span class="wf-node">💾 Save Draft (0 Credits)</span>
                 <span class="wf-arrow">➔</span>
-                <span class="wf-node">📑 PDF Preview</span>
+                <span class="wf-node">📑 PDF Preview (Watermarked)</span>
                 <span class="wf-arrow">➔</span>
-                <span class="wf-node">🔍 Review & Correction</span>
-                <span class="wf-arrow">➔</span>
-                <span class="wf-node">💳 Credits / Wallet</span>
+                <span class="wf-node">🪙 Wallet Check</span>
                 <span class="wf-arrow">➔</span>
                 <span class="wf-node">🔒 Final Lock</span>
                 <span class="wf-arrow">➔</span>
-                <span class="wf-node">📄 Final DOCX / PDF</span>
-                <span class="wf-arrow">➔</span>
-                <span class="wf-node">📁 My Documents</span>
+                <span class="wf-node">📄 Clean DOCX / PDF Download</span>
             </div>
         </div>
 
-        <div class="callout callout-info" style="margin: 6px 0;">
+        <div class="callout callout-info" style="margin: 5px 0;">
             <div class="callout-title">💡 DraftSetu ની મુખ્ય વિશેષતાઓ:</div>
-            • <strong>DOCX Template Engine:</strong> ૧૦૦% શુદ્ધ માઇક્રોસોફ્ટ વર્ડ આધારિત પ્રોફેશનલ ફોર્મેટિંગ.<br>
+            • <strong>DOCX Engine:</strong> શુદ્ધ માઇક્રોસોફ્ટ વર્ડ આધારિત પ્રોફેશનલ ફોર્મેટિંગ અને ડાઉનલોડ.<br>
             • <strong>Live Synchronization:</strong> ફોર્મમાં ડેટા લખતાની સાથે જ જમણી બાજુ લાઈવ પ્રિવ્યૂમાં ત્વરિત અપડેટ.<br>
-            • <strong>Repeater Groups:</strong> એક કરતાં વધુ પક્ષકારો, વારસદારો કે મિલકતોની વિગતો સરળતાથી ઉમેરો.<br>
+            • <strong>Session Isolation & Recovery:</strong> બ્રાઉઝર રિફ્રેશ કે અકસ્માતે બંધ થવા પર પણ ડ્રાફ્ટ આપમેળે રિકવર થાય છે.<br>
             • <strong>Bilingual Gujarati Support:</strong> ગુજરાતી યુનિકોડમાં સરળ ટાઈપિંગ અને સચોટ પ્રિન્ટિંગ.
         </div>
 
@@ -663,13 +663,13 @@
             <img src="manual_assets/03_login_auth_modal.png" alt="DraftSetu Login Modal">
             <div class="screenshot-caption">
                 <span>સ્ક્રીનશોટ ૧: DraftSetu અધિકૃત Login / Registration મોડલ</span>
-                <span class="kbd">GovHeader → Log In / Register</span>
+                <span class="kbd">Header → Log In / Register</span>
             </div>
         </div>
 
         <ol class="step-list">
             <li>ઉપરની હેડર પટ્ટીમાં આવેલા <strong>Log In / Register</strong> બટન પર ક્લિક કરો.</li>
-            <li>નવા વપરાશકર્તા માટે <strong>Sign Up</strong> ટેબ પસંદ કરી નામ, ઈમેલ, મોબાઈલ અને પાસવર્ડ દાખલ કરો. (નોંધણી પર ૧૦૦ ફ્રી ક્રેડિટ્સ મળે છે).</li>
+            <li>નવા વપરાશકર્તા માટે <strong>Sign Up</strong> ટેબ પસંદ કરી નામ, ઈમેલ, મોબાઈલ અને પાસવર્ડ દાખલ કરો. (નોંધણી પર ૧૦૦ ફ્રી ક્રેડિટ્સ બોનસ મળે છે).</li>
             <li>હયાત એકાઉન્ટ માટે <strong>Log In</strong> ટેબમાં વિગતો દાખલ કરી <strong>Log In</strong> બટન દબાવો.</li>
         </ol>
     </div>
@@ -704,7 +704,7 @@
 
         <ol class="step-list">
             <li>હેડરમાં આવેલા <strong>DOCUMENT SERVICES</strong> મેનૂ પર ક્લિક કરી સોગંદનામા, પાવર ઓફ એટર્ની કે કરાર પસંદ કરો.</li>
-            <li>અથવા એડિટર પેજમાં ડાબી બાજુ ટોચ પર આવેલા <strong>Template Selector</strong> માંથી સીધું ટેમ્પલેટ પસંદ કરો.</li>
+            <li>અથવા એડિટર પેજમાં ડાબી બાજુ ટોચ પર આવેલા <strong>Template Selector</strong> (<span class="kbd">#template-selector</span>) માંથી સીધું ટેમ્પલેટ પસંદ કરો.</li>
         </ol>
     </div>
 
@@ -716,7 +716,7 @@
         </p>
 
         <div class="screenshot-container">
-            <img src="manual_assets/05_editor_workspace_overview.png" alt="Editor Workspace Form and Preview">
+            <img src="manual_assets/04_editor_workspace_overview.png" alt="Editor Workspace Form and Preview">
             <div class="screenshot-caption">
                 <span>સ્ક્રીનશોટ ૪: એડિટર વર્કસ્પેસ – ડાબી બાજુ ફોર્મ ઇનપુટ્સ અને જમણી બાજુ લાઈવ પ્રિવ્યૂ</span>
                 <span class="kbd">Editor Workspace Layout</span>
@@ -746,12 +746,12 @@
                 <tr>
                     <td><strong>Date Field</strong></td>
                     <td>દસ્તાવેજની તારીખ, સોગંદનામા તારીખ</td>
-                    <td>કેલેન્ડરમાંથી યોગ્ય તારીખ પસંદ કરો.</td>
+                    <td>Flatpickr કેલેન્ડરમાંથી યોગ્ય તારીખ પસંદ કરો.</td>
                 </tr>
                 <tr>
                     <td><strong>Format Validation</strong></td>
                     <td>આધાર કાર્ડ, પાન કાર્ડ, મોબાઈલ નંબર</td>
-                    <td>આધાર ૧૨ અંક અને મોબાઈલ ૧૦ અંકનો જ માન્ય ગણાશે.</td>
+                    <td>આધાર ૧૨ અંક, પાન ૧૦ અક્ષર અને મોબાઈલ ૧૦ અંકનો જ માન્ય ગણાશે.</td>
                 </tr>
             </tbody>
         </table>
@@ -770,15 +770,15 @@
         </p>
 
         <div class="screenshot-container">
-            <img src="manual_assets/07_repeater_and_form_controls.png" alt="Repeater Form Controls">
+            <img src="manual_assets/05_repeater_and_form_controls.png" alt="Repeater Form Controls">
             <div class="screenshot-caption">
-                <span>સ્ક્રીનશોટ ૫: રીપીટર ગ્રૂપ કંટ્રોલ્સ – Add Row, Duplicate, Copy All, Delete</span>
+                <span>સ્ક્રીનશોટ ૫: રીપીટર ગ્રૂપ કંટ્રોલ્સ – Add Row, Duplicate, Copy All, Delete Row</span>
                 <span class="kbd">Form Panel → Repeater Controls</span>
             </div>
         </div>
 
         <p style="font-size: 8.2pt; margin-bottom: 6px;">
-            • <strong>+ Add Row:</strong> નવો પક્ષકાર ઉમેરો • <strong>Duplicate:</strong> વિગતો નકલ કરો • <strong>Copy All:</strong> બધું કોપી કરો • <strong>Delete:</strong> પંક્તિ કાઢી નાખો.
+            • <strong>+ Add Row:</strong> નવો પક્ષકાર/રો ઉમેરો • <strong>Duplicate:</strong> વિગતો નકલ કરો • <strong>Copy All:</strong> તમામ વિગતો કોપી કરો • <strong>Delete:</strong> પંક્તિ કાઢી નાખો.
         </p>
 
         <h1><span class="badge-step">વિભાગ ૭</span> લાઈવ સિન્ક અને હાઇલાઇટ (Live Sync & Highlights)</h1>
@@ -787,7 +787,7 @@
         </p>
 
         <div class="screenshot-container">
-            <img src="manual_assets/08_live_preview_sync.png" alt="Live Sync Header Controls">
+            <img src="manual_assets/06_live_preview_sync.png" alt="Live Sync Header Controls">
             <div class="screenshot-caption">
                 <span>સ્ક્રીનશોટ ૬: Highlight Variables, Live Sync ટોગલ સ્વિચ અને Sync Preview બટન</span>
                 <span class="kbd">Preview Panel Header</span>
@@ -811,137 +811,208 @@
         <div class="callout callout-warning">
             <div class="callout-title">🔒 Protected Document Preview Notice:</div>
             <strong>"Preview only. Final document is available after Finalize. / આ માત્ર પ્રિવ્યૂ છે. અંતિમ દસ્તાવેજ Finalize કર્યા પછી ઉપલબ્ધ થશે."</strong><br>
-            પ્રિવ્યૂ પેનલમાં ટેક્સ્ટ સિલેક્શન, રાઈટ-ક્લિક કોપી અને માઉસ ડ્રેગિંગ સુરક્ષાના કારણોસર અક્ષમ (Disabled) કરેલ છે.
+            પ્રિવ્યૂ પેનલમાં ટેક્સ્ટ સિલેક્શન, રાઈટ-ક્લિક કોપી અને અનધિકૃત ઉપયોગ સુરક્ષાના કારણોસર અક્ષમ (Disabled) કરેલ છે.
         </div>
 
         <h1><span class="badge-step">વિભાગ ૯</span> PDF Preview અને વોટરમાર્કનો અર્થ (Watermarked Preview)</h1>
         <p>
-            દસ્તાવેજ પ્રિન્ટમાં કેવો દેખાશે, માર્જિન અને ફોન્ટ કેવા બેઠા છે તે જોવા માટે <strong>📄 PDF Preview (પૂર્વદર્શન)</strong> બટન આપેલું છે.
+            દસ્તાવેજ પ્રિન્ટમાં કેવો દેખાશે, માર્જિન અને ફોન્ટ કેવા બેઠા છે તે જોવા માટે <strong>📄 PDF Preview (પૂર્વદર્શન)</strong> (<span class="kbd">#btn-pdf-preview-actions</span>) બટન આપેલું છે.
         </p>
 
         <div class="screenshot-container">
-            <img src="manual_assets/09_pdf_preview_modal.png" alt="PDF Preview Modal">
+            <img src="manual_assets/07_pdf_preview_modal.png" alt="PDF Preview Modal">
             <div class="screenshot-caption">
                 <span>સ્ક્રીનશોટ ૭: PDF Preview મોડલ – કેન્દ્રમાં ૪૫ ડીગ્રી પર વોટરમાર્ક સાથેનું વેરિફિકેશન</span>
-                <span class="kbd">PDF Preview Modal</span>
+                <span class="kbd">PDF Preview Modal (#btn-pdf-preview-close)</span>
             </div>
         </div>
 
         <div class="callout callout-important">
             <div class="callout-title">🏷️ PDF Preview વોટરમાર્ક અંગે ખાસ સ્પષ્ટતા:</div>
             પીડીએફ પ્રિવ્યૂમાં દરેક પેજ પર નીચે મુજબનો વોટરમાર્ક અંકિત થયેલો હશે:<br>
-            <div style="font-family: 'Plus Jakarta Sans', monospace; font-weight: 800; text-align: center; padding: 4px; background: #fee2e2; border-radius: 6px; margin: 3px 0; color: #991b1b; font-size: 8.2pt;">
+            <div style="font-family: 'Plus Jakarta Sans', monospace; font-weight: 800; text-align: center; padding: 3px; background: #fee2e2; border-radius: 6px; margin: 3px 0; color: #991b1b; font-size: 8.2pt;">
                 "DRAFTSETU • PREVIEW COPY • NOT FOR OFFICIAL USE"
             </div>
             <strong>ગુજરાતી અર્થ:</strong> "આ PDF માત્ર પ્રિવ્યૂ અને ચકાસણી માટે છે. તે અંતિમ અધિકૃત દસ્તાવેજ નથી."<br>
-            આ પ્રિવ્યૂ કોપી કોઈપણ સરકારી કચેરી કે કોર્ટમાં રજૂ કરવા માટે માન્ય નથી. અંતિમ ક્લીન દસ્તાવેજ મેળવવા માટે દસ્તાવેજ Finalize કરવો ફરજિયાત છે.
+            આ પ્રિવ્યૂ કોપી કોઈપણ સરકારી કચેરી કે કોર્ટમાં રજૂ કરવા માટે માન્ય નથી. અંતિમ ક્લીન દસ્તાવેજ મેળવવા માટે દસ્તાવેજ Finalize / Final Lock કરવો જરૂરી છે.
         </div>
     </div>
 
-    <!-- ════════════════════ PAGE 8: DRAFT SAVE & 10-DOC LIMIT & FINAL LOCK ════════════════════ -->
+    <!-- ════════════════════ PAGE 8: DRAFT SAVE, SESSION RECOVERY & NEW DOC ════════════════════ -->
     <div class="manual-page">
-        <h1><span class="badge-step">વિભાગ ૧૦</span> Draft Save અને 10-Document Limit (Draft Save & 10-Document Limit)</h1>
+        <h1><span class="badge-step">વિભાગ ૧૦</span> Save Draft, સેશન આઇસોલેશન અને રિકવરી (Draft Lifecycle)</h1>
         <p>
-            જો તમે દસ્તાવેજ ભરવાનું કામ અધૂરું રાખવા માંગતા હો, તો <strong>સેવ ડ્રાફ્ટ (Save Draft)</strong> બટન પર ક્લિક કરો.
+            જો તમે દસ્તાવેજ ભરવાનું કામ અધૂરું રાખવા માંગતા હો અથવા ભરેલો ડેટા સુરક્ષિત કરવા માંગતા હો, તો <strong>સેવ ડ્રાફ્ટ (Save Draft)</strong> (<span class="kbd">#btn-save-draft</span>) બટન દબાવો.
         </p>
 
-        <div class="callout callout-success">
-            <div class="callout-title">💾 10-Document Limit Rule (દસ્તાવેજ સાચવવાની મર્યાદા):</div>
-            <p style="margin-bottom: 4px;">
-                <strong>ગુજરાતી:</strong> DraftSetu માં એક user એક સમયે વધુમાં વધુ 10 saved documents રાખી શકે છે. જો 10 documents પહેલેથી saved હોય, તો નવું document save કરવા માટે પહેલા કોઈ existing document delete કરવું જરૂરી છે. Document delete કર્યા પછી ખાલી થયેલી જગ્યા પર નવું document save કરી શકાય છે. Saved documents My Documents / Document Vault માંથી manage કરી શકાય છે.
-            </p>
-            <p style="margin-bottom: 0; font-size: 8.2pt; color: #047857;">
-                <strong>English:</strong> DraftSetu allows a user to keep a maximum of 10 saved documents at a time. If 10 documents are already saved, the user must delete an existing document before saving another document. Once a document is deleted, the available slot can be used to save a new document. Saved documents can be managed from My Documents / Document Vault.
-            </p>
+        <div class="screenshot-container">
+            <img src="manual_assets/08_save_draft_new_document.png" alt="Save Draft and New Document Controls">
+            <div class="screenshot-caption">
+                <span>સ્ક્રીનશોટ ૮: સેવ ડ્રાફ્ટ, નવું દસ્તાવેજ (New Document) અને ક્રેડિટ ખર્ચ નોટિસ</span>
+                <span class="kbd">FormPanel Actions (#btn-save-draft, #btn-new-document)</span>
+            </div>
         </div>
 
-        <h1><span class="badge-step">વિભાગ ૧૧</span> Final Lock / Finalize અને ક્રેડિટ્સ પ્રક્રિયા (Final Lock)</h1>
+        <div class="callout callout-success">
+            <div class="callout-title">💾 Draft Save ના મુખ્ય નિયમો અને ફાયદા:</div>
+            • <strong>0 Credits Consumed (ક્રેડિટ કપાત શૂન્ય):</strong> ડ્રાફ્ટ સેવ કરવાથી કોઈપણ ક્રેડિટ કપાતી નથી. ડ્રાફ્ટ ગમે તેટલી વાર એડિટ અને સેવ કરી શકાય છે.<br>
+            • <strong>Tracking ID ફાળવણી:</strong> પહેલી વાર ડ્રાફ્ટ સેવ કરતાં જ સિસ્ટમ યુનિક Tracking ID (જેમ કે <span class="kbd">DOC-XXXXXXXX</span>) ફાળવે છે.<br>
+            • <strong>Browser Refresh Recovery:</strong> જો બ્રાઉઝર રિફ્રેશ થાય કે અચાનક ટેબ બંધ થાય, તો DraftCacheManager સક્રિય ટેમ્પલેટ માટે ભરેલો ડેટા આપમેળે પાછો લાવી આપે છે.
+        </div>
+
+        <h1><span class="badge-step">વિભાગ ૧૧</span> New Document અને સ્વતંત્ર સેશન્સ (New Document)</h1>
         <p>
-            બધી વિગતો અને PDF Preview ની ચકાસણી થઈ ગયા પછી દસ્તાવેજને અંતિમ સ્વરૂપ આપવા માટે <strong>Final Lock</strong> બટન દબાવો.
+            જ્યારે તમારે જૂના ડ્રાફ્ટને બદલે એકદમ નવો દસ્તાવેજ બનાવવો હોય, ત્યારે <strong>નવું દસ્તાવેજ (New Document)</strong> (<span class="kbd">#btn-new-document</span>) બટન પર ક્લિક કરો.
+        </p>
+        <ol class="step-list">
+            <li><strong>સંપૂર્ણ ક્લીયર:</strong> New Document ક્લિક કરવાથી ફોર્મના તમામ ખાનાઓ ખાલી થઈ જશે અને Tracking ID <span class="kbd">null</span> થઈ જશે.</li>
+            <li><strong>સેશન આઇસોલેશન:</strong> જૂના ડ્રાફ્ટનો કોઈ ડેટા કે Tracking ID નવા દસ્તાવેજમાં મિક્સ થશે નહીં.</li>
+            <li><strong>સ્વતંત્ર ડ્રાફ્ટ્સ:</strong> તમે એકસાથે બહુવિધ અલગ-અલગ દસ્તાવેજોના ડ્રાફ્ટ્સ બનાવી શકો છો.</li>
+        </ol>
+    </div>
+
+    <!-- ════════════════════ PAGE 9: 10-DOCUMENT LIMIT & CUSTOM DIALOG ════════════════════ -->
+    <div class="manual-page">
+        <h1><span class="badge-step">વિભાગ ૧૨</span> 10-Document Limit અને Custom Popup Dialog</h1>
+        <p>
+            DraftSetu એકાઉન્ટમાં વપરાશકર્તાની સંગ્રહ મર્યાદા જાળવવા માટે ૧૦-દસ્તાવેજ મર્યાદા (10-Document Limit) અમલમાં છે.
+        </p>
+
+        <div class="screenshot-container">
+            <img src="manual_assets/09_10_document_limit_dialog.png" alt="10 Document Limit Custom Popup Dialog">
+            <div class="screenshot-caption">
+                <span>સ્ક્રીનશોટ ૯: DraftSetu Custom Popup Dialog – ૧૦ દસ્તાવેજ મર્યાદા ચેતવણી</span>
+                <span class="kbd">CustomDialog → 10-Document Limit Reached</span>
+            </div>
+        </div>
+
+        <div class="callout callout-warning">
+            <div class="callout-title">⚠️ 10-Document Limit નિયમ (દસ્તાવેજ સાચવવાની મર્યાદા):</div>
+            <p style="margin-bottom: 4px;">
+                <strong>ગુજરાતી:</strong> DraftSetu માં એક user એક સમયે વધુમાં વધુ 10 saved documents રાખી શકે છે. જો 10 documents પહેલેથી saved હોય અને ૧૧મો ડ્રાફ્ટ સેવ કરવાનો પ્રયત્ન થાય, તો સિસ્ટમ નીચે મુજબનો કસ્ટમ ડાયલોગ પ્રદર્શિત કરે છે:
+            </p>
+            <div style="background: #ffffff; border: 1px solid #fcd34d; border-radius: 6px; padding: 6px 10px; margin: 4px 0; font-size: 8.2pt;">
+                <strong>Title:</strong> 10-Document Limit Reached<br>
+                <strong>Message:</strong> "તમારા accountમાં maximum 10 saved documents રાખી શકાય છે."<br>
+                <strong>Secondary:</strong> "નવું document save કરવા માટે જૂના દસ્તાવેજો My Documents માંથી delete કરો અથવા Finalize કરો."
+            </div>
+            <p style="margin-bottom: 0; font-size: 8pt; color: #92400e;">
+                <strong>English:</strong> DraftSetu allows a user to keep a maximum of 10 saved documents at a time. If 10 documents are already saved, the user must delete an existing document from My Documents before saving another document. Once a document is deleted, the available slot can be used to save a new document.
+            </p>
+        </div>
+    </div>
+
+    <!-- ════════════════════ PAGE 10: FINAL LOCK, CREDITS & WALLET DEDUCTION ════════════════════ -->
+    <div class="manual-page">
+        <h1><span class="badge-step">વિભાગ ૧૩</span> Final Lock / Finalize અને ક્રેડિટ્સ કપાત પ્રક્રિયા</h1>
+        <p>
+            બધી વિગતો અને PDF Preview ની ચકાસણી થઈ ગયા પછી દસ્તાવેજને અંતિમ સ્વરૂપ આપવા માટે <strong>ફાઈનલ લોક કરો (Final Lock)</strong> (<span class="kbd">#btn-final-lock</span>) બટન દબાવો.
         </p>
 
         <div class="screenshot-container">
             <img src="manual_assets/13_wallet_credits_dashboard.png" alt="Wallet Credits Dashboard">
             <div class="screenshot-caption">
-                <span>સ્ક્રીનશોટ ૮: વૉલેટ અને ક્રેડિટ્સ ડેશબોર્ડ – ક્રેડિટ બેલેન્સ અને રિચાર્જ પ્લાન</span>
+                <span>સ્ક્રીનશોટ ૧૦: વૉલેટ અને ક્રેડિટ્સ ડેશબોર્ડ – ક્રેડિટ હિસાબ અને ઓનલાઇન રિચાર્જ</span>
                 <span class="kbd">Header → Wallet & Credits</span>
             </div>
         </div>
 
-        <h3>Final Lock પ્રક્રિયાના મહત્વના નિયમો:</h3>
+        <div class="callout callout-important">
+            <div class="callout-title">🪙 ક્રેડિટ્સ કપાત અંગે મહત્વનો નિયમ (Important Credit Rule):</div>
+            <p style="margin-bottom: 4px;">
+                <strong>ગુજરાતી:</strong> "Final Lock વખતે લાગતા credits હાલમાં લાગુ document/template અને account configuration મુજબ દર્શાવવામાં આવે છે. Final Lock કરતાં પહેલાં Wallet/Credits sectionમાં દેખાતી current credit requirement ચકાસો."
+            </p>
+            <p style="margin-bottom: 0; font-size: 8.2pt; color: #7f1d1d;">
+                <strong>English:</strong> "The credits required for Final Lock are determined by the current document/template/account configuration. Check the displayed Wallet/Credits requirement before confirming Final Lock."
+            </p>
+        </div>
+
+        <h3>Final Lock પ્રક્રિયાના મહત્વના મુદ્દા:</h3>
         <ol class="step-list">
-            <li><strong>ક્રેડિટ્સ ખર્ચ (Credit Cost):</strong> ટેમ્પલેટ લોક કરવા માટે નિર્ધારિત ક્રેડિટ્સ (સામાન્ય રીતે ૧૦ ક્રેડિટ્સ) વૉલેટમાંથી કપાત થાય છે.</li>
-            <li><strong>પરમેનન્ટ લોક (Permanent Lock):</strong> એકવાર દસ્તાવેજ Final Lock થઈ ગયા પછી તેમાં કોઈ સુધારો (Edit) થઈ શકશે નહીં. સ્ટેટસ <strong>LOCKED</strong> થઈ જશે.</li>
-            <li><strong>વૉલેટ રિચાર્જ:</strong> જો ક્રેડિટ ખૂટે તો વૉલેટ આઇકોન પર ક્લિક કરી Razorpay દ્વારા ક્રેડિટ પેક ખરીદી શકાય છે.</li>
+            <li><strong>ડુપ્લિકેટ કપાત સામે સુરક્ષા:</strong> Final Lock વખતે ક્રેડિટ માત્ર ૧ વાર જ કપાય છે. નેટવર્ક રીટ્રાય કે પેજ રીલોડ થવા પર બીજી વાર ક્રેડિટ કપાતી નથી.</li>
+            <li><strong>કાયમી લોક (Permanent Lock):</strong> Final Lock થયા પછી દસ્તાવેજ <span class="kbd">is_locked = true</span> થઈ જશે અને તેમાં કોઈ ફેરફાર થઈ શકશે નહીં.</li>
+            <li><strong>વૉલેટ રિચાર્જ:</strong> જો વૉલેટમાં અપૂરતી ક્રેડિટ હશે, તો સિસ્ટમ લાલ ચેતવણી આપશે. Razorpay દ્વારા સુરક્ષિત રીતે વૉલેટ રિચાર્જ કરી શકાય છે.</li>
         </ol>
     </div>
 
-    <!-- ════════════════════ PAGE 9: FINAL DOWNLOADS & MY DOCUMENTS ════════════════════ -->
+    <!-- ════════════════════ PAGE 11: FINAL CLEAN DOCX/PDF GENERATION & DOWNLOADS ════════════════════ -->
     <div class="manual-page">
-        <h1><span class="badge-step">વિભાગ ૧૨</span> અંતિમ સ્વચ્છ DOCX / PDF ડાઉનલોડ (Final Documents)</h1>
+        <h1><span class="badge-step">વિભાગ ૧૪</span> અંતિમ સ્વચ્છ DOCX / PDF ડાઉનલોડ (Final Clean Documents)</h1>
         <p>
-            દસ્તાવેજ Final Lock થયા પછી સિસ્ટમ બે પ્રકારની ૧૦૦% સ્વચ્છ, વોટરમાર્ક વગરની અધિકૃત ફાઈલો તૈયાર કરે છે:
+            દસ્તાવેજ Final Lock થયા પછી બેકએન્ડ એન્જિન આપમેળે બે પ્રકારની ૧૦૦% સ્વચ્છ, વોટરમાર્ક વગરની અધિકૃત ફાઈલો તૈયાર કરે છે:
         </p>
+
+        <div class="screenshot-container">
+            <img src="manual_assets/12_final_document_downloads.png" alt="Final Document Downloads">
+            <div class="screenshot-caption">
+                <span>સ્ક્રીનશોટ ૧૧: Final Lock પછી My Documents માં સ્વચ્છ PDF અને Word (.docx) ડાઉનલોડ બટન્સ</span>
+                <span class="kbd">My Documents → Download Actions</span>
+            </div>
+        </div>
 
         <table>
             <thead>
                 <tr>
-                    <th style="width: 30%;">ફાઇલ ફોર્મેટ</th>
+                    <th style="width: 25%;">ફાઇલ ફોર્મેટ</th>
                     <th style="width: 35%;">લાક્ષણિકતા</th>
-                    <th style="width: 35%;">ઉપયોગ</th>
+                    <th style="width: 40%;">ઉપયોગ અને સુવિધા</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
                     <td><strong>Final Word (.DOCX)</strong></td>
-                    <td>૧૦૦% એડિટેબલ માઇક્રોસોફ્ટ વર્ડ ફાઇલ, કોઈ વોટરમાર્ક નહીં.</td>
-                    <td>ઓફિસમાં વધારાની કલમો ઉમેરવા, ફોન્ટ સાઇઝ બદલવા કે સ્ટેમ્પ પેપર પર પ્રિન્ટ સેટિંગ કરવા માટે.</td>
+                    <td>૧૦૦% એડિટેબલ માઇક્રોસોફ્ટ વર્ડ ફાઇલ, સંપૂર્ણ વોટરમાર્ક-મુક્ત.</td>
+                    <td>ઓફિસમાં વધારાની કલમો ઉમેરવા, ફોન્ટ સાઇઝ બદલવા કે સ્ટેમ્પ પેપર પ્રિન્ટિંગ સેટિંગ માટે.</td>
                 </tr>
                 <tr>
                     <td><strong>Final Clean (.PDF)</strong></td>
                     <td>હાઇ-ડેફિનેશન પ્રિન્ટ-રેડી પીડીએફ, વોટરમાર્ક-મુક્ત.</td>
-                    <td>સીધી પ્રિન્ટ કાઢવા, ડિજિટલ સાઇન કરવા, અથવા પક્ષકારોને વોટ્સએપ/ઈમેલ દ્વારા મોકલવા માટે.</td>
+                    <td>સીધી પ્રિન્ટ કાઢવા, ડિજિટલ સાઇન કરવા, પક્ષકારોને મોકલવા અથવા સબ-રજીસ્ટ્રાર કચેરીમાં રજૂ કરવા માટે.</td>
                 </tr>
             </tbody>
         </table>
 
-        <div class="callout callout-info" style="margin: 6px 0;">
+        <div class="callout callout-info" style="margin: 5px 0;">
             <div class="callout-title">⏱️ Processing Time Notice:</div>
             • <strong>English:</strong> Processing time may vary depending on document size and system/server load.<br>
             • <strong>ગુજરાતી:</strong> દસ્તાવેજનું processing time documentના કદ અને system/server load પ્રમાણે બદલાઈ શકે છે.
         </div>
+    </div>
 
-        <h1><span class="badge-step">વિભાગ ૧૩</span> My Documents / દસ્તાવેજ ફોલ્ડર (Vault)</h1>
+    <!-- ════════════════════ PAGE 12: MY DOCUMENTS VAULT & EDIT DRAFT ════════════════════ -->
+    <div class="manual-page">
+        <h1><span class="badge-step">વિભાગ ૧૫</span> My Documents Vault અને ડ્રાફ્ટ એડિટ (Document Vault)</h1>
         <p>
-            તમારા તમામ ડ્રાફ્ટ્સ અને ફાઇનલ થયેલા દસ્તાવેજો એક જ જગ્યાએ સુરક્ષિત રહે છે.
+            તમારા તમામ ડ્રાફ્ટ્સ અને ફાઇનલ થયેલા દસ્તાવેજો <strong>My Documents</strong> વૉલ્ટમાં કાયમી સંગ્રહિત રહે છે.
         </p>
 
         <div class="screenshot-container">
-            <img src="manual_assets/12_my_documents_vault.png" alt="My Documents Vault">
+            <img src="manual_assets/10_my_documents_vault.png" alt="My Documents Vault List">
             <div class="screenshot-caption">
-                <span>સ્ક્રીનશોટ ૯: મારું દસ્તાવેજ ફોલ્ડર (My Documents Vault) – સેવ કરેલા ડ્રાફ્ટ્સ અને ડાઉનલોડ હિસ્ટ્રી</span>
-                <span class="kbd">Header → મારું દસ્તાવેજ ફોલ્ડર (MY DOCUMENTS)</span>
+                <span>સ્ક્રીનશોટ ૧૨: મારું દસ્તાવેજ ફોલ્ડર – સેવ કરેલા ડ્રાફ્ટ્સ, લોક્ડ દસ્તાવેજો અને સર્ચ બાર</span>
+                <span class="kbd">Header → My Documents (#gov-header-my-docs-btn)</span>
             </div>
         </div>
 
         <ol class="step-list">
-            <li>હેડરમાં આવેલા <strong>મારું દસ્તાવેજ ફોલ્ડર (MY DOCUMENTS)</strong> પર ક્લિક કરો.</li>
-            <li>તમારા તમામ દસ્તાવેજો તારીખ, ટેમ્પલેટ નામ અને સ્ટેટસ (Draft / Locked) સાથે દેખાશે.</li>
-            <li>જો ૧૦ દસ્તાવેજો ભરાઈ ગયા હોય તો જૂનો દસ્તાવેજ Delete કરી નવી જગ્યા ખાલી કરો.</li>
-            <li>અધૂરા ડ્રાફ્ટને ફરી ખોલવા માટે ક્લિક કરો અથવા ફાઇનલ દસ્તાવેજમાંથી સીધી <strong>DOCX/PDF</strong> ફરી ડાઉનલોડ કરો.</li>
+            <li>હેડરમાં આવેલા <strong>My Documents (મારા દસ્તાવેજો)</strong> પર ક્લિક કરો.</li>
+            <li>દરેક કાર્ડ પર Tracking ID, ટેમ્પલેટ નામ, છેલ્લી તારીખ અને સ્ટેટસ (<span class="badge-step" style="background: #e2e8f0; color: #334155;">DRAFT</span> અથવા <span class="badge-step" style="background: #fee2e2; color: #991b1b;">LOCKED</span>) દેખાશે.</li>
+            <li><strong>ડ્રાફ્ટ એડિટ કરો (Edit Draft):</strong> ડ્રાફ્ટ કાર્ડ પર ક્લિક કરવાથી તે આપમેળે એડિટરમાં લોડ થઈ જશે અને તમામ ભરેલી વિગતો પૂર્વવત થઈ જશે.</li>
+            <li><strong>ડિલીટ કરો (Delete):</strong> ૧૦ દસ્તાવેજો પૂરા થઈ ગયા હોય ત્યારે જૂના બિનજરૂરી દસ્તાવેજને ડિલીટ કરી નવો સ્લોટ ખાલી કરી શકાય છે.</li>
+            <li><strong>ફરી ડાઉનલોડ:</strong> ફાઇનલ લોક થયેલા દસ્તાવેજો કોઈપણ સમયે ફરીથી DOCX કે PDF માં ડાઉનલોડ કરી શકાય છે.</li>
         </ol>
     </div>
 
-    <!-- ════════════════════ PAGE 10: CHECKLIST, TROUBLESHOOTING & SUPPORT ════════════════════ -->
+    <!-- ════════════════════ PAGE 13: CHECKLIST, TROUBLESHOOTING & SUPPORT ════════════════════ -->
     <div class="manual-page">
-        <h1><span class="badge-step">વિભાગ ૧૪</span> સાવચેતીઓની ચેકલિસ્ટ અને FAQ (Checklist & FAQ)</h1>
+        <h1><span class="badge-step">વિભાગ ૧૬</span> સાવચેતીઓની ચેકલિસ્ટ, FAQ અને સપોર્ટ (Checklist & FAQ)</h1>
         <p>
             દસ્તાવેજ Final Lock કરતાં પહેલાં નીચે આપેલા મુદ્દાઓની અચૂક ચકાસણી કરી લેવી:
         </p>
 
         <div class="checklist-item">
             <div class="check-box"></div>
-            <div><strong>પક્ષકારોના નામ અને જોડણી:</strong> આધાર કાર્ડ મુજબ ગુજરાતી અને અંગ્રેજી નામની જોડણી સાચી છે?</div>
+            <div><strong>પક્ષકારોના નામ અને જોડણી:</strong> આધાર કાર્ડ / ચૂંટણી કાર્ડ મુજબ ગુજરાતી અને અંગ્રેજી નામની જોડણી સાચી છે?</div>
         </div>
         <div class="checklist-item">
             <div class="check-box"></div>
@@ -955,13 +1026,17 @@
             <div class="check-box"></div>
             <div><strong>PDF Preview ચકાસણી:</strong> વોટરમાર્ક્ડ PDF Preview ખોલીને લાઇન સ્પેસિંગ અને પેજ બ્રેક ચકાસ્યું?</div>
         </div>
+        <div class="checklist-item">
+            <div class="check-box"></div>
+            <div><strong>વૉલેટ બેલેન્સ ચકાસણી:</strong> Final Lock માટે જરૂરી ક્રેડિટ્સ ઉપલબ્ધ છે તેની ચકાસણી કરી?</div>
+        </div>
 
         <h2>સામાન્ય સમસ્યાઓ અને તેનું નિવારણ (Troubleshooting):</h2>
         <table>
             <thead>
                 <tr>
-                    <th style="width: 40%;">સમસ્યા (Issue)</th>
-                    <th style="width: 60%;">ઉકેલ (Solution)</th>
+                    <th style="width: 38%;">સમસ્યા (Issue)</th>
+                    <th style="width: 62%;">ઉકેલ (Solution)</th>
                 </tr>
             </thead>
             <tbody>
@@ -971,10 +1046,10 @@
                 </tr>
                 <tr>
                     <td><strong>PDF Preview માં વોટરમાર્ક કેમ દેખાય છે?</strong></td>
-                    <td>પીડીએફ પ્રિવ્યૂ એ માત્ર ચકાસણી કોપી છે. ફાઇનલ લોક કર્યા પછી વોટરમાર્ક વગરની ઓરિજિનલ પીડીએફ મળશે.</td>
+                    <td>પીડીએફ પ્રિવ્યૂ એ માત્ર ચકાસણી કોપી છે. ફાઇનલ લોક કર્યા પછી વોટરમાર્ક વગરની ઓરિજિનલ પીડીએફ અને વર્ડ ફાઈલ મળશે.</td>
                 </tr>
                 <tr>
-                    <td><strong>10 Document Limit પહોંચી ગઈ છે.</strong></td>
+                    <td><strong>10 Document Limit Dialog દેખાય છે.</strong></td>
                     <td>My Documents માં જઈ જૂનો બિનજરૂરી દસ્તાવેજ Delete કરો જેથી નવી સ્લોટ ખાલી થઈ જાય.</td>
                 </tr>
                 <tr>
@@ -985,12 +1060,16 @@
                     <td><strong>પ્રિવ્યૂ લોડ થતો નથી (No preview loaded).</strong></td>
                     <td>ફોર્મમાં ૨-૩ વિગતો ભરો અથવા ઉપરનું <strong>Sync Preview</strong> બટન દબાવો.</td>
                 </tr>
+                <tr>
+                    <td><strong>બ્રાઉઝર બંધ થઈ ગયું પણ ડેટા પાછો લાવવો છે.</strong></td>
+                    <td>ફરી સાઇટ ખોલી તે જ ટેમ્પલેટ પસંદ કરો. DraftCacheManager આપમેળે છેલ્લો ડ્રાફ્ટ રિકવર કરી આપશે.</td>
+                </tr>
             </tbody>
         </table>
 
-        <h1><span class="badge-step">વિભાગ ૧૫</span> સહાય કેન્દ્ર અને સંપર્ક (Help & Support)</h1>
+        <h1>📞 સહાય કેન્દ્ર અને સંપર્ક (Help & Support)</h1>
         <div class="callout callout-info" style="margin-bottom: 0;">
-            <div class="callout-title">📞 DraftSetu Customer Support:</div>
+            <div class="callout-title">🌐 DraftSetu Official Support:</div>
             • <strong>ઈમેલ સપોર્ટ:</strong> Contact@draftsetu.in &nbsp;|&nbsp; <strong>ઓફિશિયલ વેબસાઇટ:</strong> https://draftsetu.in<br>
             • <strong>ઓનલાઇન સહાય:</strong> વેબસાઇટના હેડરમાં આવેલા <strong>HELP CENTER</strong> મેનૂ પર ક્લિક કરો.
         </div>
