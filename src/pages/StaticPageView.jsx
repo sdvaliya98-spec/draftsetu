@@ -1,6 +1,38 @@
 import React from 'react';
 import Footer from '../components/Footer.jsx';
 
+export const getShareUrl = (slug) => {
+    if (typeof window === 'undefined') {
+        return `https://draftsetu.in/${slug === 'non-agricultural' ? 'non-agricultural' : `page:${slug}`}`;
+    }
+
+    const hostname = window.location.hostname;
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+
+    if (isLocal) {
+        if (slug === 'non-agricultural') {
+            return `${window.location.origin}/non-agricultural`;
+        }
+        return `${window.location.origin}/page:${slug}`;
+    }
+
+    // Production URL resolution
+    if (slug === 'non-agricultural') {
+        return 'https://draftsetu.in/non-agricultural';
+    }
+    return `https://draftsetu.in/page:${slug}`;
+};
+
+export const getShareTitle = (slug, pageData) => {
+    if (slug === 'non-agricultural') {
+        return 'બિનખેતી (NA) માર્ગદર્શિકા અને કાનૂની સહાય';
+    }
+    if (pageData && pageData.title) {
+        return `${pageData.title} - DraftSetu`;
+    }
+    return 'DraftSetu કાનૂની માર્ગદર્શિકા';
+};
+
 const StaticPageView = ({ slug, onNavigate }) => {
     const [page, setPage] = React.useState(null);
     const [loading, setLoading] = React.useState(true);
@@ -21,13 +53,12 @@ const StaticPageView = ({ slug, onNavigate }) => {
     };
 
     const handleShare = async () => {
-        const canonicalUrl = slug === 'non-agricultural'
-            ? 'https://draftsetu.in/non-agricultural'
-            : (slug === 'user-guide' ? 'https://draftsetu.in/page:user-guide' : `${window.location.origin}/page:${slug}`);
+        const shareUrl = getShareUrl(slug);
+        const shareTitle = getShareTitle(slug, page);
         const shareData = {
-            title: page?.title || 'બિનખેતી (NA) માર્ગદર્શિકા | DraftSetu',
-            text: 'બિનખેતી (NA) માર્ગદર્શિકા અને કાનૂની સહાય:\n',
-            url: canonicalUrl
+            title: page?.title || (slug === 'non-agricultural' ? 'બિનખેતી (NA) માર્ગદર્શિકા | DraftSetu' : 'DraftSetu'),
+            text: `${shareTitle}:\n`,
+            url: shareUrl
         };
 
         if (navigator.share) {
@@ -44,7 +75,7 @@ const StaticPageView = ({ slug, onNavigate }) => {
         // Fallback: Copy link
         if (navigator.clipboard) {
             try {
-                await navigator.clipboard.writeText(canonicalUrl);
+                await navigator.clipboard.writeText(shareUrl);
                 setCopyToast(true);
                 setTimeout(() => setCopyToast(false), 3000);
             } catch (e) { }
@@ -52,10 +83,9 @@ const StaticPageView = ({ slug, onNavigate }) => {
     };
 
     const handleWhatsAppShare = () => {
-        const canonicalUrl = slug === 'non-agricultural'
-            ? 'https://draftsetu.in/non-agricultural'
-            : (slug === 'user-guide' ? 'https://draftsetu.in/page:user-guide' : `${window.location.origin}/page:${slug}`);
-        const message = `બિનખેતી (NA) માર્ગદર્શિકા અને કાનૂની સહાય:\n${canonicalUrl}`;
+        const shareUrl = getShareUrl(slug);
+        const shareTitle = getShareTitle(slug, page);
+        const message = `${shareTitle}:\n${shareUrl}`;
         const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
         window.open(waUrl, '_blank');
     };
