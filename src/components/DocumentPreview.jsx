@@ -358,8 +358,8 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
                 );
                 if (active) {
                     originalHtmlRef.current = previewContainerRef.current.innerHTML;
-                    applyHighlights(isUserAuthenticated && showHighlights);
-                    if (isUserAuthenticated && window.activeFocusedFieldPath) {
+                    applyHighlights(showHighlights);
+                    if (window.activeFocusedFieldPath) {
                         safeSetTimeout(() => {
                             scrollToField(window.activeFocusedFieldPath, false);
                         }, 50);
@@ -378,14 +378,14 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
         return () => {
             active = false;
         };
-    }, [previewBlob, isUserAuthenticated]);
+    }, [previewBlob, showHighlights]);
 
     // Fast toggle update effect without fetching from server
     useEffect(() => {
         if (originalHtmlRef.current && previewContainerRef.current) {
-            applyHighlights(isUserAuthenticated && showHighlights);
+            applyHighlights(showHighlights);
         }
-    }, [showHighlights, isUserAuthenticated]);
+    }, [showHighlights]);
 
 
 
@@ -424,18 +424,13 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
                     {/* Status Indicators row */}
                     <div className="flex items-center gap-2">
                         {/* Highlight Toggle */}
-                        <div className={`flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-full px-3 py-1.5 shadow-sm ${!isUserAuthenticated ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-full px-3 py-1.5 shadow-sm">
                             <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Highlight Variables</span>
                             <label className="dp-switch">
                                 <input
                                     type="checkbox"
-                                    checked={isUserAuthenticated ? showHighlights : false}
-                                    onChange={(e) => {
-                                        if (isUserAuthenticated) {
-                                            setShowHighlights(e.target.checked);
-                                        }
-                                    }}
-                                    disabled={!isUserAuthenticated}
+                                    checked={showHighlights}
+                                    onChange={(e) => setShowHighlights(e.target.checked)}
                                     id="toggle-show-highlights"
                                 />
                                 <span className="dp-slider"></span>
