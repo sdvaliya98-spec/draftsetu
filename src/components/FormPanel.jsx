@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { DateInputField } from './InputField.jsx';
 import HybridDropdownField from './HybridDropdownField.jsx';
+import ApplicantMultiSelectField from './ApplicantMultiSelectField.jsx';
 import PreviewModal from './PreviewModal.jsx';
 import PdfPreviewModal from './PdfPreviewModal.jsx';
 import { showAlertDialog } from './CustomDialog.jsx';
@@ -20,14 +21,27 @@ const DynamicRepeater = React.memo(({ name, fields, data, setData, isLocked, sho
 
     const titleInfo = getRepeaterTitle(name);
 
-    // Derive applicant names dynamically for auto-suggestions (e.g. for LAND_RECORDS.owner_name)
-    const applicantNames = React.useMemo(() => {
-        const applicants = Array.isArray(data?.APPLICANTS) ? data.APPLICANTS :
-                           Array.isArray(data?.applicants) ? data.applicants : [];
-        return applicants
-            .map(a => (typeof a?.name === 'string' ? a.name.trim() : ''))
-            .filter(Boolean);
+    // Derive structured applicant list dynamically for multi-applicant mapping & auto-suggestions
+    const applicantsList = React.useMemo(() => {
+        const rawList = Array.isArray(data?.APPLICANTS) ? data.APPLICANTS :
+                        Array.isArray(data?.applicants) ? data.applicants : [];
+        return rawList.map((a, i) => {
+            const idx = a?.index !== undefined && a?.index !== null && String(a?.index).trim() !== ''
+                ? (parseInt(a.index, 10) || (i + 1))
+                : (i + 1);
+            const nameStr = typeof a?.name === 'string' ? a.name.trim() : '';
+            return {
+                index: idx,
+                name: nameStr,
+                displayLabel: nameStr ? `${idx}. ${nameStr}` : `Applicant ${idx}`
+            };
+        });
     }, [data?.APPLICANTS, data?.applicants]);
+
+    // Derive applicant names for backward compatibility suggestions
+    const applicantNames = React.useMemo(() => {
+        return applicantsList.map(a => a.name).filter(Boolean);
+    }, [applicantsList]);
 
     // Sync indices helper
     const syncRowIndices = (rawList) => {
@@ -182,11 +196,21 @@ const DynamicRepeater = React.memo(({ name, fields, data, setData, isLocked, sho
                                     const fieldConfig = (templateFields && templateFields[f.name]) || {};
                                     const fType = getFieldType(f.name, fieldConfig.type || f.type || 'text');
                                     const isAutoWordField = f.name === 'amount_in_words';
-                                    const isOwnerNameField = f.name && f.name.toLowerCase() === 'owner_name';
+                                    const isOwnerNameField = Boolean(f.name && f.name.toLowerCase() === 'owner_name');
+                                    const isLandRecordsOccupant = (name.toUpperCase() === 'LAND_RECORDS' || name.toLowerCase() === 'land_records') && isOwnerNameField;
                                     const isFieldRequired = fieldConfig.required === true;
                                     let fieldError = validateField(f.name, item[f.name]);
-                                    if (!fieldError && isFieldRequired && (!item[f.name] || String(item[f.name]).trim() === '') && showRequiredErrors) {
-                                        fieldError = "ફરજિયાત (Required)";
+                                    if (!fieldError && isFieldRequired && showRequiredErrors) {
+                                        if (isLandRecordsOccupant) {
+                                            const hasSelection = (Array.isArray(item.owner_applicant_indices) && item.owner_applicant_indices.length > 0) ||
+                                                                 (Array.isArray(item.owner_other_names) && item.owner_other_names.length > 0) ||
+                                                                 (typeof item.owner_name === 'string' && item.owner_name.trim() !== '');
+                                            if (!hasSelection) {
+                                                fieldError = "કબજેદાર પસંદ કરો (Required)";
+                                            }
+                                        } else if (!item[f.name] || String(item[f.name]).trim() === '') {
+                                            fieldError = "ફરજિયાત (Required)";
+                                        }
                                     }
                                     const borderClass = fieldError
                                         ? "border-red-300 focus:border-red-500 focus:ring-red-500 focus:ring-1"
@@ -204,7 +228,33 @@ const DynamicRepeater = React.memo(({ name, fields, data, setData, isLocked, sho
                                     return (
                                         <td key={f.name} className="py-2 px-2 align-middle">
                                             <div className="flex items-center gap-1">
-                                                {fType === 'textarea' ? (
+                                                {isLandRecordsOccupant ? (
+                                                    <ApplicantMultiSelectField
+                                                        selectedIndices={item.owner_applicant_indices || []}
+                                                        otherNames={item.owner_other_names || []}
+                                                        applicants={applicantsList}
+                                                        ownerName={item.owner_name || ''}
+                                                        onChange={(newIndices, newOtherNames, newOwnerNameStr, newOwnerNamesArr) => {
+                                                            const newList = [...list];
+                                                            newList[i] = {
+                                                                ...newList[i],
+                                                                owner_applicant_indices: newIndices,
+                                                                owner_other_names: newOtherNames,
+                                                                owner_name: newOwnerNameStr,
+                                                                owner_names: newOwnerNamesArr
+                                                            };
+                                                            setData(prev => ({
+                                                                ...prev,
+                                                                [name]: syncRowIndices(newList)
+                                                            }));
+                                                        }}
+                                                        onFocus={triggerFocus}
+                                                        disabled={isFinalized}
+                                                        borderClass={borderClass}
+                                                        variable={`${name}.${i}.${f.name}`}
+                                                        placeholder="કબજેદાર પસંદ કરો..."
+                                                    />
+                                                ) : fType === 'textarea' ? (
                                                     <textarea
                                                         value={item[f.name] || ''}
                                                         onChange={e => updateItem(i, f.name, e.target.value)}

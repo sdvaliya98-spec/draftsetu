@@ -271,8 +271,85 @@ def _normalize_context(data: dict) -> dict:
 
     # Perform recursive normalization
     normalized = normalize_val(data)
-    # Flatten hierarchical lists (like HEIRS, family_members, etc.) if present
+
     if isinstance(normalized, dict):
+        # 1. Resolve LAND_RECORDS multi-applicant ownership mapping against APPLICANTS
+        applicant_keys = ['applicants', 'applicant', 'declarants', 'declarant']
+        applicants_list = []
+        for ak in applicant_keys:
+            for k, v in normalized.items():
+                if k.lower() == ak and isinstance(v, list):
+                    applicants_list = v
+                    break
+            if applicants_list:
+                break
+
+        # Build applicant lookup mapping
+        applicant_map = {}
+        for i, app in enumerate(applicants_list):
+            if isinstance(app, dict):
+                app_name = str(app.get("name") or app.get("applicant_name") or "").strip()
+                app_idx = str(app.get("index") or "").strip()
+                if app_idx:
+                    applicant_map[app_idx] = app_name
+                    try:
+                        applicant_map[int(app_idx)] = app_name
+                    except ValueError:
+                        pass
+                # Also index by 1-based position
+                applicant_map[i + 1] = app_name
+                applicant_map[str(i + 1)] = app_name
+
+        land_keys = ['land_records', 'land_details', 'land']
+        for lk in land_keys:
+            for k, records in normalized.items():
+                if k.lower() == lk and isinstance(records, list):
+                    for record in records:
+                        if isinstance(record, dict):
+                            indices = record.get("owner_applicant_indices")
+                            other_names = record.get("owner_other_names")
+
+                            has_indices_field = "owner_applicant_indices" in record or indices is not None
+                            has_others_field = "owner_other_names" in record or other_names is not None
+
+                            combined_names = []
+                            seen_names_lower = set()
+
+                            # 1. Resolve selected applicant names in order
+                            if indices is not None and isinstance(indices, list) and len(indices) > 0:
+                                for idx in indices:
+                                    name = ""
+                                    if idx in applicant_map and applicant_map[idx]:
+                                        name = applicant_map[idx]
+                                    elif str(idx).strip() in applicant_map and applicant_map[str(idx).strip()]:
+                                        name = applicant_map[str(idx).strip()]
+
+                                    if name and name.lower() not in seen_names_lower:
+                                        combined_names.append(name)
+                                        seen_names_lower.add(name.lower())
+
+                            # 2. Append manually entered other occupant names in order
+                            if other_names is not None and isinstance(other_names, list) and len(other_names) > 0:
+                                for oname in other_names:
+                                    if isinstance(oname, str):
+                                        trimmed = oname.strip()
+                                        if trimmed and trimmed.lower() not in seen_names_lower:
+                                            combined_names.append(trimmed)
+                                            seen_names_lower.add(trimmed.lower())
+
+                            if combined_names:
+                                record["owner_names"] = combined_names
+                                record["owner_name"] = ", ".join(combined_names)
+                            elif has_indices_field or has_others_field:
+                                existing = str(record.get("owner_name") or "").strip()
+                                record["owner_names"] = [existing] if existing else []
+                                record["owner_name"] = existing
+                            else:
+                                existing = str(record.get("owner_name") or "").strip()
+                                record["owner_names"] = [existing] if existing else []
+                                record["owner_name"] = existing
+
+        # Flatten hierarchical lists (like HEIRS, family_members, etc.) if present
         heir_keys = ['heirs', 'family_members', 'members', 'heir_tree']
         for k, v in list(normalized.items()):
             if k.lower() in heir_keys and isinstance(v, list) and len(v) > 0:
@@ -285,7 +362,6 @@ def _normalize_context(data: dict) -> dict:
                         logger.info(f"[{k} FLATTENED RESULT]: {json.dumps(flattened, indent=2)}")
                     except Exception as e:
                         logger.error(f"Failed to flatten hierarchical list '{k}': {e}")
-    if isinstance(normalized, dict):
         return normalized
     return {}
 

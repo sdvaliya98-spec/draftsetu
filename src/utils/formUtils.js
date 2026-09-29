@@ -148,7 +148,7 @@ const REPEATER_TITLES = {
 
 const REPEATER_FIELD_LABELS = {
     name: 'નામ (Name)',
-    owner_name: 'જમીન માલિકનું નામ (Owner Name)',
+    owner_name: 'આ નોંધથી દાખલ કબજેદાર (Occupant Applicants)',
     address: 'સરનામું (Address)',
     pan: 'પાન કાર્ડ (PAN)',
     aadhaar: 'આધાર નંબર (Aadhaar)',
