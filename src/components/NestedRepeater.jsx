@@ -232,12 +232,6 @@ const NestedRepeater = React.memo(({ name, fields, data, setData, isLocked, show
         return syncNestedIndices(rawList);
     };
 
-    // Auto empty row check
-    React.useEffect(() => {
-        if (list.length === 0 && !isLocked) {
-            addItem();
-        }
-    }, [list.length]);
 
     const addItem = () => {
         const newItem = { index: '' };
@@ -337,6 +331,11 @@ const NestedRepeater = React.memo(({ name, fields, data, setData, isLocked, show
             {/* Tree Container */}
             <div className="p-6 bg-slate-50/30">
                 <div className="space-y-4">
+                    {list.length === 0 && (
+                        <div className="py-8 text-center text-xs font-semibold text-slate-400 font-sans">
+                            No members added yet. Click &quot;+ Add Root Member&quot; to add.
+                        </div>
+                    )}
                     {list.map((node, idx) => (
                         <NestedRepeaterNode
                             key={idx}

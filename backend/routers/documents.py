@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Union
 import json
 import uuid
 import os
@@ -61,7 +61,7 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 # ─── Schemas ─────────────────────────────────────────────────────────────────
 
 class GenerateRequest(BaseModel):
-    template_id: str
+    template_id: Union[str, int]
     data: dict
     format: str = "docx"   # "docx" or "pdf"
     tracking_id: Optional[str] = None  # Optional: associate with saved draft
@@ -69,7 +69,7 @@ class GenerateRequest(BaseModel):
 
 
 class PreviewRequest(BaseModel):
-    template_id: str
+    template_id: Union[str, int]
     data: dict
 
 
@@ -232,9 +232,10 @@ async def generate_document(
                 )
 
     # 1. Fetch template
+    str_tpl_id = str(req.template_id).strip()
     db_template = db.query(models.DBTemplate).filter(
-        (models.DBTemplate.template_id == str(req.template_id)) |
-        (models.DBTemplate.id == int(req.template_id) if str(req.template_id).isdigit() else False),
+        (models.DBTemplate.template_id == str_tpl_id) |
+        (models.DBTemplate.id == int(str_tpl_id) if str_tpl_id.isdigit() else False),
         models.DBTemplate.is_active == True
     ).first()
 

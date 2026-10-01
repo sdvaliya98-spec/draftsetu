@@ -51,12 +51,6 @@ const DynamicRepeater = React.memo(({ name, fields, data, setData, isLocked, sho
         }));
     };
 
-    // Auto empty row check
-    React.useEffect(() => {
-        if (list.length === 0 && !isLocked) {
-            addItem();
-        }
-    }, [list.length]);
 
     const addItem = () => {
         const newItem = { index: String(list.length + 1) };
@@ -117,7 +111,7 @@ const DynamicRepeater = React.memo(({ name, fields, data, setData, isLocked, sho
     const inputFields = fields.filter(f => f.name !== 'index');
 
     return (
-        <div className="mb-8 border border-slate-200 rounded-[24px] bg-white shadow-sm overflow-hidden animate-modal">
+        <div id={`repeater-section-${name}`} data-repeater={name} className="mb-8 border border-slate-200 rounded-[24px] bg-white shadow-sm overflow-hidden animate-modal">
             {/* Header section with Gujarati title and icon */}
             <div className="flex justify-between items-center px-6 py-4 bg-slate-50 border-b border-slate-200 gap-2 flex-wrap">
                 <div className="flex items-center gap-3">
@@ -147,6 +141,7 @@ const DynamicRepeater = React.memo(({ name, fields, data, setData, isLocked, sho
                     ))}
                     {!isFinalized && (
                         <button
+                            id={`btn-add-row-${name}`}
                             type="button"
                             onClick={addItem}
                             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-black tracking-wider transition-all flex items-center gap-1.5 shadow-md active:scale-95 font-sans"
@@ -183,6 +178,13 @@ const DynamicRepeater = React.memo(({ name, fields, data, setData, isLocked, sho
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
+                        {list.length === 0 && (
+                            <tr>
+                                <td colSpan={inputFields.length + 2} className="py-8 px-4 text-center text-xs font-semibold text-slate-400 font-sans">
+                                    No rows added yet. Click &quot;+ Add Row&quot; to add a row.
+                                </td>
+                            </tr>
+                        )}
                         {list.map((item, i) => (
                             <tr key={i} className="hover:bg-slate-50/40 transition-colors">
                                 {/* Index Badge Cell */}
@@ -305,6 +307,9 @@ const DynamicRepeater = React.memo(({ name, fields, data, setData, isLocked, sho
                                                     </select>
                                                 ) : (
                                                     <input
+                                                        id={`input-${name}-${i}-${f.name}`}
+                                                        name={`${name}[${i}].${f.name}`}
+                                                        data-field-name={f.name}
                                                         type={fType}
                                                         value={fType === 'number' ? String(item[f.name] || '').replace(/,/g, '') : (item[f.name] || '')}
                                                         onChange={e => updateItem(i, f.name, e.target.value)}
@@ -361,6 +366,7 @@ const DynamicRepeater = React.memo(({ name, fields, data, setData, isLocked, sho
                                                 </button>
                                                 {/* Remove Row */}
                                                 <button
+                                                    id={`btn-remove-row-${name}-${i}`}
                                                     type="button"
                                                     onClick={() => removeItem(i)}
                                                     title="Remove Row"
@@ -824,7 +830,7 @@ const FormPanel = ({
                         "Authorization": `Bearer ${token}`
                     },
                     body: JSON.stringify({
-                        template_id: activeTemplateId,
+                        template_id: String(activeTemplateId),
                         data: data || {},
                         format: "docx",
                         preview: true

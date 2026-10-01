@@ -273,20 +273,13 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
-                    template_id: activeTemplateId,
+                    template_id: String(activeTemplateId),
                     data: payloadData,
                     format: 'docx',
                     preview: true
                 }),
                 signal: fetchSignal
             });
-
-            if (!res.ok && (res.status === 401 || res.status === 403 || res.status === 404) && !fetchSignal?.aborted) {
-                res = await fetch(`${window.API_BASE || ''}/api/templates/${encodeURIComponent(activeTemplateId)}/sample-docx`, {
-                    method: 'GET',
-                    signal: fetchSignal
-                });
-            }
 
             if (!res.ok) {
                 let errMsg = `Preview generation failed (${res.status})`;
