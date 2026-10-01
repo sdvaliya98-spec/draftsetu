@@ -426,7 +426,12 @@ const FormPanel = ({
     const hasAuthToken = Boolean(localStorage.getItem('authToken') || localStorage.getItem('token'));
     const isVisitor = isLoggedIn !== undefined ? !isLoggedIn : !hasAuthToken;
 
-    const activeTemplate = templates.find(t => t.id === activeTemplateId);
+    const activeTemplate = templates.find(t =>
+        t.id === activeTemplateId ||
+        String(t.id) === String(activeTemplateId) ||
+        String(t.numeric_id) === String(activeTemplateId) ||
+        String(t.template_id) === String(activeTemplateId)
+    );
     const selectedTemplate = activeTemplate;
 
     useEffect(() => {
@@ -573,28 +578,81 @@ const FormPanel = ({
 
         if (!condition) return true;
 
+        const cleanVal = (v) => {
+            if (v === undefined || v === null) return '';
+            let s = String(v).trim();
+            if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+                s = s.slice(1, -1).trim();
+            }
+            return s.toLowerCase();
+        };
+
         const checkSingleCond = (cond) => {
             if (!cond) return true;
             if (typeof cond === 'string') {
-                const m = cond.match(/^\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*(==|!=)\s*["']?([^"']+)["']?\s*$/);
+                const cleanCond = cond.replace(/^\(+|\)+$/g, '').trim();
+                const m = cleanCond.match(/^\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*(==|!=)\s*["']?([^"']+)["']?\s*$/);
                 if (m) {
                     const [, fieldName, op, targetVal] = m;
-                    const defaultVal = activeTemplate?.fields?.[fieldName]?.default || '';
-                    const currentVal = String(data[fieldName] !== undefined ? data[fieldName] : defaultVal).trim();
-                    if (op === '==') return currentVal.toLowerCase() === targetVal.trim().toLowerCase();
-                    if (op === '!=') return currentVal.toLowerCase() !== targetVal.trim().toLowerCase();
+                    let rawVal = data[fieldName];
+                    if (rawVal === undefined) {
+                        const foundKey = Object.keys(data).find(k => k.toLowerCase() === fieldName.toLowerCase());
+                        if (foundKey) rawVal = data[foundKey];
+                    }
+                    if (rawVal === undefined || rawVal === null || String(rawVal).trim() === '') {
+                        const defaultVal = activeTemplate?.fields?.[fieldName]?.default
+                            || activeTemplate?.fields?.[fieldName.toLowerCase()]?.default
+                            || activeTemplate?.fields?.[fieldName.toUpperCase()]?.default
+                            || '';
+                        rawVal = defaultVal;
+                    }
+                    const currentVal = cleanVal(rawVal);
+                    const cleanTarget = cleanVal(targetVal);
+                    if (cleanTarget === 'true' || cleanTarget === 'false') {
+                        const isTruthy = Boolean(rawVal) && String(rawVal).trim() !== '' && String(rawVal).trim().toLowerCase() !== 'false' && String(rawVal).trim() !== '0';
+                        const expected = cleanTarget === 'true';
+                        return op === '==' ? (isTruthy === expected) : (isTruthy !== expected);
+                    }
+                    if (op === '==') return currentVal === cleanTarget;
+                    if (op === '!=') return currentVal !== cleanTarget;
                 }
                 return true;
             }
             if (typeof cond === 'object') {
-                const fieldName = cond.field || cond.var || cond.variable;
-                const op = cond.op || cond.operator || '==';
-                const targetVal = String(cond.value !== undefined ? cond.value : (cond.val !== undefined ? cond.val : '')).trim();
+                let fieldName = cond.field || cond.var || cond.variable;
+                let op = cond.op || cond.operator || '==';
+                let targetVal = cond.value !== undefined ? cond.value : (cond.val !== undefined ? cond.val : '');
+                if (!fieldName && cond.raw && typeof cond.raw === 'string') {
+                    const cleanCond = cond.raw.replace(/^\(+|\)+$/g, '').trim();
+                    const m = cleanCond.match(/^\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*(==|!=)\s*["']?([^"']+)["']?\s*$/);
+                    if (m) {
+                        fieldName = m[1];
+                        op = m[2];
+                        targetVal = m[3];
+                    }
+                }
                 if (!fieldName) return true;
-                const defaultVal = activeTemplate?.fields?.[fieldName]?.default || '';
-                const currentVal = String(data[fieldName] !== undefined ? data[fieldName] : defaultVal).trim();
-                if (op === '==') return currentVal.toLowerCase() === targetVal.toLowerCase();
-                if (op === '!=') return currentVal.toLowerCase() !== targetVal.toLowerCase();
+                let rawVal = data[fieldName];
+                if (rawVal === undefined) {
+                    const foundKey = Object.keys(data).find(k => k.toLowerCase() === fieldName.toLowerCase());
+                    if (foundKey) rawVal = data[foundKey];
+                }
+                if (rawVal === undefined || rawVal === null || String(rawVal).trim() === '') {
+                    const defaultVal = activeTemplate?.fields?.[fieldName]?.default
+                        || activeTemplate?.fields?.[fieldName.toLowerCase()]?.default
+                        || activeTemplate?.fields?.[fieldName.toUpperCase()]?.default
+                        || '';
+                    rawVal = defaultVal;
+                }
+                const currentVal = cleanVal(rawVal);
+                const cleanTarget = cleanVal(targetVal);
+                if (cleanTarget === 'true' || cleanTarget === 'false') {
+                    const isTruthy = Boolean(rawVal) && String(rawVal).trim() !== '' && String(rawVal).trim().toLowerCase() !== 'false' && String(rawVal).trim() !== '0';
+                    const expected = cleanTarget === 'true';
+                    return op === '==' ? (isTruthy === expected) : (isTruthy !== expected);
+                }
+                if (op === '==') return currentVal === cleanTarget;
+                if (op === '!=') return currentVal !== cleanTarget;
             }
             return true;
         };
@@ -1144,7 +1202,7 @@ const FormPanel = ({
                     </div>
                 )}
                 <select
-                    value={activeTemplateId || ""}
+                    value={activeTemplate?.id || activeTemplateId || ""}
                     onChange={(e) => onTemplateChange(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500 font-semibold mb-1"
                     id="template-selector"

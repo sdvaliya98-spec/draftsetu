@@ -256,7 +256,170 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
 
         const fetchSignal = signal || controller?.signal;
         const currentVersion = ++previewVersionRef.current;
-        const payloadData = customData !== null && customData !== undefined ? customData : (data || {});
+        const rawData = customData !== null && customData !== undefined ? customData : (data || {});
+
+        const activeTpl = template || (allTemplates && allTemplates.find(t =>
+            t.id === activeTemplateId ||
+            String(t.id) === String(activeTemplateId) ||
+            String(t.numeric_id) === String(activeTemplateId) ||
+            String(t.template_id) === String(activeTemplateId)
+        ));
+
+        const sanitizePayload = (raw) => {
+            if (!raw || typeof raw !== 'object') return raw;
+            const conds = activeTpl?.conditions || activeTpl?.variables?.conditions;
+            if (!conds || typeof conds !== 'object' || Object.keys(conds).length === 0) {
+                return raw;
+            }
+            const cleanVal = (v) => {
+                if (v === undefined || v === null) return '';
+                let s = String(v).trim();
+                if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+                    s = s.slice(1, -1).trim();
+                }
+                return s.toLowerCase();
+            };
+
+            const out = { ...raw };
+
+            const checkCondActive = (cond) => {
+                if (!cond) return true;
+                let fieldName = cond.field || cond.var || cond.variable;
+                let op = cond.op || cond.operator || '==';
+                let targetVal = cond.value !== undefined ? cond.value : (cond.val !== undefined ? cond.val : '');
+                if (!fieldName && cond.raw && typeof cond.raw === 'string') {
+                    const cleanCond = cond.raw.replace(/^\(+|\)+$/g, '').trim();
+                    const m = cleanCond.match(/^\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*(==|!=)\s*["']?([^"']+)["']?\s*$/);
+                    if (m) {
+                        fieldName = m[1];
+                        op = m[2];
+                        targetVal = m[3];
+                    }
+                }
+                if (!fieldName) return true;
+                let rawVal = raw[fieldName];
+                if (rawVal === undefined) {
+                    const foundKey = Object.keys(raw).find(k => k.toLowerCase() === fieldName.toLowerCase());
+                    if (foundKey) rawVal = raw[foundKey];
+                }
+                if (rawVal === undefined || rawVal === null || String(rawVal).trim() === '') {
+                    const defaultVal = activeTpl?.fields?.[fieldName]?.default
+                        || activeTpl?.fields?.[fieldName.toLowerCase()]?.default
+                        || activeTpl?.fields?.[fieldName.toUpperCase()]?.default
+                        || '';
+                    rawVal = defaultVal;
+                }
+                const currentVal = cleanVal(rawVal);
+                const cleanTarget = cleanVal(targetVal);
+                if (cleanTarget === 'true' || cleanTarget === 'false') {
+                    const isTruthy = Boolean(rawVal) && String(rawVal).trim() !== '' && String(rawVal).trim().toLowerCase() !== 'false' && String(rawVal).trim() !== '0';
+                    const expected = cleanTarget === 'true';
+                    return op === '==' ? (isTruthy === expected) : (isTruthy !== expected);
+                }
+                return op === '==' ? (currentVal === cleanTarget) : (currentVal !== cleanTarget);
+            };
+
+            // Known repeater collections extracted from template metadata
+            const tplGroups = activeTpl?.groups || activeTpl?.variables?.groups || null;
+            const tplGroupNames = tplGroups
+                ? (Array.isArray(tplGroups)
+                    ? tplGroups.map(g => (typeof g === 'string' ? g : (g.name || g.group || ''))).filter(Boolean)
+                    : Object.keys(tplGroups))
+                : [];
+
+            const scalarSuffixes = [
+                '_name', '_pan', '_address', '_type', '_aadhaar', '_share',
+                '_age', '_relation', '_mobile', '_email', '_phone', '_date',
+                '_amount', '_no', '_number', '_details', '_desc', '_status'
+            ];
+
+            const isRepeaterCollection = (name) => {
+                if (!name || typeof name !== 'string') return false;
+                const lower = name.toLowerCase();
+                // Exclude all known scalar suffixes and entity scalar fields
+                if (scalarSuffixes.some(s => lower.endsWith(s) || lower.includes('_entity_'))) {
+                    return false;
+                }
+                if (tplGroupNames.length > 0) {
+                    return tplGroupNames.some(g => g.toLowerCase() === lower);
+                }
+                // Fallback: Plural words or representative identifiers or already an array in raw
+                return (
+                    lower.includes('representative') ||
+                    lower.includes('rep') ||
+                    lower.endsWith('s') ||
+                    Array.isArray(raw[name]) ||
+                    Array.isArray(raw[Object.keys(raw).find(k => k.toLowerCase() === lower)])
+                );
+            };
+
+            // Detect party pairs: e.g. VENDORS <-> VENDOR_REPRESENTATIVES, PURCHASERS <-> PURCHASER_REPRESENTATIVES
+            // CRITICAL: party collection aliasing must ONLY apply to genuine repeater collections,
+            // NEVER to scalar fields like VENDOR_ENTITY_NAME or VENDOR_ENTITY_PAN!
+            const partyPairs = [];
+            const handledGroups = new Set();
+            for (const [gRep, cRep] of Object.entries(conds)) {
+                if (!cRep || !isRepeaterCollection(gRep)) continue;
+                const field = cRep.field || cRep.var || cRep.variable;
+                const gRepLower = gRep.toLowerCase();
+                if (gRepLower.includes('representative') || gRepLower.includes('rep') || gRepLower.includes('agent')) {
+                    for (const [gBase, cBase] of Object.entries(conds)) {
+                        if (gBase === gRep || !isRepeaterCollection(gBase)) continue;
+                        const gBaseLower = gBase.toLowerCase();
+                        if (gBaseLower.includes('representative') || gBaseLower.includes('rep') || gBaseLower.includes('agent')) continue;
+                        const baseField = cBase?.field || cBase?.var || cBase?.variable;
+                        if (baseField && baseField.toLowerCase() === (field || '').toLowerCase()) {
+                            partyPairs.push({ gBase, gRep, field, cBase, cRep });
+                            handledGroups.add(gBase.toLowerCase());
+                            handledGroups.add(gRep.toLowerCase());
+                        }
+                    }
+                }
+            }
+
+            for (const { gBase, gRep, cBase, cRep } of partyPairs) {
+                const repActive = checkCondActive(cRep);
+                const baseActive = checkCondActive(cBase);
+
+                const baseKey = Object.keys(out).find(k => k.toLowerCase() === gBase.toLowerCase()) || gBase;
+                const repKey = Object.keys(out).find(k => k.toLowerCase() === gRep.toLowerCase()) || gRep;
+
+                if (repActive) {
+                    const reps = Array.isArray(raw[repKey]) ? raw[repKey] : [];
+                    out[repKey] = reps;
+                    out[baseKey] = reps;
+                } else if (baseActive) {
+                    out[baseKey] = Array.isArray(raw[baseKey]) ? raw[baseKey] : [];
+                    out[repKey] = [];
+                } else {
+                    out[baseKey] = [];
+                    out[repKey] = [];
+                }
+            }
+
+            for (const [itemName, cond] of Object.entries(conds)) {
+                if (handledGroups.has(itemName.toLowerCase())) continue;
+                if (!checkCondActive(cond)) {
+                    if (Array.isArray(out[itemName])) {
+                        out[itemName] = [];
+                    } else if (typeof out[itemName] === 'string' || out[itemName] === undefined) {
+                        out[itemName] = '';
+                    }
+                }
+            }
+
+            // Defense-in-depth: Ensure NO scalar variable ever contains a list or object
+            for (const [key, val] of Object.entries(out)) {
+                if (!isRepeaterCollection(key)) {
+                    if (Array.isArray(val) || (val !== null && typeof val === 'object')) {
+                        out[key] = '';
+                    }
+                }
+            }
+            return out;
+        };
+
+        const payloadData = sanitizePayload(rawData);
 
         setIsPreviewLoading(true);
         setPreviewError(null);

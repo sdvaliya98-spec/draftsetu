@@ -369,3 +369,676 @@ def test_land_records_multi_applicant_mapping():
     finally:
         for f in [tmpl_path, out_path]:
             if os.path.exists(f): os.remove(f)
+
+def test_entity_mode_representative_repeated_occurrences():
+    """Requirement: VENDOR_TYPE == 'ENTITY' repeated loop occurrences render all representatives identically."""
+    tpl_text = [
+        "{%p if VENDOR_TYPE == 'ENTITY' %}",
+        "Entity: {{ VENDOR_ENTITY_NAME }} ({{ VENDOR_ENTITY_PAN }})",
+        "{%p for vendor in VENDOR_REPRESENTATIVES %}",
+        "Rep Occ1: {{ vendor.index }}. {{ vendor.name }} {{ vendor.relation }} aged {{ vendor.age }}",
+        "{%p endfor %}",
+        "{%p endif %}",
+        "Middle Terms Notice",
+        "{%p if VENDOR_TYPE == 'ENTITY' %}",
+        "{%p for vendor in VENDOR_REPRESENTATIVES %}",
+        "Rep Occ2: {{ vendor.name }} - Signature",
+        "{%p endfor %}",
+        "{%p endif %}",
+    ]
+    tmpl_path = create_docx_with_paragraphs(tpl_text)
+    out_path = get_temp_out()
+    try:
+        # Case A: 1 representative
+        data_1 = {
+            "VENDOR_TYPE": "ENTITY",
+            "VENDOR_ENTITY_NAME": "Alpha Corp Ltd",
+            "VENDOR_ENTITY_PAN": "ABCDE1234F",
+            "VENDOR_REPRESENTATIVES": [
+                {"name": "Ramesh Patel", "relation": "S/o XYZ", "age": "45"}
+            ]
+        }
+        render_docx_template(tmpl_path, data_1, out_path, preview=True)
+        doc = Document(out_path)
+        clean = strip_markers("\n".join(p.text for p in doc.paragraphs))
+        assert "Rep Occ1: 1. Ramesh Patel S/o XYZ aged 45" in clean
+        assert "Rep Occ2: Ramesh Patel - Signature" in clean
+        assert clean.count("Ramesh Patel") == 2
+        assert "Sample Name" not in clean
+
+        # Case B: 2 representatives
+        data_2 = {
+            "VENDOR_TYPE": "ENTITY",
+            "VENDOR_ENTITY_NAME": "Alpha Corp Ltd",
+            "VENDOR_ENTITY_PAN": "ABCDE1234F",
+            "VENDOR_REPRESENTATIVES": [
+                {"name": "Ramesh Patel", "relation": "S/o XYZ", "age": "45"},
+                {"name": "Suresh Patel", "relation": "S/o ABC", "age": "50"}
+            ]
+        }
+        render_docx_template(tmpl_path, data_2, out_path, preview=True)
+        clean2 = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert clean2.count("Ramesh Patel") == 2
+        assert clean2.count("Suresh Patel") == 2
+        assert "Rep Occ1: 1. Ramesh Patel" in clean2
+        assert "Rep Occ1: 2. Suresh Patel" in clean2
+
+        # Case C: Empty representatives -> 0 rows, no fallback
+        data_empty = {
+            "VENDOR_TYPE": "ENTITY",
+            "VENDOR_ENTITY_NAME": "Alpha Corp Ltd",
+            "VENDOR_ENTITY_PAN": "ABCDE1234F",
+            "VENDOR_REPRESENTATIVES": []
+        }
+        render_docx_template(tmpl_path, data_empty, out_path, preview=True)
+        clean_empty = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert "Rep Occ1:" not in clean_empty
+        assert "Rep Occ2:" not in clean_empty
+        assert "Sample Name" not in clean_empty
+        assert "Sample Relation" not in clean_empty
+        assert "Entity: Alpha Corp Ltd (ABCDE1234F)" in clean_empty
+    finally:
+        for f in [tmpl_path, out_path]:
+            if os.path.exists(f): os.remove(f)
+
+def test_vendor_mode_switching_and_live_preview():
+    """Requirement: Switching INDIVIDUAL <-> ENTITY toggles visibility cleanly without sample fallback."""
+    tpl_text = [
+        "{%p if VENDOR_TYPE == 'INDIVIDUAL' %}",
+        "{%p for vendor in VENDORS %}",
+        "IndVendor: {{ vendor.name }}",
+        "{%p endfor %}",
+        "{%p endif %}",
+        "{%p if VENDOR_TYPE == 'ENTITY' %}",
+        "EntName: {{ VENDOR_ENTITY_NAME }}",
+        "{%p for vendor in VENDOR_REPRESENTATIVES %}",
+        "EntRep: {{ vendor.name }}",
+        "{%p endfor %}",
+        "{%p endif %}",
+    ]
+    tmpl_path = create_docx_with_paragraphs(tpl_text)
+    out_path = get_temp_out()
+    try:
+        # Step 1: INDIVIDUAL mode
+        data_ind = {
+            "VENDOR_TYPE": "INDIVIDUAL",
+            "VENDORS": [{"name": "Ramesh Patel"}],
+            "VENDOR_REPRESENTATIVES": [],
+            "VENDOR_ENTITY_NAME": ""
+        }
+        render_docx_template(tmpl_path, data_ind, out_path, preview=True)
+        txt1 = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert "IndVendor: Ramesh Patel" in txt1
+        assert "EntName:" not in txt1
+        assert "EntRep:" not in txt1
+
+        # Step 2: Switch to ENTITY mode
+        data_ent = {
+            "VENDOR_TYPE": "ENTITY",
+            "VENDORS": [{"name": "Ramesh Patel"}],
+            "VENDOR_ENTITY_NAME": "Shree Ram Developers",
+            "VENDOR_REPRESENTATIVES": [{"name": "Dinesh Shah"}]
+        }
+        render_docx_template(tmpl_path, data_ent, out_path, preview=True)
+        txt2 = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert "IndVendor:" not in txt2
+        assert "EntName: Shree Ram Developers" in txt2
+        assert "EntRep: Dinesh Shah" in txt2
+
+        # Step 3: Switch back to INDIVIDUAL mode
+        data_ind_back = {
+            "VENDOR_TYPE": "INDIVIDUAL",
+            "VENDORS": [{"name": "Ramesh Patel"}],
+            "VENDOR_ENTITY_NAME": "Shree Ram Developers",
+            "VENDOR_REPRESENTATIVES": [{"name": "Dinesh Shah"}]
+        }
+        render_docx_template(tmpl_path, data_ind_back, out_path, preview=True)
+        txt3 = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert "IndVendor: Ramesh Patel" in txt3
+        assert "EntName:" not in txt3
+        assert "EntRep:" not in txt3
+    finally:
+        for f in [tmpl_path, out_path]:
+            if os.path.exists(f): os.remove(f)
+
+def test_purchaser_entity_mode_representatives_full_lifecycle():
+    """Requirement: PURCHASER_TYPE == 'ENTITY' representative multi-loop lifecycle and switching."""
+    tpl_text = [
+        "{%p if PURCHASER_TYPE == 'INDIVIDUAL' %}",
+        "{%p for p in PURCHASERS %}",
+        "IndPurchaser: {{ p.name }}",
+        "{%p endfor %}",
+        "{%p endif %}",
+        "{%p if PURCHASER_TYPE == 'ENTITY' %}",
+        "PurchaserEntity: {{ PURCHASER_ENTITY_NAME }}",
+        "{%p for p in PURCHASER_REPRESENTATIVES %}",
+        "Occ1 PurchaserRep: {{ p.index }}. {{ p.name }}",
+        "{%p endfor %}",
+        "Clause Separator",
+        "{%p for p in PURCHASER_REPRESENTATIVES %}",
+        "Occ2 PurchaserRep: {{ p.name }} Signature",
+        "{%p endfor %}",
+        "{%p endif %}",
+    ]
+    tmpl_path = create_docx_with_paragraphs(tpl_text)
+    out_path = get_temp_out()
+    try:
+        # Case A: INDIVIDUAL
+        data_ind = {
+            "PURCHASER_TYPE": "INDIVIDUAL",
+            "PURCHASERS": [{"name": "Anil Shah"}],
+            "PURCHASER_REPRESENTATIVES": [],
+            "PURCHASER_ENTITY_NAME": ""
+        }
+        render_docx_template(tmpl_path, data_ind, out_path, preview=True)
+        txt_ind = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert "IndPurchaser: Anil Shah" in txt_ind
+        assert "PurchaserEntity:" not in txt_ind
+        assert "PurchaserRep:" not in txt_ind
+
+        # Case B: ENTITY with 2 representatives
+        data_ent = {
+            "PURCHASER_TYPE": "ENTITY",
+            "PURCHASERS": [],
+            "PURCHASER_ENTITY_NAME": "BlueStar Infra LLP",
+            "PURCHASER_REPRESENTATIVES": [
+                {"name": "Partner A"},
+                {"name": "Partner B"}
+            ]
+        }
+        render_docx_template(tmpl_path, data_ent, out_path, preview=True)
+        txt_ent = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert "IndPurchaser:" not in txt_ent
+        assert "PurchaserEntity: BlueStar Infra LLP" in txt_ent
+        assert "Occ1 PurchaserRep: 1. Partner A" in txt_ent
+        assert "Occ1 PurchaserRep: 2. Partner B" in txt_ent
+        assert "Occ2 PurchaserRep: Partner A Signature" in txt_ent
+        assert "Occ2 PurchaserRep: Partner B Signature" in txt_ent
+        assert txt_ent.count("Partner A") == 2
+        assert txt_ent.count("Partner B") == 2
+
+        # Case C: Empty representatives
+        data_empty = {
+            "PURCHASER_TYPE": "ENTITY",
+            "PURCHASERS": [],
+            "PURCHASER_ENTITY_NAME": "BlueStar Infra LLP",
+            "PURCHASER_REPRESENTATIVES": []
+        }
+        render_docx_template(tmpl_path, data_empty, out_path, preview=True)
+        txt_empty = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert "PurchaserRep:" not in txt_empty
+        assert "Sample Name" not in txt_empty
+    finally:
+        for f in [tmpl_path, out_path]:
+            if os.path.exists(f): os.remove(f)
+
+def test_unquoted_and_parenthesized_condition_extraction():
+    """Requirement: extract_variables_from_docx supports unquoted and parenthesized conditions."""
+    tpl_text = [
+        "{%p if (VENDOR_TYPE == ENTITY) %}",
+        "Name: {{ VENDOR_ENTITY_NAME }}",
+        "{%p for rep in VENDOR_REPRESENTATIVES %}",
+        "Rep: {{ rep.name }}",
+        "{%p endfor %}",
+        "{%p endif %}",
+    ]
+    tmpl_path = create_docx_with_paragraphs(tpl_text)
+    try:
+        res = extract_variables_from_docx(tmpl_path)
+        conds = res.get("conditions", {})
+        assert "VENDOR_ENTITY_NAME" in conds
+        assert conds["VENDOR_ENTITY_NAME"]["field"] == "VENDOR_TYPE"
+        assert conds["VENDOR_ENTITY_NAME"]["value"] == "ENTITY"
+        assert "VENDOR_REPRESENTATIVES" in conds
+        assert conds["VENDOR_REPRESENTATIVES"]["field"] == "VENDOR_TYPE"
+        assert conds["VENDOR_REPRESENTATIVES"]["value"] == "ENTITY"
+    finally:
+        if os.path.exists(tmpl_path): os.remove(tmpl_path)
+
+def test_conditional_live_preview_no_data_leak_between_individual_and_entity():
+    """
+    Requirement: Changing VENDOR_TYPE between INDIVIDUAL and ENTITY must NEVER leak
+    stale data from the inactive branch into the rendered DOCX/Preview, even if
+    the underlying form state preserves both collections and unbracketed loops exist.
+    """
+    tpl_text = [
+        "{%p if VENDOR_TYPE == 'INDIVIDUAL' %}",
+        "{%p for vendor in VENDORS %}",
+        "Occ1 IndVendor: {{ vendor.index }}. {{ vendor.name }} {{ vendor.relation }}",
+        "{%p endfor %}",
+        "{%p endif %}",
+        "{%p if VENDOR_TYPE == 'ENTITY' %}",
+        "EntityName: {{ VENDOR_ENTITY_NAME }}",
+        "EntityPAN: {{ VENDOR_ENTITY_PAN }}",
+        "{%p for vendor in VENDOR_REPRESENTATIVES %}",
+        "Occ1 Rep: {{ vendor.index }}. {{ vendor.name }} {{ vendor.relation }}",
+        "{%p endfor %}",
+        "{%p endif %}",
+        "--- Signature Block ---",
+        "{%p for vendor in VENDORS %}",
+        "SignVendor: {{ vendor.name }}",
+        "{%p endfor %}",
+    ]
+    tmpl_path = create_docx_with_paragraphs(tpl_text)
+    out_path = get_temp_out()
+    try:
+        # Step 1: User enters INDIVIDUAL vendor
+        form_state = {
+            "VENDOR_TYPE": "INDIVIDUAL",
+            "VENDORS": [{"name": "ધર્મકુમાર શિવુભાઈ મકવાણા", "relation": "S/o XYZ"}],
+            "VENDOR_ENTITY_NAME": "",
+            "VENDOR_ENTITY_PAN": "",
+            "VENDOR_REPRESENTATIVES": []
+        }
+        render_docx_template(tmpl_path, form_state, out_path, preview=True)
+        txt1 = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert "Occ1 IndVendor: 1. ધર્મકુમાર શિવુભાઈ મકવાણા S/o XYZ" in txt1
+        assert "SignVendor: ધર્મકુમાર શિવુભાઈ મકવાણા" in txt1
+        assert "EntityName:" not in txt1
+        assert "Occ1 Rep:" not in txt1
+
+        # Step 2: User switches to ENTITY mode
+        # Form state preserves VENDORS, but adds entity details and representative
+        form_state["VENDOR_TYPE"] = "ENTITY"
+        form_state["VENDOR_ENTITY_NAME"] = "ABC Pvt Ltd"
+        form_state["VENDOR_ENTITY_PAN"] = "ABCDE1234F"
+        form_state["VENDOR_REPRESENTATIVES"] = [
+            {"name": "Ramesh Patel", "relation": "S/o XYZ", "age": "45"}
+        ]
+        render_docx_template(tmpl_path, form_state, out_path, preview=True)
+        txt2 = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        # STALE INDIVIDUAL VENDOR MUST NOT LEAK
+        assert "ધર્મકુમાર" not in txt2
+        assert "Occ1 IndVendor:" not in txt2
+        # ENTITY DATA MUST RENDER
+        assert "EntityName: ABC Pvt Ltd" in txt2
+        assert "EntityPAN: ABCDE1234F" in txt2
+        assert "Occ1 Rep: 1. Ramesh Patel S/o XYZ" in txt2
+        # SIGNATURE SECTION USES ACTIVE PARTY (REPRESENTATIVES)
+        assert "SignVendor: Ramesh Patel" in txt2
+
+        # Step 3: Add second representative
+        form_state["VENDOR_REPRESENTATIVES"].append(
+            {"name": "Suresh Patel", "relation": "S/o ABC", "age": "50"}
+        )
+        render_docx_template(tmpl_path, form_state, out_path, preview=True)
+        txt3 = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert "ધર્મકુમાર" not in txt3
+        assert "Occ1 Rep: 1. Ramesh Patel S/o XYZ" in txt3
+        assert "Occ1 Rep: 2. Suresh Patel S/o ABC" in txt3
+        assert "SignVendor: Ramesh Patel" in txt3
+        assert "SignVendor: Suresh Patel" in txt3
+
+        # Step 4: User switches back to INDIVIDUAL mode
+        form_state["VENDOR_TYPE"] = "INDIVIDUAL"
+        render_docx_template(tmpl_path, form_state, out_path, preview=True)
+        txt4 = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        # PRESERVED INDIVIDUAL VENDOR RESTORED
+        assert "Occ1 IndVendor: 1. ધર્મકુમાર શિવુભાઈ મકવાણા S/o XYZ" in txt4
+        assert "SignVendor: ધર્મકુમાર શિવુભાઈ મકવાણા" in txt4
+        # ENTITY DATA MUST BE EXCLUDED
+        assert "EntityName:" not in txt4
+        assert "ABC Pvt Ltd" not in txt4
+        assert "Ramesh Patel" not in txt4
+        assert "Suresh Patel" not in txt4
+        assert "Occ1 Rep:" not in txt4
+
+    finally:
+        for f in [tmpl_path, out_path]:
+            if os.path.exists(f): os.remove(f)
+
+
+def test_conditional_purchaser_live_preview_no_data_leak():
+    """Requirement: Symmetrical verification for PURCHASER_TYPE INDIVIDUAL <-> ENTITY."""
+    tpl_text = [
+        "{%p if PURCHASER_TYPE == 'INDIVIDUAL' %}",
+        "{%p for p in PURCHASERS %}",
+        "IndPurchaser: {{ p.name }}",
+        "{%p endfor %}",
+        "{%p endif %}",
+        "{%p if PURCHASER_TYPE == 'ENTITY' %}",
+        "PEntityName: {{ PURCHASER_ENTITY_NAME }}",
+        "{%p for p in PURCHASER_REPRESENTATIVES %}",
+        "Occ1 PRep: {{ p.index }}. {{ p.name }}",
+        "{%p endfor %}",
+        "{%p endif %}",
+        "--- Purchaser Signature ---",
+        "{%p for p in PURCHASERS %}",
+        "SignPurchaser: {{ p.name }}",
+        "{%p endfor %}",
+    ]
+    tmpl_path = create_docx_with_paragraphs(tpl_text)
+    out_path = get_temp_out()
+    try:
+        # Step 1: INDIVIDUAL
+        data = {
+            "PURCHASER_TYPE": "INDIVIDUAL",
+            "PURCHASERS": [{"name": "Chhaganlal Patel"}],
+            "PURCHASER_ENTITY_NAME": "",
+            "PURCHASER_REPRESENTATIVES": []
+        }
+        render_docx_template(tmpl_path, data, out_path, preview=True)
+        txt1 = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert "IndPurchaser: Chhaganlal Patel" in txt1
+        assert "SignPurchaser: Chhaganlal Patel" in txt1
+        assert "PEntityName:" not in txt1
+        assert "Occ1 PRep:" not in txt1
+
+        # Step 2: Switch to ENTITY with preserved PURCHASERS
+        data["PURCHASER_TYPE"] = "ENTITY"
+        data["PURCHASER_ENTITY_NAME"] = "Surat Realty LLP"
+        data["PURCHASER_REPRESENTATIVES"] = [{"name": "Partner Vikram"}]
+        render_docx_template(tmpl_path, data, out_path, preview=True)
+        txt2 = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert "Chhaganlal Patel" not in txt2
+        assert "IndPurchaser:" not in txt2
+        assert "PEntityName: Surat Realty LLP" in txt2
+        assert "Occ1 PRep: 1. Partner Vikram" in txt2
+        assert "SignPurchaser: Partner Vikram" in txt2
+
+        # Step 3: Switch back to INDIVIDUAL
+        data["PURCHASER_TYPE"] = "INDIVIDUAL"
+        render_docx_template(tmpl_path, data, out_path, preview=True)
+        txt3 = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert "IndPurchaser: Chhaganlal Patel" in txt3
+        assert "SignPurchaser: Chhaganlal Patel" in txt3
+        assert "Surat Realty LLP" not in txt3
+        assert "Partner Vikram" not in txt3
+    finally:
+        for f in [tmpl_path, out_path]:
+            if os.path.exists(f): os.remove(f)
+
+
+def test_entity_representative_signature_rendering_full_lifecycle():
+    """
+    Requirements:
+    1. Individual Vendor signature uses VENDORS.
+    2. Entity Vendor signature uses VENDOR_REPRESENTATIVES.
+    3. Individual Purchaser signature uses PURCHASERS.
+    4. Entity Purchaser signature uses PURCHASER_REPRESENTATIVES.
+    5. Multiple Entity representatives appear in signature.
+    6. Removing representative updates signature.
+    7. Empty representatives produce zero signature rows.
+    8. Old VENDORS data never appears in Entity signature.
+    9. Switching Entity -> Individual restores Vendor signature.
+    10. Switching Individual -> Entity changes signature source correctly.
+    """
+    tpl_text = [
+        "{%p if VENDOR_TYPE == 'INDIVIDUAL' %}",
+        "{%p for v in VENDORS %}",
+        "MainIndVendor: {{ v.name }}",
+        "{%p endfor %}",
+        "{%p endif %}",
+        "{%p if VENDOR_TYPE == 'ENTITY' %}",
+        "VendorEntity: {{ VENDOR_ENTITY_NAME }}",
+        "{%p for v in VENDOR_REPRESENTATIVES %}",
+        "MainEntRep: {{ v.name }}",
+        "{%p endfor %}",
+        "{%p endif %}",
+        "--- Vendor Signatures ---",
+        "{%p for v in VENDORS %}",
+        "VendorSignature: {{ v.index }}. {{ v.name }}",
+        "{%p endfor %}",
+    ]
+    tmpl_path = create_docx_with_paragraphs(tpl_text)
+    out_path = get_temp_out()
+    try:
+        # 1. Individual mode
+        state = {
+            "VENDOR_TYPE": "INDIVIDUAL",
+            "VENDORS": [
+                {"name": "Dharmakumar"},
+                {"name": "Ramesh Patel"}
+            ],
+            "VENDOR_ENTITY_NAME": "",
+            "VENDOR_REPRESENTATIVES": []
+        }
+        render_docx_template(tmpl_path, state, out_path, preview=True)
+        txt1 = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert "MainIndVendor: Dharmakumar" in txt1
+        assert "MainIndVendor: Ramesh Patel" in txt1
+        assert "VendorSignature: 1. Dharmakumar" in txt1
+        assert "VendorSignature: 2. Ramesh Patel" in txt1
+        assert "VendorEntity:" not in txt1
+        assert "MainEntRep:" not in txt1
+
+        # 2. Switch to Entity with 3 representatives
+        state["VENDOR_TYPE"] = "ENTITY"
+        state["VENDOR_ENTITY_NAME"] = "ABC Pvt Ltd"
+        state["VENDOR_REPRESENTATIVES"] = [
+            {"name": "Techno Gujarati"},
+            {"name": "Suresh Patel"},
+            {"name": "Mahesh Patel"}
+        ]
+        render_docx_template(tmpl_path, state, out_path, preview=True)
+        txt2 = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert "Dharmakumar" not in txt2
+        assert "MainIndVendor:" not in txt2
+        assert "VendorEntity: ABC Pvt Ltd" in txt2
+        assert "MainEntRep: Techno Gujarati" in txt2
+        assert "MainEntRep: Suresh Patel" in txt2
+        assert "MainEntRep: Mahesh Patel" in txt2
+        # Signature block uses representatives
+        assert "VendorSignature: 1. Techno Gujarati" in txt2
+        assert "VendorSignature: 2. Suresh Patel" in txt2
+        assert "VendorSignature: 3. Mahesh Patel" in txt2
+
+        # 3. Delete representative 2 (Suresh Patel)
+        state["VENDOR_REPRESENTATIVES"] = [
+            {"name": "Techno Gujarati"},
+            {"name": "Mahesh Patel"}
+        ]
+        render_docx_template(tmpl_path, state, out_path, preview=True)
+        txt3 = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert "VendorSignature: 1. Techno Gujarati" in txt3
+        assert "VendorSignature: 2. Mahesh Patel" in txt3
+        assert "Suresh Patel" not in txt3
+
+        # 4. Delete final representative -> 0 rows, no sample fallback
+        state["VENDOR_REPRESENTATIVES"] = []
+        render_docx_template(tmpl_path, state, out_path, preview=True)
+        txt4 = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert "VendorSignature:" not in txt4
+        assert "Sample Name" not in txt4
+        assert "Sample Relation" not in txt4
+
+        # 5. Switch back to INDIVIDUAL -> restores original vendor signatures
+        state["VENDOR_TYPE"] = "INDIVIDUAL"
+        render_docx_template(tmpl_path, state, out_path, preview=True)
+        txt5 = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert "MainIndVendor: Dharmakumar" in txt5
+        assert "MainIndVendor: Ramesh Patel" in txt5
+        assert "VendorSignature: 1. Dharmakumar" in txt5
+        assert "VendorSignature: 2. Ramesh Patel" in txt5
+        assert "ABC Pvt Ltd" not in txt5
+        assert "Techno Gujarati" not in txt5
+        assert "Mahesh Patel" not in txt5
+
+    finally:
+        for f in [tmpl_path, out_path]:
+            if os.path.exists(f): os.remove(f)
+
+
+def test_entity_scalar_fields_never_corrupted_by_aliasing():
+    """Verify entity scalar fields remain scalar, signature uses reps, and no raw python repr appears."""
+    tpl_text = [
+        "{%p if VENDOR_TYPE == 'INDIVIDUAL' %}",
+        "{%p for vendor in VENDORS %}",
+        "IndVendor: {{ vendor.name }}",
+        "{%p endfor %}",
+        "{%p endif %}",
+        "{%p if VENDOR_TYPE == 'ENTITY' %}",
+        "The Vendor Entity: {{ VENDOR_ENTITY_NAME }}",
+        "Pancard No. {{ VENDOR_ENTITY_PAN }}",
+        "{%p for vendor in VENDOR_REPRESENTATIVES %}",
+        "Rep: {{ vendor.index }}. {{ vendor.name }}",
+        "{%p endfor %}",
+        "{%p endif %}",
+        "--- Signature ---",
+        "{%p for vendor in VENDORS %}",
+        "Sign: {{ vendor.index }}. {{ vendor.name }}",
+        "{%p endfor %}",
+    ]
+    tmpl_path = create_docx_with_paragraphs(tpl_text)
+    out_path = get_temp_out()
+    try:
+        # 1. ENTITY mode
+        state = {
+            "VENDOR_TYPE": "ENTITY",
+            "VENDOR_ENTITY_NAME": "ABC Pvt Ltd",
+            "VENDOR_ENTITY_PAN": "ABCDE1234F",
+            "VENDOR_REPRESENTATIVES": [
+                {"name": "Techno Gujarati"},
+                {"name": "Suresh Patel"}
+            ]
+        }
+        render_docx_template(tmpl_path, state, out_path, preview=True)
+        full_text = "\n".join(p.text for p in Document(out_path).paragraphs)
+        clean = strip_markers(full_text)
+
+        # Entity scalar fields remain scalar strings
+        assert "The Vendor Entity: ABC Pvt Ltd" in clean
+        assert "Pancard No. ABCDE1234F" in clean
+        # Representative loop renders
+        assert "Rep: 1. Techno Gujarati" in clean
+        assert "Rep: 2. Suresh Patel" in clean
+        # Signature loop uses representatives
+        assert "Sign: 1. Techno Gujarati" in clean
+        assert "Sign: 2. Suresh Patel" in clean
+        # No raw python list or dict representation anywhere
+        assert "[{'index':" not in full_text
+        assert "{'index':" not in full_text
+        assert "IndVendor:" not in full_text
+
+        # 2. INDIVIDUAL mode regression
+        state_ind = {
+            "VENDOR_TYPE": "INDIVIDUAL",
+            "VENDOR_ENTITY_NAME": "ABC Pvt Ltd",
+            "VENDOR_ENTITY_PAN": "ABCDE1234F",
+            "VENDORS": [
+                {"name": "Dharmakumar"},
+                {"name": "Ramesh Patel"}
+            ]
+        }
+        render_docx_template(tmpl_path, state_ind, out_path, preview=True)
+        full_text_ind = "\n".join(p.text for p in Document(out_path).paragraphs)
+        clean_ind = strip_markers(full_text_ind)
+
+        assert "IndVendor: Dharmakumar" in clean_ind
+        assert "IndVendor: Ramesh Patel" in clean_ind
+        assert "Sign: 1. Dharmakumar" in clean_ind
+        assert "Sign: 2. Ramesh Patel" in clean_ind
+        assert "ABC Pvt Ltd" not in full_text_ind
+        assert "ABCDE1234F" not in full_text_ind
+        assert "[{'index':" not in full_text_ind
+        assert "{'index':" not in full_text_ind
+    finally:
+        for f in [tmpl_path, out_path]:
+            if os.path.exists(f): os.remove(f)
+
+
+def test_purchaser_entity_scalar_fields_and_signature_aliasing():
+    """Verify purchaser entity scalar fields remain scalar, signature uses reps, and no raw python repr appears."""
+    tpl_text = [
+        "{%p if PURCHASER_TYPE == 'INDIVIDUAL' %}",
+        "{%p for purchaser in PURCHASERS %}",
+        "IndPurchaser: {{ purchaser.name }}",
+        "{%p endfor %}",
+        "{%p endif %}",
+        "{%p if PURCHASER_TYPE == 'ENTITY' %}",
+        "Purchaser Entity: {{ PURCHASER_ENTITY_NAME }}",
+        "Purchaser PAN: {{ PURCHASER_ENTITY_PAN }}",
+        "{%p for purchaser in PURCHASER_REPRESENTATIVES %}",
+        "PurchaserRep: {{ purchaser.index }}. {{ purchaser.name }}",
+        "{%p endfor %}",
+        "{%p endif %}",
+        "--- Purchaser Signature ---",
+        "{%p for purchaser in PURCHASERS %}",
+        "PurchaserSign: {{ purchaser.index }}. {{ purchaser.name }}",
+        "{%p endfor %}",
+    ]
+    tmpl_path = create_docx_with_paragraphs(tpl_text)
+    out_path = get_temp_out()
+    try:
+        # 1. ENTITY mode
+        state = {
+            "PURCHASER_TYPE": "ENTITY",
+            "PURCHASER_ENTITY_NAME": "XYZ Infra Pvt Ltd",
+            "PURCHASER_ENTITY_PAN": "XYZIN5678K",
+            "PURCHASER_REPRESENTATIVES": [
+                {"name": "Prakash Shah"},
+                {"name": "Kiran Modi"}
+            ]
+        }
+        render_docx_template(tmpl_path, state, out_path, preview=True)
+        full_text = "\n".join(p.text for p in Document(out_path).paragraphs)
+        clean = strip_markers(full_text)
+
+        assert "Purchaser Entity: XYZ Infra Pvt Ltd" in clean
+        assert "Purchaser PAN: XYZIN5678K" in clean
+        assert "PurchaserRep: 1. Prakash Shah" in clean
+        assert "PurchaserRep: 2. Kiran Modi" in clean
+        assert "PurchaserSign: 1. Prakash Shah" in clean
+        assert "PurchaserSign: 2. Kiran Modi" in clean
+        assert "[{'index':" not in full_text
+        assert "{'index':" not in full_text
+        assert "IndPurchaser:" not in full_text
+
+        # 2. INDIVIDUAL mode
+        state_ind = {
+            "PURCHASER_TYPE": "INDIVIDUAL",
+            "PURCHASER_ENTITY_NAME": "XYZ Infra Pvt Ltd",
+            "PURCHASER_ENTITY_PAN": "XYZIN5678K",
+            "PURCHASERS": [
+                {"name": "Vikram Rathod"}
+            ]
+        }
+        render_docx_template(tmpl_path, state_ind, out_path, preview=True)
+        full_text_ind = "\n".join(p.text for p in Document(out_path).paragraphs)
+        clean_ind = strip_markers(full_text_ind)
+
+        assert "IndPurchaser: Vikram Rathod" in clean_ind
+        assert "PurchaserSign: 1. Vikram Rathod" in clean_ind
+        assert "XYZ Infra Pvt Ltd" not in full_text_ind
+        assert "XYZIN5678K" not in full_text_ind
+        assert "[{'index':" not in full_text_ind
+        assert "{'index':" not in full_text_ind
+    finally:
+        for f in [tmpl_path, out_path]:
+            if os.path.exists(f): os.remove(f)
+
+
+def test_docx_template_7d27c1de_exact_entity_rendering():
+    """Verify exact template 7d27c1de renders entity scalar fields and signature with 0 raw python repr."""
+    tpl_file = os.path.join("backend", "uploads", "templates_storage", "7d27c1de29a54f709d57b73cad1fc932.docx")
+    if not os.path.exists(tpl_file):
+        pytest.skip("Template 7d27c1de29a54f709d57b73cad1fc932.docx not present in local filesystem")
+
+    out_path = get_temp_out()
+    try:
+        data = {
+            "VENDOR_TYPE": "ENTITY",
+            "VENDOR_ENTITY_NAME": "ABC Pvt Ltd",
+            "VENDOR_ENTITY_PAN": "ABCDE1234F",
+            "VENDOR_REPRESENTATIVES": [
+                {"name": "Techno Gujarati", "relation": "S/o ABC", "age": "40"},
+                {"name": "Suresh Patel", "relation": "S/o DEF", "age": "42"}
+            ]
+        }
+        render_docx_template(tpl_file, data, out_path, preview=True)
+        doc = Document(out_path)
+        all_text = "\n".join([p.text for p in doc.paragraphs] + [c.text for t in doc.tables for r in t.rows for c in r.cells])
+        clean = strip_markers(all_text)
+
+        assert "ABC Pvt Ltd" in clean
+        assert "ABCDE1234F" in clean
+        assert "Techno Gujarati" in clean
+        assert "Suresh Patel" in clean
+        assert "[{'index':" not in all_text
+        assert "{'index':" not in all_text
+    finally:
+        if os.path.exists(out_path):
+            os.remove(out_path)
+
+
+

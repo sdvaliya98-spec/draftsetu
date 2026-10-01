@@ -158,7 +158,7 @@ def extract_variables_from_docx(file_path: str) -> dict:
     except Exception:
         cache_key = None
 
-    loop_pattern = re.compile(r'{%\s*(?:tr|tc|p)?\s*for\s+(\w+)\s+in\s+(\w+)\s*%}')
+    loop_pattern = re.compile(r'{%\s*(?:tr|tc|p)?\s*for\s+([a-zA-Z0-9_\u0A80-\u0AFF]+)\s+in\s+([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*%}')
     endfor_pattern = re.compile(r'{%\s*(?:tr|tc|p)?\s*endfor\s*%}')
     if_pattern = re.compile(r'{%\s*(?:tr|tc|p)?\s*if\s+([^%]+)%}')
     elif_pattern = re.compile(r'{%\s*(?:tr|tc|p)?\s*elif\s+([^%]+)%}')
@@ -199,14 +199,15 @@ def extract_variables_from_docx(file_path: str) -> dict:
             .replace('\xa0', ' ')
             .strip()
         )
-        # Match VAR == 'VAL' or VAR != 'VAL'
-        m = re.match(r'^\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*(==|!=)\s*["\']([^"\']+)["\']\s*$', cond_clean)
+        cond_clean = cond_clean.strip('() ')
+        # Match VAR == 'VAL' or VAR != 'VAL' (with optional quotes)
+        m = re.match(r'^\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*(==|!=)\s*["\']?([^"\']+)["\']?\s*$', cond_clean)
         if m:
-            return {"field": m.group(1), "op": m.group(2), "value": m.group(3)}
-        # Match 'VAL' == VAR or 'VAL' != VAR
-        m = re.match(r'^\s*["\']([^"\']+)["\']\s*(==|!=)\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*$', cond_clean)
+            return {"field": m.group(1), "op": m.group(2), "value": m.group(3).strip('"\' ')}
+        # Match 'VAL' == VAR or 'VAL' != VAR (with optional quotes)
+        m = re.match(r'^\s*["\']?([^"\']+)["\']?\s*(==|!=)\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*$', cond_clean)
         if m:
-            return {"field": m.group(3), "op": m.group(2), "value": m.group(1)}
+            return {"field": m.group(3), "op": m.group(2), "value": m.group(1).strip('"\' ')}
         # Match single boolean var: e.g. IS_ACTIVE
         m = re.match(r'^\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*$', cond_clean)
         if m and m.group(1) not in {'True', 'False', 'None', 'and', 'or', 'not'}:
@@ -358,7 +359,7 @@ def extract_variables_from_docx(file_path: str) -> dict:
                     if not current_cond:
                         unconditional_seen.add(group)
                     else:
-                        if group not in unconditional_seen and group not in conditions:
+                        if group not in conditions:
                             conditions[group] = current_cond
 
                 elif kind == 'loop_end':
@@ -655,6 +656,181 @@ def _create_preview_jinja_env():
     return jinja2.Environment(finalize=preview_finalize, autoescape=False)
 
 
+def _evaluate_condition(cond, context: dict, options: dict = None) -> bool:
+    if not cond:
+        return True
+    if isinstance(cond, list):
+        return all(_evaluate_condition(c, context, options) for c in cond)
+    if not isinstance(cond, dict):
+        return True
+
+    field = cond.get("field") or cond.get("var") or cond.get("variable")
+    op = cond.get("op") or cond.get("operator") or "=="
+    target_val = cond.get("value") if cond.get("value") is not None else cond.get("val", "")
+
+    if not field and cond.get("raw"):
+        raw_c = str(cond["raw"]).strip("() ")
+        m = re.match(r'^\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*(==|!=)\s*["\']?([^"\']+)["\']?\s*$', raw_c)
+        if m:
+            field = m.group(1)
+            op = m.group(2)
+            target_val = m.group(3)
+
+    if not field:
+        return True
+
+    # Case-insensitive field lookup in context
+    current_val = context.get(field)
+    if current_val is None:
+        for k, v in context.items():
+            if k.lower() == field.lower():
+                current_val = v
+                break
+
+    # If still not found or blank, check detected options for default (first option)
+    if (current_val is None or str(current_val).strip() == "") and options and isinstance(options, dict):
+        opts = options.get(field) or options.get(field.upper()) or options.get(field.lower())
+        if opts and isinstance(opts, list) and len(opts) > 0:
+            current_val = opts[0]
+
+    def _clean(v):
+        if v is None:
+            return ""
+        s = str(v).strip()
+        if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
+            s = s[1:-1].strip()
+        return s.lower()
+
+    c_cur = _clean(current_val)
+    c_tgt = _clean(target_val)
+
+    if c_tgt in {"true", "false"}:
+        is_truthy = bool(current_val) and str(current_val).strip() != "" and str(current_val).strip().lower() not in {"false", "0", "none"}
+        expected_truthy = (c_tgt == "true")
+        if op == "==":
+            return is_truthy == expected_truthy
+        elif op == "!=":
+            return is_truthy != expected_truthy
+
+    if op == "==":
+        return c_cur == c_tgt
+    elif op == "!=":
+        return c_cur != c_tgt
+    return True
+
+
+def _apply_conditional_visibility(context: dict, template_path: str):
+    """
+    Ensures render context strictly respects conditional visibility extracted from the DOCX template.
+    1. If a scalar variable is guarded by a condition that evaluates to False, it is set to ''.
+    2. Identifies party-representative collection pairs (e.g. VENDORS <-> VENDOR_REPRESENTATIVES,
+       PURCHASERS <-> PURCHASER_REPRESENTATIVES) sharing a type discriminator (e.g. VENDOR_TYPE, PURCHASER_TYPE):
+       - If ENTITY mode is active: the active party collection is the representative collection.
+         The representative collection is kept as-is, and the base party collection (used in unguarded
+         signature loops) is aliased to the representative collection.
+       - If INDIVIDUAL mode is active: the base party collection retains individual rows, and the representative
+         collection is deactivated to [].
+    3. Any other conditional collection whose condition evaluates to False is deactivated to [].
+    """
+    if not template_path or not os.path.exists(template_path) or not isinstance(context, dict):
+        return
+
+    try:
+        extracted = extract_variables_from_docx(template_path)
+        conditions = extracted.get("conditions", {})
+        if not conditions:
+            return
+
+        groups = set(extracted.get("groups", {}).keys())
+        options = extracted.get("options", {})
+
+        scalar_exclusions = (
+            "_name", "_pan", "_address", "_type", "_aadhaar", "_share",
+            "_age", "_relation", "_mobile", "_email", "_phone", "_date",
+            "_amount", "_no", "_number", "_details", "_desc", "_status"
+        )
+
+        def is_repeater_collection(name: str) -> bool:
+            if not name:
+                return False
+            nl = name.lower()
+            if any(nl.endswith(ex) or "_entity_" in nl for ex in scalar_exclusions):
+                return False
+            return name in groups or nl.endswith("s") or "representative" in nl or "rep" in nl
+
+        # Detect party pairs: e.g. (VENDORS, VENDOR_REPRESENTATIVES), (PURCHASERS, PURCHASER_REPRESENTATIVES)
+        party_pairs = []
+        handled_groups = set()
+        for g_rep in groups:
+            if not is_repeater_collection(g_rep):
+                continue
+            c_rep = conditions.get(g_rep)
+            if not c_rep:
+                continue
+            field = c_rep.get("field")
+            if any(s in g_rep.lower() for s in ["representative", "representatives", "rep", "reps", "agent", "agents"]):
+                for g_base in groups:
+                    if g_base == g_rep or not is_repeater_collection(g_base):
+                        continue
+                    g_base_lower = g_base.lower()
+                    if any(s in g_base_lower for s in ["representative", "representatives", "rep", "reps", "agent", "agents"]):
+                        continue
+                    c_base = conditions.get(g_base)
+                    if c_base and c_base.get("field") == field:
+                        party_pairs.append((g_base, g_rep, field, c_base, c_rep))
+                        handled_groups.add(g_base.lower())
+                        handled_groups.add(g_rep.lower())
+
+        # 1. Resolve party pairs dynamically based on active party mode
+        for g_base, g_rep, field, c_base, c_rep in party_pairs:
+            is_rep_active = _evaluate_condition(c_rep, context, options)
+            is_base_active = _evaluate_condition(c_base, context, options)
+
+            base_key = next((k for k in context.keys() if k.lower() == g_base.lower()), g_base)
+            rep_key = next((k for k in context.keys() if k.lower() == g_rep.lower()), g_rep)
+
+            if is_rep_active:
+                # Entity mode: active party collection for both main section and signature loops is the representatives
+                rep_data = list(context.get(rep_key) or [])
+                context[rep_key] = rep_data
+                context[base_key] = rep_data
+            elif is_base_active:
+                # Individual mode: active party collection is the individual parties
+                base_data = list(context.get(base_key) or [])
+                context[base_key] = base_data
+                context[rep_key] = []
+            else:
+                context[base_key] = []
+                context[rep_key] = []
+
+        # 2. Handle remaining items
+        for item_name, cond in conditions.items():
+            if item_name.lower() in handled_groups:
+                continue
+
+            if not _evaluate_condition(cond, context, options):
+                # Condition is inactive: clear this item from render context
+                matching_keys = [k for k in context.keys() if k.lower() == item_name.lower()]
+                if not matching_keys:
+                    matching_keys = [item_name]
+
+                is_group = item_name in groups or any(isinstance(context.get(mk), list) for mk in matching_keys)
+                for mk in matching_keys:
+                    if is_group:
+                        context[mk] = []
+                    else:
+                        context[mk] = ""
+
+        # 3. Defense-in-depth: Ensure explicit scalar fields (e.g. *_name, *_pan, *_address, *_type, etc.) never hold a list or dict
+        for k, v in list(context.items()):
+            if isinstance(v, (list, dict)):
+                kl = k.lower()
+                if any(kl.endswith(ex) or "_entity_" in kl for ex in scalar_exclusions):
+                    context[k] = ""
+    except Exception as e:
+        logger.warning(f"Error applying conditional visibility to context: {e}")
+
+
 def render_docx_template(
     template_path: str,
     data: dict,
@@ -693,6 +869,7 @@ def render_docx_template(
         try:
             doc = DraftSetuDocxTemplate(template_path)
             context = _normalize_context(data)
+            _apply_conditional_visibility(context, template_path)
             # Log final HEIRS array for debugging
             if 'HEIRS' in context:
                 logger.info(f"[RENDER {tid}] Final HEIRS payload: {context['HEIRS']}")

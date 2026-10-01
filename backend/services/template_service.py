@@ -62,12 +62,13 @@ class TemplateService:
                     .replace('\xa0', ' ')
                     .strip()
                 )
-                m = re.match(r'^\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*(==|!=)\s*["\']([^"\']+)["\']\s*$', cond_clean)
+                cond_clean = cond_clean.strip('() ')
+                m = re.match(r'^\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*(==|!=)\s*["\']?([^"\']+)["\']?\s*$', cond_clean)
                 if m:
-                    return {"field": m.group(1), "op": m.group(2), "value": m.group(3)}
-                m = re.match(r'^\s*["\']([^"\']+)["\']\s*(==|!=)\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*$', cond_clean)
+                    return {"field": m.group(1), "op": m.group(2), "value": m.group(3).strip('"\' ')}
+                m = re.match(r'^\s*["\']?([^"\']+)["\']?\s*(==|!=)\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*$', cond_clean)
                 if m:
-                    return {"field": m.group(3), "op": m.group(2), "value": m.group(1)}
+                    return {"field": m.group(3), "op": m.group(2), "value": m.group(1).strip('"\' ')}
                 m = re.match(r'^\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*$', cond_clean)
                 if m and m.group(1) not in {'True', 'False', 'None', 'and', 'or', 'not'}:
                     return {"field": m.group(1), "op": "==", "value": "True"}
@@ -178,7 +179,7 @@ class TemplateService:
                     if not current_cond:
                         unconditional_seen.add(group)
                     else:
-                        if group not in unconditional_seen and group not in conditions:
+                        if group not in conditions:
                             conditions[group] = current_cond
 
                 elif kind == 'loop_end':

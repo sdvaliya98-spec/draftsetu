@@ -139,6 +139,11 @@ const validateField = (name, val) => {
 const REPEATER_TITLES = {
     BUYERS: { gu: 'ખરીદનારાઓ (Buyers)', icon: '👥' },
     SELLERS: { gu: 'વેચનારાઓ (Sellers)', icon: '👥' },
+    VENDORS: { gu: 'વેચનારાઓ (Vendors)', icon: '👥' },
+    VENDOR_REPRESENTATIVES: { gu: 'વેચનાર પ્રતિનિધિઓ (Vendor Representatives)', icon: '👤' },
+    PURCHASERS: { gu: 'ખરીદનારાઓ (Purchasers)', icon: '👥' },
+    PURCHASER_REPRESENTATIVES: { gu: 'ખરીદનાર પ્રતિનિધિઓ (Purchaser Representatives)', icon: '👤' },
+    PLOTS: { gu: 'પ્લોટ્સ વિગતો (Plots)', icon: '📐' },
     WITNESSES: { gu: 'સાક્ષીઓ (Witnesses)', icon: '✍️' },
     LAND_RECORDS: { gu: 'જમીન વિગતો / રેકોર્ડ્સ (Land Records)', icon: '🏗️' },
     PAYMENTS: { gu: 'ચુકવણી વિગતો / હપ્તાઓ (Payments)', icon: '💰' },
