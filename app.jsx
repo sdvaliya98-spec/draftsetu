@@ -48,6 +48,13 @@ const getTemplateEmptyState = (template, useDefaultInitial = false) => {
             return DEFAULT_INITIAL_DATA[v];
         }
         const fieldCfg = fieldsConfig[v] || {};
+        if (fieldCfg.default !== undefined && fieldCfg.default !== null && fieldCfg.default !== '') {
+            return fieldCfg.default;
+        }
+        if (Array.isArray(fieldCfg.options) && fieldCfg.options.length > 0) {
+            const first = fieldCfg.options[0];
+            return typeof first === 'object' && first !== null ? (first.value ?? first.label ?? '') : first;
+        }
         return fieldCfg.default !== undefined ? fieldCfg.default : '';
     };
 
@@ -1451,8 +1458,8 @@ const App = () => {
         const dbIds = new Set(activeDbTpls.map(t => t.template_id));
         const filteredLocals = (templates || []).filter(t => !dbIds.has(t.id) && t.is_active !== false && t.status !== 'ARCHIVED' && t.status !== 'DELETED');
         const apiTemplates = [
-            ...filteredLocals.map(t => ({ ...t, _source: 'local' })),
-            ...activeDbTpls.map(t => ({ ...t, id: t.template_id, _source: 'db' }))
+            ...filteredLocals.map(t => ({ ...t, numeric_id: t.id, _source: 'local' })),
+            ...activeDbTpls.map(t => ({ ...t, numeric_id: t.id, id: t.template_id, _source: 'db' }))
         ];
         const normalizedTemplates = apiTemplates.map(t => ({
             ...t,
@@ -1484,49 +1491,45 @@ const App = () => {
             }
         }
 
-        const newTpl = allTemplates.find(t => t.id === newTemplateId);
+        const newTpl = allTemplates.find(t => String(t.id) === String(newTemplateId) || String(t.numeric_id) === String(newTemplateId) || String(t.template_id) === String(newTemplateId));
         if (!newTpl) {
             setActiveTemplateId(newTemplateId);
             return;
         }
+        const effectiveId = newTpl.id;
 
         trackEvent('template_selected', {
-            template_id: newTpl.id || newTemplateId,
+            template_id: effectiveId,
             template_category: newTpl.category || 'General',
             template_name: newTpl.name || ''
         });
 
-        const session = window.SessionManager.restoreSession(newTemplateId);
+        const session = window.SessionManager.restoreSession(effectiveId);
         if (session) {
-            console.log(`[handleTemplateSelect] Restoring in-memory session for ${newTemplateId}`);
+            console.log(`[handleTemplateSelect] Restoring in-memory session for ${effectiveId}`);
             setData(session.data);
             setTrackingId(session.trackingId);
             setIsLocked(session.isLocked);
             skipRecoveryRef.current = true;
         } else {
-            const cachedDraft = window.DraftCacheManager ? window.DraftCacheManager.load(newTemplateId, currentUser) : null;
+            const cachedDraft = window.DraftCacheManager ? window.DraftCacheManager.load(effectiveId, currentUser) : null;
             const empty = getTemplateEmptyState(newTpl, false);
             const isMeaningful = cachedDraft && !cachedDraft.isLocked && window.DraftCacheManager && window.DraftCacheManager.isMeaningfulDraft(cachedDraft.data, empty);
 
             if (isMeaningful) {
-                console.log(`[handleTemplateSelect] Found meaningful recovery cache for ${newTemplateId}, letting recovery effect prompt user`);
+                console.log(`[handleTemplateSelect] Found meaningful recovery cache for ${effectiveId}, letting recovery effect prompt user`);
                 skipRecoveryRef.current = false;
             } else {
-                console.log(`[handleTemplateSelect] No session or meaningful cache for ${newTemplateId}, initializing with empty state`);
+                console.log(`[handleTemplateSelect] No session or meaningful cache for ${effectiveId}, initializing with empty state`);
                 setData(empty);
                 setTrackingId(null);
                 setIsLocked(false);
                 skipRecoveryRef.current = true;
-                window.SessionManager.saveSession(newTemplateId, { data: empty, trackingId: null, isLocked: false });
+                window.SessionManager.saveSession(effectiveId, { data: empty, trackingId: null, isLocked: false });
             }
         }
 
-        const templateExists = allTemplates.some(t => t.id === newTemplateId);
-        if (templateExists) {
-            setActiveTemplateId(newTemplateId);
-        } else {
-            setActiveTemplateId("");
-        }
+        setActiveTemplateId(effectiveId);
     };
 
     loadTemplate = handleTemplateSelect;
@@ -1540,10 +1543,10 @@ const App = () => {
     }, [activeTemplateId]);
 
     useEffect(() => {
-        if (currentView === 'editor' && !activeTemplateId && allTemplates.length > 0) {
-            const savedTplId = localStorage.getItem('activeTemplateId');
-            const targetTpl = (savedTplId && allTemplates.find(t => t.id === savedTplId)) || allTemplates[0];
-            if (targetTpl) {
+        if (currentView === 'editor' && allTemplates.length > 0) {
+            const savedTplId = activeTemplateId || localStorage.getItem('activeTemplateId');
+            const targetTpl = (savedTplId && allTemplates.find(t => String(t.id) === String(savedTplId) || String(t.numeric_id) === String(savedTplId) || String(t.template_id) === String(savedTplId))) || allTemplates[0];
+            if (targetTpl && (!activeTemplateId || String(activeTemplateId) !== String(targetTpl.id))) {
                 handleTemplateSelect(targetTpl.id);
             }
         }
@@ -1621,7 +1624,7 @@ const App = () => {
     }, [dynamicMenuItems]);
 
     const activeTemplate = useMemo(() => {
-        return allTemplates.find(t => t.id === activeTemplateId);
+        return allTemplates.find(t => String(t.id) === String(activeTemplateId) || String(t.numeric_id) === String(activeTemplateId) || String(t.template_id) === String(activeTemplateId));
     }, [allTemplates, activeTemplateId]);
 
     const handleRoleChange = (newRole) => {

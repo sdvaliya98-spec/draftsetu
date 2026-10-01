@@ -194,7 +194,11 @@ const DynamicRepeater = React.memo(({ name, fields, data, setData, isLocked, sho
                                 {/* Inputs Cells */}
                                 {inputFields.map(f => {
                                     const fieldConfig = (templateFields && templateFields[f.name]) || {};
-                                    const fType = getFieldType(f.name, fieldConfig.type || f.type || 'text');
+                                    const fOptions = (window.parseOptionsList ? window.parseOptionsList(fieldConfig.options || f.options || []) : (fieldConfig.options || f.options || []));
+                                    const rawFType = fieldConfig.type || f.type || 'text';
+                                    const fType = (fOptions && fOptions.length > 0 && rawFType === 'text')
+                                        ? 'select'
+                                        : getFieldType(f.name, rawFType);
                                     const isAutoWordField = f.name === 'amount_in_words';
                                     const isOwnerNameField = Boolean(f.name && f.name.toLowerCase() === 'owner_name');
                                     const isLandRecordsOccupant = (name.toUpperCase() === 'LAND_RECORDS' || name.toLowerCase() === 'land_records') && isOwnerNameField;
@@ -449,8 +453,9 @@ const FormPanel = ({
                              Array.isArray(vars.field_order) ? vars.field_order :
                              Array.isArray(vars.ordered) ? vars.ordered : null;
 
+            const addedSet = new Set();
+
             if (orderList && orderList.length > 0) {
-                const addedSet = new Set();
                 orderList.forEach(item => {
                     const itemName = typeof item === 'string' ? item : (item.name || item.variable);
                     if (!itemName || addedSet.has(itemName)) return;
@@ -495,16 +500,22 @@ const FormPanel = ({
             // Fallback if no order list: Single variables first, then groups
             if (vars.single_variables) {
                 vars.single_variables.forEach(v => {
-                    result.push({ type: 'text', name: v });
+                    if (!addedSet.has(v)) {
+                        result.push({ type: 'text', name: v });
+                        addedSet.add(v);
+                    }
                 });
             }
             if (vars.groups) {
                 Object.entries(vars.groups).forEach(([groupName, groupFields]) => {
-                    result.push({
-                        type: 'repeater',
-                        name: groupName,
-                        fields: (groupFields || []).map(f => ({ name: typeof f === 'string' ? f : (f.name || f) }))
-                    });
+                    if (!addedSet.has(groupName)) {
+                        result.push({
+                            type: 'repeater',
+                            name: groupName,
+                            fields: (groupFields || []).map(f => ({ name: typeof f === 'string' ? f : (f.name || f) }))
+                        });
+                        addedSet.add(groupName);
+                    }
                 });
             }
             return result;
@@ -515,25 +526,78 @@ const FormPanel = ({
         const result = [];
         const stack = [];
         let current = result;
+        const seenRepeaters = new Map();
 
         vars.forEach(v => {
             if (typeof v === 'object' && v && v.name) {
                 result.push(v);
             } else if (typeof v === 'string') {
                 if (v.startsWith('#')) {
-                    const repeater = { type: 'repeater', name: v.slice(1), fields: [] };
-                    current.push(repeater);
-                    stack.push(current);
-                    current = repeater.fields;
+                    const rName = v.slice(1);
+                    if (seenRepeaters.has(rName)) {
+                        const existingRepeater = seenRepeaters.get(rName);
+                        stack.push(current);
+                        current = existingRepeater.fields;
+                    } else {
+                        const repeater = { type: 'repeater', name: rName, fields: [] };
+                        current.push(repeater);
+                        seenRepeaters.set(rName, repeater);
+                        stack.push(current);
+                        current = repeater.fields;
+                    }
                 } else if (v.startsWith('/')) {
                     current = stack.pop() || result;
                 } else {
-                    current.push({ type: 'text', name: v });
+                    const fieldAlreadyExists = current.some(f => (typeof f === 'string' ? f : f.name) === v);
+                    if (!fieldAlreadyExists) {
+                        current.push({ type: 'text', name: v });
+                    }
                 }
             }
         });
         return result;
     }, [vars]);
+
+    // Helper to evaluate conditional visibility for single variables and repeaters
+    const isItemVisible = React.useCallback((itemName, itemType) => {
+        const condition = activeTemplate?.conditions?.[itemName]
+            || activeTemplate?.variables?.conditions?.[itemName]
+            || activeTemplate?.fieldOrder?.conditions?.[itemName]
+            || activeTemplate?.fields?.[itemName]?.condition;
+
+        if (!condition) return true;
+
+        const checkSingleCond = (cond) => {
+            if (!cond) return true;
+            if (typeof cond === 'string') {
+                const m = cond.match(/^\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*(==|!=)\s*["']?([^"']+)["']?\s*$/);
+                if (m) {
+                    const [, fieldName, op, targetVal] = m;
+                    const defaultVal = activeTemplate?.fields?.[fieldName]?.default || '';
+                    const currentVal = String(data[fieldName] !== undefined ? data[fieldName] : defaultVal).trim();
+                    if (op === '==') return currentVal.toLowerCase() === targetVal.trim().toLowerCase();
+                    if (op === '!=') return currentVal.toLowerCase() !== targetVal.trim().toLowerCase();
+                }
+                return true;
+            }
+            if (typeof cond === 'object') {
+                const fieldName = cond.field || cond.var || cond.variable;
+                const op = cond.op || cond.operator || '==';
+                const targetVal = String(cond.value !== undefined ? cond.value : (cond.val !== undefined ? cond.val : '')).trim();
+                if (!fieldName) return true;
+                const defaultVal = activeTemplate?.fields?.[fieldName]?.default || '';
+                const currentVal = String(data[fieldName] !== undefined ? data[fieldName] : defaultVal).trim();
+                if (op === '==') return currentVal.toLowerCase() === targetVal.toLowerCase();
+                if (op === '!=') return currentVal.toLowerCase() !== targetVal.toLowerCase();
+            }
+            return true;
+        };
+
+        if (Array.isArray(condition)) {
+            return condition.every(checkSingleCond);
+        }
+        return checkSingleCond(condition);
+    }, [activeTemplate, data]);
 
     const [pdfStatus, setPdfStatus] = React.useState({ available: null, engine: null });
     const pdfAvailable = pdfStatus?.available;
@@ -976,6 +1040,7 @@ const FormPanel = ({
     const validateRequiredFields = () => {
         let hasEmptyRequired = false;
         structuredVariables.forEach(group => {
+            if (!isItemVisible(group.name, group.type)) return;
             if (group.type === 'text') {
                 const variable = group.name;
                 const fieldConfig = (selectedTemplate?.fields && selectedTemplate.fields[variable]) || {};
@@ -1007,6 +1072,7 @@ const FormPanel = ({
     const validateFormatFields = () => {
         let hasFormatErrors = false;
         structuredVariables.forEach(group => {
+            if (!isItemVisible(group.name, group.type)) return;
             if (group.type === 'text') {
                 const err = validateField(group.name, data[group.name]);
                 if (err) hasFormatErrors = true;
@@ -1160,6 +1226,9 @@ const FormPanel = ({
                             </div>
                         )}
                         {structuredVariables.map(group => {
+                            if (!isItemVisible(group.name, group.type)) {
+                                return null;
+                            }
                             if (group.type === 'repeater') {
                                 const isNestedRepeater = group.name.toLowerCase().includes('children') ||
                                     group.name.toLowerCase().includes('heir') ||
@@ -1298,7 +1367,10 @@ const FormPanel = ({
                             const fieldConfig = (activeTemplate?.fields && activeTemplate.fields[variable]) || {};
                             const readableLabel = fieldConfig.label
                                 || variable.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim().toUpperCase();
-                            const inputType = getFieldType(variable, fieldConfig.type || 'text');
+                            const parsedOptions = window.parseOptionsList ? window.parseOptionsList(fieldConfig.options || []) : (fieldConfig.options || []);
+                            const inputType = (parsedOptions && parsedOptions.length > 0 && (!fieldConfig.type || fieldConfig.type === 'text'))
+                                ? 'select'
+                                : getFieldType(variable, fieldConfig.type || 'text');
 
                             const isFieldRequired = fieldConfig.required === true;
                             const val = data[variable] || '';
@@ -1306,7 +1378,6 @@ const FormPanel = ({
                             if (!fieldError && isFieldRequired && String(val).trim() === '' && showRequiredErrors) {
                                 fieldError = "આ માહિતી ફરજિયાત છે (This field is required)";
                             }
-                            const parsedOptions = window.parseOptionsList ? window.parseOptionsList(fieldConfig.options || []) : (fieldConfig.options || []);
 
                             return (
                                 <InputField

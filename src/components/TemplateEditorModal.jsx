@@ -395,7 +395,7 @@ const TemplateEditorModal = ({ isOpen, token, template, onSave, onClose }) => {
         // Fallback to old flat array
         if (!Array.isArray(fieldOrder)) return { inputVars: [], repeaterBlocks: [] };
         const singles = fieldOrder.filter(v => !v.startsWith('#') && !v.startsWith('/'));
-        const repeaters = fieldOrder.filter(v => v.startsWith('#')).map(v => v.slice(1));
+        const repeaters = Array.from(new Set(fieldOrder.filter(v => v.startsWith('#')).map(v => v.slice(1))));
         return { inputVars: singles, repeaterBlocks: repeaters };
     }, [fieldOrder]);
 

@@ -38,13 +38,112 @@ RENDER_LOCK = threading.Semaphore(3)
 _DOCX_VAR_CACHE = {}
 
 
+# ─── JINJA2 / DOCXTPL XML NORMALIZATION ──────────────────────────────────────
+
+def normalize_jinja_xml(src_xml: str) -> str:
+    """
+    Normalizes DOCX XML for robust Jinja2 / docxtpl parsing across all Word XML parts.
+    1. Consolidates split runs within Jinja tag delimiters {{...}}, {%...%}, {#...#}.
+    2. Normalizes non-breaking spaces (\\xa0, &#160;, &nbsp;) to standard ASCII spaces within tags.
+    3. Normalizes smart quotes (“,”,‘,’) to ASCII (\" and ') within tags.
+    4. Normalizes whitespace and prefix variations:
+       - {% p if ... %} -> {%p if ... %}
+       - {%pif ... %} -> {%p if ... %}
+       - {%pendif%} -> {%p endif %}
+       - {%pendfor%} -> {%p endfor %}
+       - same for tr, tc, r
+    5. Upgrades standalone control tags inside a paragraph that lack 'p' (e.g. {% if ... %})
+       so docxtpl properly strips paragraph wrappers and avoids empty paragraphs or syntax errors.
+    """
+    if not src_xml:
+        return src_xml
+
+    # Step 1: Strip XML tags and spaces that break delimiters: {<tags>{, {<tags>%, %<tags>}, }<tags>}
+    src_xml = re.sub(
+        r"(?<=\{)(?:<[^>]*>|\s)+(?=[\{%\#])|(?<=[\%\}\#])(?:<[^>]*>|\s)+(?=\})",
+        "",
+        src_xml,
+        flags=re.DOTALL
+    )
+
+    # Step 2: Consolidate text runs inside Jinja tags {{...}}, {%...%}, {#...#}
+    def consolidate_tag_runs(match):
+        tag_text = match.group(0)
+        stripped = re.sub(r"</w:t>.*?(?:<w:t>|<w:t [^>]*>)", "", tag_text, flags=re.DOTALL)
+        return stripped
+
+    src_xml = re.sub(
+        r"{%(?:(?!%}).)*%}|{#(?:(?!#}).)*#}|{{(?:(?!}}).)*}}",
+        consolidate_tag_runs,
+        src_xml,
+        flags=re.DOTALL
+    )
+
+    # Step 3: Inside all Jinja tags, clean smart quotes, nbsp, entities, and prefix spacing
+    def clean_tag_contents(m):
+        content = m.group(0)
+        content = content.replace("\xa0", " ").replace("&#160;", " ").replace("&nbsp;", " ")
+        content = (
+            content
+            .replace("“", '"')
+            .replace("”", '"')
+            .replace("‘", "'")
+            .replace("’", "'")
+            .replace("&#8216;", "'")
+            .replace("&#8217;", "'")
+            .replace("&#8220;", '"')
+            .replace("&#8221;", '"')
+            .replace("&ldquo;", '"')
+            .replace("&rdquo;", '"')
+            .replace("&lsquo;", "'")
+            .replace("&rsquo;", "'")
+        )
+        # Normalize spacing for docxtpl tags: p, tr, tc, r
+        content = re.sub(r"^(\{[%{])\s*(p|tr|tc|r)\s+", r"\1\2 ", content)
+        # Handle cases with no space after prefix: {%pif ... %} -> {%p if ... %}
+        content = re.sub(
+            r"^(\{[%{])\s*(p|tr|tc|r)(if|elif|else|endif|for|endfor)\b",
+            r"\1\2 \3 ",
+            content
+        )
+        # Handle standalone {%pendif%} or {%pendfor%} with trailing %}:
+        content = re.sub(
+            r"^(\{[%{])\s*(p|tr|tc|r)(endif|endfor)\s*(%\}|\}\})",
+            r"\1\2 \3 \4",
+            content
+        )
+        # Ensure clean closing spacing: {% endif%} -> {% endif %}
+        content = re.sub(r"([^\s%])%\}$", r"\1 %}", content)
+        content = re.sub(r"([^\s\}])\}\}$", r"\1 }}", content)
+        return content
+
+    src_xml = re.sub(
+        r"\{[%{](?:(?![%\}]\}).)*[%\}]\}",
+        clean_tag_contents,
+        src_xml,
+        flags=re.DOTALL
+    )
+
+    return src_xml
+
+
+class DraftSetuDocxTemplate(DocxTemplate):
+    """
+    Subclass of DocxTemplate with XML preprocessing for robust paragraph-level
+    and run-split Jinja tag rendering across body, headers, footers, and footnotes.
+    """
+    def patch_xml(self, src_xml):
+        src_xml = normalize_jinja_xml(src_xml)
+        return super().patch_xml(src_xml)
+
+
 # ─── VARIABLE EXTRACTION ────────────────────────────────────────────────────
 
 def extract_variables_from_docx(file_path: str) -> dict:
     """
     Extracts all variables and Jinja2 loops from a .docx file preserving exact document order.
     Scans headers, body paragraphs & tables in true XML order, and footers.
-    Supports repeater block tags: {% for x in X %} and {% endfor %}.
+    Supports repeater block tags: {% for x in X %} and {% endfor %} with scoped loop tracking.
     Returns a dictionary containing "groups", "single_variables", and "order".
     """
     if not file_path or not os.path.exists(file_path):
@@ -60,8 +159,12 @@ def extract_variables_from_docx(file_path: str) -> dict:
         cache_key = None
 
     loop_pattern = re.compile(r'{%\s*(?:tr|tc|p)?\s*for\s+(\w+)\s+in\s+(\w+)\s*%}')
+    endfor_pattern = re.compile(r'{%\s*(?:tr|tc|p)?\s*endfor\s*%}')
+    if_pattern = re.compile(r'{%\s*(?:tr|tc|p)?\s*if\s+([^%]+)%}')
+    elif_pattern = re.compile(r'{%\s*(?:tr|tc|p)?\s*elif\s+([^%]+)%}')
+    else_pattern = re.compile(r'{%\s*(?:tr|tc|p)?\s*else\s*%}')
+    endif_pattern = re.compile(r'{%\s*(?:tr|tc|p)?\s*endif\s*%}')
     var_pattern = re.compile(r'\{\{([^}]+)\}\}')
-    if_pattern = re.compile(r'{%\s*(?:tr|tc|p)?\s*(?:if|elif)\s+([^%]+)%}')
 
     all_texts: list[str] = []
 
@@ -84,6 +187,31 @@ def extract_variables_from_docx(file_path: str) -> dict:
                     elif child.tag.endswith('tbl'):
                         nested = Table(child, table)
                         scan_table(nested)
+
+    def _parse_condition(cond_raw: str) -> dict:
+        if not cond_raw:
+            return {}
+        cond_clean = (
+            cond_raw.replace('\u201c', '"')
+            .replace('\u201d', '"')
+            .replace('\u2018', "'")
+            .replace('\u2019', "'")
+            .replace('\xa0', ' ')
+            .strip()
+        )
+        # Match VAR == 'VAL' or VAR != 'VAL'
+        m = re.match(r'^\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*(==|!=)\s*["\']([^"\']+)["\']\s*$', cond_clean)
+        if m:
+            return {"field": m.group(1), "op": m.group(2), "value": m.group(3)}
+        # Match 'VAL' == VAR or 'VAL' != VAR
+        m = re.match(r'^\s*["\']([^"\']+)["\']\s*(==|!=)\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*$', cond_clean)
+        if m:
+            return {"field": m.group(3), "op": m.group(2), "value": m.group(1)}
+        # Match single boolean var: e.g. IS_ACTIVE
+        m = re.match(r'^\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*$', cond_clean)
+        if m and m.group(1) not in {'True', 'False', 'None', 'and', 'or', 'not'}:
+            return {"field": m.group(1), "op": "==", "value": "True"}
+        return {"raw": cond_clean}
 
     try:
         import jinja2
@@ -121,21 +249,18 @@ def extract_variables_from_docx(file_path: str) -> dict:
             except Exception as e:
                 logger.debug(f"Footer scan skip: {e}")
 
-        # Pass 1: Scan all text for loop blocks & iterators
-        iterators = {}
+        # Pass 1: Collect all detected loop groups in order of appearance (deduplicated)
         detected_groups = []
         detected_groups_set = set()
         for text in all_texts:
             for m in loop_pattern.finditer(text):
-                iterator = m.group(1).strip()
                 group = m.group(2).strip()
-                iterators[iterator] = group
                 if group not in detected_groups_set:
                     detected_groups_set.add(group)
                     detected_groups.append(group)
                     logger.info(f"[LOOP DETECTED] {group}")
 
-        # Pass 2: Parse variables and preserve true document appearance order
+        # Pass 2: Sequential document scan with active loop stack and conditional if stack
         groups = {g: [] for g in detected_groups}
         groups_seen = {g: set() for g in detected_groups}
         single_variables = []
@@ -143,46 +268,128 @@ def extract_variables_from_docx(file_path: str) -> dict:
         order = []
         order_set = set()
 
+        loop_stack = []  # list of (iterator_name, group_name)
+        all_seen_iterators = {}  # iterator -> list of groups (for fallback)
+        if_stack = []  # list of parsed condition dicts
+        unconditional_seen = set()  # items seen outside any condition
+        conditions = {}  # name -> condition dict
+
         for text in all_texts:
             items = []
             for m in loop_pattern.finditer(text):
-                items.append((m.start(), 'loop', m.group(2).strip(), m.group(1).strip()))
+                items.append((m.start(), 'loop_start', m.group(2).strip(), m.group(1).strip()))
+            for m in endfor_pattern.finditer(text):
+                items.append((m.start(), 'loop_end', None, None))
+            for m in if_pattern.finditer(text):
+                items.append((m.start(), 'if_start', m.group(1).strip(), None))
+            for m in elif_pattern.finditer(text):
+                items.append((m.start(), 'elif', m.group(1).strip(), None))
+            for m in else_pattern.finditer(text):
+                items.append((m.start(), 'else', None, None))
+            for m in endif_pattern.finditer(text):
+                items.append((m.start(), 'endif', None, None))
             for m in var_pattern.finditer(text):
                 items.append((m.start(), 'var', m.group(1).strip(), None))
-            for m in if_pattern.finditer(text):
-                cond = m.group(1).strip()
-                try:
-                    ast = jinja2.Environment().parse(f'{{% if {cond} %}}{{% endif %}}')
-                    vars_in_cond = jinja2.meta.find_undeclared_variables(ast)
-                    for v in vars_in_cond:
-                        items.append((m.start(), 'if_var', v, None))
-                except Exception:
-                    tokens = re.findall(r'[a-zA-Z0-9_\u0A80-\u0AFF]+', cond)
-                    for tok in tokens:
-                        if tok not in {'if', 'elif', 'else', 'endif', 'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None'}:
-                            items.append((m.start(), 'if_var', tok, None))
 
             items.sort(key=lambda x: x[0])
 
             for item in items:
                 kind = item[1]
-                if kind == 'loop':
+                if kind in ('if_start', 'elif'):
+                    cond_raw = item[2]
+                    cond_clean = (
+                        cond_raw.replace('\u201c', '"')
+                        .replace('\u201d', '"')
+                        .replace('\u2018', "'")
+                        .replace('\u2019', "'")
+                        .replace('\xa0', ' ')
+                    )
+                    try:
+                        ast = jinja2.Environment().parse(f'{{% if {cond_clean} %}}{{% endif %}}')
+                        vars_in_cond = jinja2.meta.find_undeclared_variables(ast)
+                    except Exception:
+                        tokens = re.findall(r'[a-zA-Z0-9_\u0A80-\u0AFF]+', cond_clean)
+                        vars_in_cond = [
+                            tok for tok in tokens
+                            if tok not in {'if', 'elif', 'else', 'endif', 'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None'}
+                        ]
+
+                    for v in vars_in_cond:
+                        if v not in detected_groups_set:
+                            if v not in single_variables_set:
+                                single_variables_set.add(v)
+                                single_variables.append(v)
+                            if v not in order_set:
+                                order_set.add(v)
+                                order.append(v)
+                            unconditional_seen.add(v)
+
+                    cond_obj = _parse_condition(cond_clean)
+                    if kind == 'if_start':
+                        if_stack.append(cond_obj)
+                    else:
+                        if if_stack:
+                            if_stack[-1] = cond_obj
+                        else:
+                            if_stack.append(cond_obj)
+
+                elif kind == 'else':
+                    if if_stack:
+                        prev = if_stack[-1]
+                        if isinstance(prev, dict) and prev.get("op") == "==":
+                            if_stack[-1] = {"field": prev["field"], "op": "!=", "value": prev["value"]}
+                        else:
+                            if_stack[-1] = {"raw": "else"}
+
+                elif kind == 'endif':
+                    if if_stack:
+                        if_stack.pop()
+
+                elif kind == 'loop_start':
                     group = item[2]
+                    iterator = item[3]
+                    loop_stack.append((iterator, group))
+                    all_seen_iterators.setdefault(iterator, []).append(group)
                     if group not in order_set:
                         order_set.add(group)
                         order.append(group)
+
+                    current_cond = if_stack[-1] if if_stack else None
+                    if not current_cond:
+                        unconditional_seen.add(group)
+                    else:
+                        if group not in unconditional_seen and group not in conditions:
+                            conditions[group] = current_cond
+
+                elif kind == 'loop_end':
+                    if loop_stack:
+                        loop_stack.pop()
+
                 elif kind == 'var':
                     var_content = item[2]
+                    current_cond = if_stack[-1] if if_stack else None
+
                     if '.' in var_content:
                         parts = var_content.split('.', 1)
                         prefix = parts[0].strip()
                         field_name = parts[1].strip()
 
-                        if prefix in iterators:
-                            g = iterators[prefix]
-                            if field_name not in groups_seen[g]:
-                                groups_seen[g].add(field_name)
-                                groups[g].append(field_name)
+                        # Find active group from innermost loop stack
+                        target_group = None
+                        for it, grp in reversed(loop_stack):
+                            if it == prefix:
+                                target_group = grp
+                                break
+
+                        if not target_group and prefix in all_seen_iterators:
+                            # Fallback to last group seen with this iterator
+                            target_group = all_seen_iterators[prefix][-1]
+
+                        if target_group and target_group in groups:
+                            # Union of fields across all loop occurrences, preserving first-seen order
+                            if field_name not in groups_seen[target_group]:
+                                groups_seen[target_group].add(field_name)
+                                groups[target_group].append(field_name)
                         else:
                             if var_content not in single_variables_set:
                                 single_variables_set.add(var_content)
@@ -190,28 +397,57 @@ def extract_variables_from_docx(file_path: str) -> dict:
                             if var_content not in order_set:
                                 order_set.add(var_content)
                                 order.append(var_content)
+                            if not current_cond:
+                                unconditional_seen.add(var_content)
+                            else:
+                                if var_content not in unconditional_seen and var_content not in conditions:
+                                    conditions[var_content] = current_cond
                     else:
-                        if var_content not in iterators:
+                        is_iter = any(it == var_content for it, _ in loop_stack) or (var_content in all_seen_iterators)
+                        if not is_iter:
                             if var_content not in single_variables_set:
                                 single_variables_set.add(var_content)
                                 single_variables.append(var_content)
                             if var_content not in order_set:
                                 order_set.add(var_content)
                                 order.append(var_content)
-                elif kind == 'if_var':
-                    var_name = item[2]
-                    if var_name not in iterators and var_name not in detected_groups_set:
-                        if var_name not in single_variables_set:
-                            single_variables_set.add(var_name)
-                            single_variables.append(var_name)
-                        if var_name not in order_set:
-                            order_set.add(var_name)
-                            order.append(var_name)
+                            if not current_cond:
+                                unconditional_seen.add(var_content)
+                            else:
+                                if var_content not in unconditional_seen and var_content not in conditions:
+                                    conditions[var_content] = current_cond
+
+        # Pass 3: Extract conditional options for variables used in comparisons (e.g. {%p if VENDOR_TYPE == "INDIVIDUAL" %})
+        detected_options = {}
+        for text in all_texts:
+            for m in if_pattern.finditer(text):
+                cond = m.group(1).strip()
+                cond_clean = (
+                    cond.replace('\u201c', '"')
+                    .replace('\u201d', '"')
+                    .replace('\u2018', "'")
+                    .replace('\u2019', "'")
+                    .replace('\xa0', ' ')
+                )
+                eq_matches = re.findall(
+                    r'([a-zA-Z_0-9\u0A80-\u0AFF]+)\s*==\s*["\']([^"\']+)["\']|["\']([^"\']+)["\']\s*==\s*([a-zA-Z_0-9\u0A80-\u0AFF]+)',
+                    cond_clean
+                )
+                for m_eq in eq_matches:
+                    v_name = m_eq[0] or m_eq[3]
+                    opt_val = m_eq[1] or m_eq[2]
+                    if v_name and opt_val and v_name not in {'if', 'elif', 'else', 'endif', 'and', 'or', 'not', 'in', 'is'}:
+                        if v_name not in detected_options:
+                            detected_options[v_name] = []
+                        if opt_val not in detected_options[v_name]:
+                            detected_options[v_name].append(opt_val)
 
         result = {
             "groups": groups,
             "single_variables": single_variables,
-            "order": order
+            "order": order,
+            "options": detected_options,
+            "conditions": conditions
         }
 
         if cache_key:
@@ -263,7 +499,14 @@ def _normalize_context(data: dict) -> dict:
         if val is None:
             return ""
         if isinstance(val, list):
-            return [normalize_val(item) for item in val]
+            normalized_list = []
+            for i, item in enumerate(val):
+                norm_item = normalize_val(item)
+                if isinstance(norm_item, dict):
+                    if "index" not in norm_item or not str(norm_item.get("index") or "").strip():
+                        norm_item["index"] = str(i + 1)
+                normalized_list.append(norm_item)
+            return normalized_list
         if isinstance(val, dict):
             return {fk: normalize_val(fv) for fk, fv in val.items()}
         # Primitive value
@@ -448,7 +691,7 @@ def render_docx_template(
 
     with RENDER_LOCK:
         try:
-            doc = DocxTemplate(template_path)
+            doc = DraftSetuDocxTemplate(template_path)
             context = _normalize_context(data)
             # Log final HEIRS array for debugging
             if 'HEIRS' in context:

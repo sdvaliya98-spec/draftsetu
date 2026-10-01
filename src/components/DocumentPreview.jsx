@@ -179,6 +179,9 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
             html = html.replace(/\[\[\[VAR_START:([^\]]+)\]\]\]([\s\S]*?)\[\[\[VAR_END\]\]\]/g, (match, key, content) => {
                 const displayName = key.split('.').pop().replace(/_/g, ' ');
                 if (content.includes('[[[VAR_MISSING:')) {
+                    if (displayName.toLowerCase() === 'index') {
+                        return `<span class="dp-highlight-filled" data-var-path="${key}" title="Index: ${key}"></span>`;
+                    }
                     return `<span class="dp-highlight-missing" data-var-path="${key}" title="Required field: ${key}">[${displayName} Required]</span>`;
                 }
                 return `<span class="dp-highlight-filled" data-var-path="${key}" title="Variable: ${key}">${content}</span>`;

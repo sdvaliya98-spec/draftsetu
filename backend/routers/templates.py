@@ -76,13 +76,19 @@ def _format_template_dict(t: models.DBTemplate) -> dict:
                 extracted_order = extracted.get("order", [])
                 extracted_groups = extracted.get("groups", {})
                 extracted_singles = extracted.get("single_variables", [])
+                extracted_options = extracted.get("options", {})
+                extracted_conditions = extracted.get("conditions", {})
 
                 if isinstance(field_order, dict):
                     # Merge groups
                     existing_groups = field_order.get("groups", {})
                     for g_name, g_fields in extracted_groups.items():
-                        if g_name not in existing_groups:
-                            existing_groups[g_name] = g_fields
+                        if g_name not in existing_groups or not existing_groups[g_name]:
+                            existing_groups[g_name] = list(g_fields)
+                        else:
+                            for f in g_fields:
+                                if f not in existing_groups[g_name]:
+                                    existing_groups[g_name].append(f)
                     field_order["groups"] = existing_groups
 
                     # Merge single variables
@@ -100,7 +106,15 @@ def _format_template_dict(t: models.DBTemplate) -> dict:
                         for o_item in extracted_order:
                             if o_item not in existing_order:
                                 existing_order.append(o_item)
-                        field_order["order"] = existing_order
+                    # Merge conditions
+                    existing_conditions = field_order.get("conditions", {})
+                    if not isinstance(existing_conditions, dict):
+                        existing_conditions = {}
+                    for c_name, c_val in extracted_conditions.items():
+                        if c_name not in existing_conditions:
+                            existing_conditions[c_name] = c_val
+                    field_order["conditions"] = existing_conditions
+
                 elif (isinstance(field_order, list) and not field_order) or not field_order:
                     field_order = extracted
 
@@ -122,13 +136,43 @@ def _format_template_dict(t: models.DBTemplate) -> dict:
                                         "type": "text",
                                         "required": False
                                     }
+
+                # Apply conditions to fields
+                if isinstance(field_order, dict) and "conditions" in field_order:
+                    for var_name, cond in field_order["conditions"].items():
+                        if var_name in fields and isinstance(fields[var_name], dict):
+                            fields[var_name]["condition"] = cond
+
+                # Apply extracted conditional options if not already configured in template
+                for var_name, opts in extracted_options.items():
+                    if opts and isinstance(opts, list):
+                        cfg = fields.setdefault(var_name, {
+                            "label": var_name.replace('_', ' ').title(),
+                            "type": "select",
+                            "required": False
+                        })
+                        if not cfg.get("options"):
+                            cfg["options"] = list(opts)
+                            if not cfg.get("type") or cfg.get("type") == "text":
+                                cfg["type"] = "select"
         except Exception as e:
             logger.debug(f"Error enriching template {t.template_id} variables: {e}")
 
-    # Ensure all field configs have an explicit boolean required property
+    # Generic schema normalization for all fields:
+    # 1. Ensure explicit boolean required property
+    # 2. For fields with options, ensure default is first option if no default exists
     for v_cfg in fields.values():
-        if isinstance(v_cfg, dict) and "required" not in v_cfg:
-            v_cfg["required"] = False
+        if isinstance(v_cfg, dict):
+            if "required" not in v_cfg:
+                v_cfg["required"] = False
+            opts = v_cfg.get("options")
+            if isinstance(opts, list) and len(opts) > 0:
+                first_opt = opts[0]
+                first_val = first_opt if isinstance(first_opt, str) else (first_opt.get("value") if isinstance(first_opt, dict) else str(first_opt))
+                if not v_cfg.get("default") and first_val:
+                    v_cfg["default"] = first_val
+                if not v_cfg.get("type") or v_cfg.get("type") == "text":
+                    v_cfg["type"] = "select"
 
     variables = field_order if field_order else list(fields.keys())
 
@@ -141,6 +185,12 @@ def _format_template_dict(t: models.DBTemplate) -> dict:
     if not secondary_field and hasattr(t, "document_secondary_field"):
         secondary_field = t.document_secondary_field
 
+    conditions = {}
+    if isinstance(field_order, dict) and "conditions" in field_order:
+        conditions = field_order["conditions"]
+    elif isinstance(variables, dict) and "conditions" in variables:
+        conditions = variables["conditions"]
+
     return {
         "id": t.id,
         "template_id": t.template_id,
@@ -151,6 +201,7 @@ def _format_template_dict(t: models.DBTemplate) -> dict:
         "content2": t.content2,
         "footer": t.footer,
         "fields": fields,
+        "conditions": conditions,
         "fieldOrder": field_order if field_order else variables,
         "variables": variables,
         "is_active": t.is_active,
@@ -770,6 +821,7 @@ async def upload_docx(
         "category": db_template.category if db_template else "General",
         "menu_item_id": db_template.menu_item_id if db_template else None,
         "fields": existing_fields,
+        "conditions": variables.get("conditions", {}) if isinstance(variables, dict) else {},
         "fieldOrder": variables,
         "_source": "db" if db_template else "local",
         "message": f"Uploaded successfully. {len(variables)} variable(s) found."
