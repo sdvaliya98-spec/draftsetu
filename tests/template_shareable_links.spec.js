@@ -237,7 +237,7 @@ test.describe('Template-Specific Shareable Links & WhatsApp Share Suite', () => 
         expect(title).toContain('Template ઉપલબ્ધ નથી');
 
         // Click browse all button
-        const browseBtn = page.locator('button:has-text("બધા દસ્તાવેજો જુઓ")');
+        const browseBtn = page.locator(':is(a, button):has-text("બધા દસ્તાવેજો જુઓ")');
         await expect(browseBtn).toBeVisible();
         await browseBtn.click();
         await page.waitForTimeout(1000);
@@ -301,7 +301,7 @@ test.describe('Template-Specific Shareable Links & WhatsApp Share Suite', () => 
         await page.waitForTimeout(1000);
 
         // Step 1: Click template card on Homepage -> Navigates to Template Landing Page
-        const templateCardBtn = page.locator('button:has-text("દસ્તાવેજ પસંદ કરો")').first();
+        const templateCardBtn = page.locator(':is(a, button):has-text("દસ્તાવેજ પસંદ કરો")').first();
         await expect(templateCardBtn).toBeVisible({ timeout: 10000 });
         await templateCardBtn.click();
         

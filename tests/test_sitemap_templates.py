@@ -28,7 +28,12 @@ def test_sitemap_generation_includes_active_templates():
         assert "https://draftsetu.in/templates/vechan-banakhat-kabja-sathe-1ee12a63" in xml_content
         assert "https://draftsetu.in/templates/hakk-release-no-lekh-737760b1" in xml_content
         assert "https://draftsetu.in/non-agricultural" in xml_content
-        assert "https://draftsetu.in/page:non-agricultural" not in xml_content
+        assert "https://draftsetu.in/user-guide" in xml_content
+        assert "https://draftsetu.in/faqs" in xml_content
+        assert "https://draftsetu.in/heirship" in xml_content
+        assert "https://draftsetu.in/relinquishment" in xml_content
+        assert "https://draftsetu.in/contact" in xml_content
+        assert "https://draftsetu.in/page:" not in xml_content
     finally:
         db.close()
 
@@ -37,5 +42,7 @@ def test_robots_txt_rules():
     assert resp.status_code == 200
     content = resp.body.decode('utf-8')
     assert "Allow: /non-agricultural" in content
+    assert "Allow: /user-guide" in content
+    assert "Allow: /faqs" in content
     assert "Allow: /terms-of-service" in content
     assert "Sitemap: https://draftsetu.in/sitemap.xml" in content

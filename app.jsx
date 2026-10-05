@@ -21,6 +21,9 @@ const getErrorMessage = async (res) => {
     }
 };
 
+// Clean public static pages for SEO & clean routing
+export const CLEAN_STATIC_PAGES = ['non-agricultural', 'user-guide', 'faqs', 'heirship', 'relinquishment', 'contact'];
+
 // --- Main App Component ---
 
 const DEFAULT_INITIAL_DATA = {
@@ -109,10 +112,10 @@ const App = () => {
     const [isFinalizing, setIsFinalizing] = useState(false);
     const [currentView, setCurrentView] = useState(() => {
         try {
-            const path = window.location.pathname.toLowerCase();
-            if (path === '/privacy-policy' || path === '/privacy-policy/') return 'privacy-policy';
-            if (path === '/terms-of-service' || path === '/terms-of-service/') return 'terms-of-service';
-            if (path === '/non-agricultural' || path === '/non-agricultural/') return 'page';
+            const path = window.location.pathname.toLowerCase().replace(/\/+$/, '') || '/';
+            if (path === '/privacy-policy') return 'privacy-policy';
+            if (path === '/terms-of-service') return 'terms-of-service';
+            if (CLEAN_STATIC_PAGES.includes(path.slice(1))) return 'page';
             if (path.startsWith('/templates/')) {
                 const slug = path.slice(11).trim().replace(/\/+$/, '');
                 if (slug) return 'template-landing';
@@ -142,9 +145,10 @@ const App = () => {
     const [currentPageSlug, setCurrentPageSlug] = useState(() => {
         try {
             const path = window.location.pathname;
-            const lowerPath = path.toLowerCase();
-            if (lowerPath === '/non-agricultural' || lowerPath === '/non-agricultural/') {
-                return 'non-agricultural';
+            const lowerPath = path.toLowerCase().replace(/\/+$/, '') || '/';
+            const pathSlug = lowerPath.slice(1);
+            if (CLEAN_STATIC_PAGES.includes(pathSlug)) {
+                return pathSlug;
             }
             if (lowerPath.startsWith('/page:')) {
                 const slug = path.slice(6).trim();
@@ -409,18 +413,30 @@ const App = () => {
         refreshCredits();
     }, [currentUser, authToken]);
 
-    // SPA Analytics Page View Tracking
+    // SPA Analytics Page View Tracking & Dynamic Canonical
     useEffect(() => {
         let path = '/';
         if (currentView === 'privacy-policy') path = '/privacy-policy';
         else if (currentView === 'terms-of-service') path = '/terms-of-service';
-        else if (currentView === 'page' && currentPageSlug === 'non-agricultural') path = '/non-agricultural';
-        else if (currentView === 'page' && currentPageSlug) path = `/page:${currentPageSlug}`;
+        else if (currentView === 'page' && currentPageSlug) {
+            path = CLEAN_STATIC_PAGES.includes(currentPageSlug) ? `/${currentPageSlug}` : `/page:${currentPageSlug}`;
+        }
         else if (currentView === 'template-landing' && currentTemplateSlug) path = `/templates/${currentTemplateSlug}`;
         else if (currentView === 'editor') path = activeTemplateId ? `/editor?template=${activeTemplateId}` : '/editor';
         else path = '/';
 
         trackPageView(path);
+
+        // Ensure homepage canonical is explicitly set when on home view
+        if (currentView === 'home') {
+            let canonicalLink = document.querySelector('link[rel="canonical"]');
+            if (!canonicalLink) {
+                canonicalLink = document.createElement('link');
+                canonicalLink.setAttribute('rel', 'canonical');
+                document.head.appendChild(canonicalLink);
+            }
+            canonicalLink.setAttribute('href', 'https://draftsetu.in/');
+        }
     }, [currentView, currentPageSlug, currentTemplateSlug, activeTemplateId]);
 
 
@@ -778,10 +794,13 @@ const App = () => {
 
     // Synchronize browser URL on popstate (Back / Forward buttons)
     useEffect(() => {
-        // Safe redirect: If user loaded legacy /page:non-agricultural, replaceState with clean canonical /non-agricultural
-        const initialPath = window.location.pathname.toLowerCase();
-        if (initialPath === '/page:non-agricultural' || initialPath === '/page:non-agricultural/') {
-            window.history.replaceState({ view: 'page', slug: 'non-agricultural' }, '', '/non-agricultural');
+        // Safe redirect: If user loaded legacy /page:*, replaceState with clean canonical URL
+        const initialPath = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+        if (initialPath.startsWith('/page:')) {
+            const legacySlug = initialPath.slice(6).trim();
+            if (CLEAN_STATIC_PAGES.includes(legacySlug)) {
+                window.history.replaceState({ view: 'page', slug: legacySlug }, '', `/${legacySlug}`);
+            }
         }
 
         const handlePopState = (event) => {
@@ -819,18 +838,19 @@ const App = () => {
                 return;
             }
 
-            const path = window.location.pathname.toLowerCase();
-            if (path === '/privacy-policy' || path === '/privacy-policy/') {
+            const path = window.location.pathname.toLowerCase().replace(/\/+$/, '') || '/';
+            if (path === '/privacy-policy') {
                 setCurrentView('privacy-policy');
                 setCurrentPageSlug('');
                 setCurrentTemplateSlug('');
-            } else if (path === '/terms-of-service' || path === '/terms-of-service/') {
+            } else if (path === '/terms-of-service') {
                 setCurrentView('terms-of-service');
                 setCurrentPageSlug('');
                 setCurrentTemplateSlug('');
-            } else if (path === '/non-agricultural' || path === '/non-agricultural/') {
+            } else if (CLEAN_STATIC_PAGES.includes(path.slice(1))) {
+                const cleanSlug = path.slice(1);
                 setCurrentView('page');
-                setCurrentPageSlug('non-agricultural');
+                setCurrentPageSlug(cleanSlug);
                 setCurrentTemplateSlug('');
             } else if (path.startsWith('/templates/')) {
                 setCurrentView('template-landing');
@@ -838,12 +858,13 @@ const App = () => {
                 setCurrentTemplateSlug(window.location.pathname.slice(11).trim().replace(/\/+$/, ''));
             } else if (path.startsWith('/page:')) {
                 const slug = window.location.pathname.slice(6).trim();
-                if (slug.toLowerCase() === 'non-agricultural') {
+                const lowerSlug = slug.toLowerCase();
+                if (CLEAN_STATIC_PAGES.includes(lowerSlug)) {
                     setCurrentView('page');
-                    setCurrentPageSlug('non-agricultural');
+                    setCurrentPageSlug(lowerSlug);
                     setCurrentTemplateSlug('');
-                    if (window.location.pathname !== '/non-agricultural') {
-                        window.history.replaceState({ view: 'page', slug: 'non-agricultural' }, '', '/non-agricultural');
+                    if (window.location.pathname !== `/${lowerSlug}`) {
+                        window.history.replaceState({ view: 'page', slug: lowerSlug }, '', `/${lowerSlug}`);
                     }
                 } else {
                     setCurrentView('page');
@@ -975,7 +996,7 @@ const App = () => {
                 setCurrentView('page');
                 setCurrentPageSlug(target.slug);
                 setCurrentTemplateSlug('');
-                const targetUrl = target.slug === 'non-agricultural' ? '/non-agricultural' : '/';
+                const targetUrl = CLEAN_STATIC_PAGES.includes(target.slug) ? `/${target.slug}` : '/';
                 if (window.location.pathname !== targetUrl) {
                     window.history.pushState({ view: 'page', slug: target.slug }, '', targetUrl);
                 }
@@ -1032,17 +1053,6 @@ const App = () => {
             viewHistoryRef.current.shift();
         }
 
-        if (url === '/non-agricultural' || url === 'non-agricultural' || url === 'page:non-agricultural' || url === '/page:non-agricultural') {
-            setCurrentView('page');
-            setCurrentPageSlug('non-agricultural');
-            setCurrentTemplateSlug('');
-            if (window.location.pathname !== '/non-agricultural') {
-                window.history.pushState({ view: 'page', slug: 'non-agricultural' }, '', '/non-agricultural');
-            }
-            window.scrollTo({ top: 0, behavior: 'instant' });
-            return;
-        }
-
         if (url === '/privacy-policy' || url === 'privacy-policy') {
             setCurrentView('privacy-policy');
             setCurrentPageSlug('');
@@ -1095,24 +1105,36 @@ const App = () => {
             return;
         }
 
-        if (url.startsWith('page:') || url.startsWith('/page:')) {
-            const raw = url.startsWith('/') ? url.slice(1) : url;
-            const slug = raw.slice(5).trim();
-            if (slug.toLowerCase() === 'non-agricultural') {
+        // Clean static public pages navigation
+        const normalizedNav = (url.startsWith('/') ? url.slice(1) : url).toLowerCase().replace(/\/+$/, '');
+        if (normalizedNav.startsWith('page:')) {
+            const legacySlug = normalizedNav.slice(5).trim();
+            if (CLEAN_STATIC_PAGES.includes(legacySlug)) {
                 setCurrentView('page');
-                setCurrentPageSlug('non-agricultural');
+                setCurrentPageSlug(legacySlug);
                 setCurrentTemplateSlug('');
-                if (window.location.pathname !== '/non-agricultural') {
-                    window.history.pushState({ view: 'page', slug: 'non-agricultural' }, '', '/non-agricultural');
+                if (window.location.pathname !== `/${legacySlug}`) {
+                    window.history.pushState({ view: 'page', slug: legacySlug }, '', `/${legacySlug}`);
                 }
                 window.scrollTo({ top: 0, behavior: 'instant' });
                 return;
             }
             setCurrentView('page');
-            setCurrentPageSlug(slug);
+            setCurrentPageSlug(legacySlug);
             setCurrentTemplateSlug('');
             if (window.location.pathname !== '/') {
-                window.history.pushState({ view: 'page', slug }, '', '/');
+                window.history.pushState({ view: 'page', slug: legacySlug }, '', '/');
+            }
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            return;
+        }
+
+        if (CLEAN_STATIC_PAGES.includes(normalizedNav)) {
+            setCurrentView('page');
+            setCurrentPageSlug(normalizedNav);
+            setCurrentTemplateSlug('');
+            if (window.location.pathname !== `/${normalizedNav}`) {
+                window.history.pushState({ view: 'page', slug: normalizedNav }, '', `/${normalizedNav}`);
             }
             window.scrollTo({ top: 0, behavior: 'instant' });
             return;

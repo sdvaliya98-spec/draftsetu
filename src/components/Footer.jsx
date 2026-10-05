@@ -42,36 +42,51 @@ const Footer = ({ onNavigate }) => {
                     </p>
                 </div>
 
-                {/* Col 2: Legal & Terms */}
+                {/* Col 2: Legal & Policies */}
                 <div>
                     <h4 className="font-black text-white text-xs uppercase tracking-wider mb-4 border-b border-slate-800 pb-2 font-sans">Legal & Policies</h4>
                     <ul className="space-y-2.5 text-xs font-semibold">
                         <li>
-                            <button
-                                type="button"
-                                onClick={() => handleNav('/privacy-policy')}
-                                className="hover:text-white transition-colors cursor-pointer text-left"
+                            <a
+                                href="/privacy-policy"
+                                onClick={(e) => {
+                                    if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleNav('/privacy-policy');
+                                    }
+                                }}
+                                className="hover:text-white transition-colors cursor-pointer text-left no-underline block"
                             >
                                 Privacy Policy (પ્રાઇવસી પોલિસી)
-                            </button>
+                            </a>
                         </li>
                         <li>
-                            <button
-                                type="button"
-                                onClick={() => handleNav('/terms-of-service')}
-                                className="hover:text-white transition-colors cursor-pointer text-left"
+                            <a
+                                href="/terms-of-service"
+                                onClick={(e) => {
+                                    if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleNav('/terms-of-service');
+                                    }
+                                }}
+                                className="hover:text-white transition-colors cursor-pointer text-left no-underline block"
                             >
                                 Terms of Service (સેવાની શરતો)
-                            </button>
+                            </a>
                         </li>
                         <li>
-                            <button
-                                type="button"
-                                onClick={() => handleNav('page:contact')}
-                                className="hover:text-white transition-colors cursor-pointer text-left"
+                            <a
+                                href="/contact"
+                                onClick={(e) => {
+                                    if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleNav('/contact');
+                                    }
+                                }}
+                                className="hover:text-white transition-colors cursor-pointer text-left no-underline block"
                             >
                                 Contact Us (સંપર્ક)
-                            </button>
+                            </a>
                         </li>
                     </ul>
                 </div>
@@ -81,22 +96,32 @@ const Footer = ({ onNavigate }) => {
                     <h4 className="font-black text-white text-xs uppercase tracking-wider mb-4 border-b border-slate-800 pb-2 font-sans">Resources</h4>
                     <ul className="space-y-2.5 text-xs font-semibold">
                         <li>
-                            <button
-                                type="button"
-                                onClick={() => handleNav('page:user-guide')}
-                                className="hover:text-white transition-colors cursor-pointer text-left"
+                            <a
+                                href="/user-guide"
+                                onClick={(e) => {
+                                    if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleNav('/user-guide');
+                                    }
+                                }}
+                                className="hover:text-white transition-colors cursor-pointer text-left no-underline block"
                             >
                                 User Guide (વપરાશકર્તા માર્ગદર્શિકા)
-                            </button>
+                            </a>
                         </li>
                         <li>
-                            <button
-                                type="button"
-                                onClick={() => handleNav('page:faqs')}
-                                className="hover:text-white transition-colors cursor-pointer text-left"
+                            <a
+                                href="/faqs"
+                                onClick={(e) => {
+                                    if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleNav('/faqs');
+                                    }
+                                }}
+                                className="hover:text-white transition-colors cursor-pointer text-left no-underline block"
                             >
                                 FAQs (વારંવાર પૂછાતા પ્રશ્નો)
-                            </button>
+                            </a>
                         </li>
                         <li>
                             <button
@@ -128,29 +153,44 @@ const Footer = ({ onNavigate }) => {
                     &copy; {new Date().getFullYear()} DraftSetu. All rights reserved.
                 </div>
                 <div className="flex items-center gap-6 text-xs">
-                    <button
-                        type="button"
-                        onClick={() => handleNav('/privacy-policy')}
-                        className="hover:text-slate-300 transition-colors"
+                    <a
+                        href="/privacy-policy"
+                        onClick={(e) => {
+                            if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                e.preventDefault();
+                                handleNav('/privacy-policy');
+                            }
+                        }}
+                        className="hover:text-slate-300 transition-colors no-underline"
                     >
                         Privacy Policy
-                    </button>
+                    </a>
                     <span>•</span>
-                    <button
-                        type="button"
-                        onClick={() => handleNav('/terms-of-service')}
-                        className="hover:text-slate-300 transition-colors"
+                    <a
+                        href="/terms-of-service"
+                        onClick={(e) => {
+                            if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                e.preventDefault();
+                                handleNav('/terms-of-service');
+                            }
+                        }}
+                        className="hover:text-slate-300 transition-colors no-underline"
                     >
                         Terms of Service
-                    </button>
+                    </a>
                     <span>•</span>
-                    <button
-                        type="button"
-                        onClick={() => handleNav('home')}
-                        className="hover:text-slate-300 transition-colors"
+                    <a
+                        href="/"
+                        onClick={(e) => {
+                            if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                e.preventDefault();
+                                handleNav('home');
+                            }
+                        }}
+                        className="hover:text-slate-300 transition-colors no-underline"
                     >
                         Home
-                    </button>
+                    </a>
                 </div>
             </div>
         </footer>

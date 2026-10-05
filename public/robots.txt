@@ -3,6 +3,11 @@ Allow: /
 Allow: /privacy-policy
 Allow: /terms-of-service
 Allow: /non-agricultural
+Allow: /user-guide
+Allow: /faqs
+Allow: /heirship
+Allow: /relinquishment
+Allow: /contact
 Allow: /templates/*
 Allow: /page:*
 Disallow: /api/

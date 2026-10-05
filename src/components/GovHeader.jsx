@@ -2,9 +2,40 @@ import React from 'react';
 import { MenuIcon, SettingsIcon } from './Icons.jsx';
 import UserMenu from './UserMenu.jsx';
 
+const getPublicHref = (item) => {
+    if (!item) return null;
+    if (item.url === 'documents' || item.url === 'wallet' || item.url === 'profile' || item.url === '#') return null;
+    if (item.type === 'dropdown' || item.type === 'document_services_panel') return null;
+    if (item.type === 'template' && item.slug) {
+        return `/templates/${item.slug}`;
+    }
+    if (item.url) {
+        if (item.url.startsWith('http://') || item.url.startsWith('https://')) return item.url;
+        let path = item.url.startsWith('/') ? item.url : `/${item.url}`;
+        if (path.startsWith('/page:')) {
+            path = '/' + path.slice(6);
+        }
+        return path;
+    }
+    return null;
+};
+
 const SubNavItem = ({ sub, onNavigate, onCloseParent }) => {
     const hasChildren = sub.children && sub.children.length > 0;
     const [isSubOpen, setIsSubOpen] = React.useState(false);
+    const href = (!hasChildren && sub.type !== 'dropdown') ? getPublicHref(sub) : null;
+
+    const subItemContent = (
+        <>
+            <div className="flex items-center gap-3">
+                {sub.icon && <span className="text-sm">{sub.icon}</span>}
+                <span>{sub.label}</span>
+            </div>
+            {hasChildren && <span className="text-[8px] text-slate-400">▶</span>}
+        </>
+    );
+
+    const subItemClass = "w-full text-left px-5 py-3 text-xs font-bold hover:bg-blue-50 hover:text-blue-700 transition flex items-center justify-between border-b border-slate-50 last:border-0 no-underline text-slate-700";
 
     return (
         <div
@@ -12,45 +43,84 @@ const SubNavItem = ({ sub, onNavigate, onCloseParent }) => {
             onMouseEnter={() => setIsSubOpen(true)}
             onMouseLeave={() => setIsSubOpen(false)}
         >
-            <button
-                onClick={() => {
-                    if (sub.type !== "dropdown" && !hasChildren) {
-                        onNavigate(sub);
-                        onCloseParent();
-                    }
-                }}
-                className="w-full text-left px-5 py-3 text-xs font-bold hover:bg-blue-50 hover:text-blue-700 transition flex items-center justify-between border-b border-slate-50 last:border-0"
-                type="button"
-            >
-                <div className="flex items-center gap-3">
-                    {sub.icon && <span className="text-sm">{sub.icon}</span>}
-                    <span>{sub.label}</span>
-                </div>
-                {hasChildren && <span className="text-[8px] text-slate-400">▶</span>}
-            </button>
+            {href ? (
+                <a
+                    href={href}
+                    onClick={(e) => {
+                        if (!href.startsWith('http')) {
+                            e.preventDefault();
+                            onNavigate(sub);
+                            onCloseParent();
+                        }
+                    }}
+                    className={subItemClass}
+                >
+                    {subItemContent}
+                </a>
+            ) : (
+                <button
+                    onClick={() => {
+                        if (sub.type !== "dropdown" && !hasChildren) {
+                            onNavigate(sub);
+                            onCloseParent();
+                        }
+                    }}
+                    className={subItemClass}
+                    type="button"
+                >
+                    {subItemContent}
+                </button>
+            )}
 
             {hasChildren && isSubOpen && (
                 <div className="absolute left-full top-0 ml-1 w-64 bg-white text-slate-800 rounded-2xl shadow-2xl py-2 border-l-4 border-blue-600 animate-fade-in z-[110]">
-                    {sub.children.map((child, cidx) => (
-                        <button
-                            key={child.id || cidx}
-                            onClick={() => {
-                                onNavigate(child);
-                                setIsSubOpen(false);
-                                onCloseParent();
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-[11px] font-bold hover:bg-blue-50 hover:text-blue-700 transition flex items-center gap-2 border-b border-slate-50 last:border-0"
-                            type="button"
-                        >
-                            {child.icon && <span className="text-xs">{child.icon}</span>}
-                            <span>{child.label}</span>
-                        </button>
-                    ))}
+                    {sub.children.map((child, cidx) => {
+                        const childHref = getPublicHref(child);
+                        const childClass = "w-full text-left px-4 py-2.5 text-[11px] font-bold hover:bg-blue-50 hover:text-blue-700 transition flex items-center gap-2 border-b border-slate-50 last:border-0 no-underline text-slate-700";
+                        const childInner = (
+                            <>
+                                {child.icon && <span className="text-xs">{child.icon}</span>}
+                                <span>{child.label}</span>
+                            </>
+                        );
+                        return childHref ? (
+                            <a
+                                key={child.id || cidx}
+                                href={childHref}
+                                onClick={(e) => {
+                                    if (!childHref.startsWith('http')) {
+                                        e.preventDefault();
+                                        onNavigate(child);
+                                        setIsSubOpen(false);
+                                        onCloseParent();
+                                    }
+                                }}
+                                className={childClass}
+                            >
+                                {childInner}
+                            </a>
+                        ) : (
+                            <button
+                                key={child.id || cidx}
+                                onClick={() => {
+                                    onNavigate(child);
+                                    setIsSubOpen(false);
+                                    onCloseParent();
+                                }}
+                                className={childClass}
+                                type="button"
+                            >
+                                {childInner}
+                            </button>
+                        );
+                    })}
                 </div>
             )}
         </div>
     );
-};const NavItem = ({ item, onNavigate }) => {
+};
+
+const NavItem = ({ item, onNavigate }) => {
     const hasChildren = item.children && item.children.length > 0;
     const [isOpen, setIsOpen] = React.useState(false);
 
@@ -141,19 +211,37 @@ const SubNavItem = ({ sub, onNavigate, onCloseParent }) => {
         );
     };
 
+    const publicHref = (!hasChildren && !isDocServices && item.type !== 'dropdown') ? getPublicHref(item) : null;
+    const navBtnClass = "px-0.5 lg:px-0.5 xl:px-1 2xl:px-2 py-2 text-[7.5px] lg:text-[8px] xl:text-[10.5px] 2xl:text-[12px] font-black uppercase tracking-wider text-slate-600 hover:text-blue-600 transition-all flex items-center h-full focus:outline-none border-b-2 border-transparent hover:border-blue-600 no-underline";
+
     return (
         <div
             className="relative h-full flex items-center group shrink-0"
             onMouseEnter={() => { setIsOpen(true); }}
             onMouseLeave={() => { setIsOpen(false); }}
         >
-            <button
-                onClick={handleItemClick}
-                className="px-0.5 lg:px-0.5 xl:px-1 2xl:px-2 py-2 text-[7.5px] lg:text-[8px] xl:text-[10.5px] 2xl:text-[12px] font-black uppercase tracking-wider text-slate-600 hover:text-blue-600 transition-all flex items-center h-full focus:outline-none border-b-2 border-transparent hover:border-blue-600"
-                type="button"
-            >
-                {renderNavContent()}
-            </button>
+            {publicHref ? (
+                <a
+                    href={publicHref}
+                    onClick={(e) => {
+                        if (!publicHref.startsWith('http')) {
+                            e.preventDefault();
+                            handleItemClick();
+                        }
+                    }}
+                    className={navBtnClass}
+                >
+                    {renderNavContent()}
+                </a>
+            ) : (
+                <button
+                    onClick={handleItemClick}
+                    className={navBtnClass}
+                    type="button"
+                >
+                    {renderNavContent()}
+                </button>
+            )}
 
             {hasChildren && isOpen && (
                 <div className="absolute left-1/2 -translate-x-1/2 top-full mt-0 w-72 bg-white text-slate-800 rounded-b-2xl shadow-2xl py-3 border-t-4 border-blue-600 animate-fade-in z-[100]">
@@ -174,26 +262,48 @@ const SubNavItem = ({ sub, onNavigate, onCloseParent }) => {
 const MobileSubNavItem = ({ sub, onNavigate }) => {
     const hasChildren = sub.children && sub.children.length > 0;
     const [expanded, setExpanded] = React.useState(false);
+    const href = (!hasChildren && sub.type !== "dropdown") ? getPublicHref(sub) : null;
+
+    const subContent = (
+        <>
+            {sub.icon && <span>{sub.icon}</span>}
+            <span>{sub.label}</span>
+        </>
+    );
 
     return (
         <div className="border-b border-slate-100/50 last:border-0 pb-1 w-full">
             <div className="flex justify-between items-center py-1.5 px-3">
-                <button
-                    onClick={() => {
-                        if (sub.type === "template") {
-                            onNavigate(sub);
-                        } else if (sub.type === "dropdown" || hasChildren) {
-                            setExpanded(!expanded);
-                        } else if (sub.url && sub.url !== "#") {
-                            onNavigate(sub);
-                        }
-                    }}
-                    className="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-blue-600 transition-colors text-left"
-                    type="button"
-                >
-                    {sub.icon && <span>{sub.icon}</span>}
-                    <span>{sub.label}</span>
-                </button>
+                {href ? (
+                    <a
+                        href={href}
+                        onClick={(e) => {
+                            if (!href.startsWith('http')) {
+                                e.preventDefault();
+                                onNavigate(sub);
+                            }
+                        }}
+                        className="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-blue-600 transition-colors text-left no-underline"
+                    >
+                        {subContent}
+                    </a>
+                ) : (
+                    <button
+                        onClick={() => {
+                            if (sub.type === "template") {
+                                onNavigate(sub);
+                            } else if (sub.type === "dropdown" || hasChildren) {
+                                setExpanded(!expanded);
+                            } else if (sub.url && sub.url !== "#") {
+                                onNavigate(sub);
+                            }
+                        }}
+                        className="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-blue-600 transition-colors text-left"
+                        type="button"
+                    >
+                        {subContent}
+                    </button>
+                )}
                 {hasChildren && (
                     <button
                         onClick={() => setExpanded(!expanded)}
@@ -207,17 +317,39 @@ const MobileSubNavItem = ({ sub, onNavigate }) => {
 
             {hasChildren && expanded && (
                 <div className="pl-4 mt-1 space-y-1 bg-slate-100/50 py-1.5 rounded-lg border border-slate-150">
-                    {sub.children.map((child, cidx) => (
-                        <button
-                            key={child.id || cidx}
-                            onClick={() => onNavigate(child)}
-                            className="w-full text-left py-1.5 px-3 text-[11px] text-slate-500 hover:text-blue-600 flex items-center gap-2 border-0 bg-transparent font-semibold"
-                            type="button"
-                        >
-                            {child.icon && <span>{child.icon}</span>}
-                            <span>{child.label}</span>
-                        </button>
-                    ))}
+                    {sub.children.map((child, cidx) => {
+                        const childHref = getPublicHref(child);
+                        const childContent = (
+                            <>
+                                {child.icon && <span>{child.icon}</span>}
+                                <span>{child.label}</span>
+                            </>
+                        );
+                        return childHref ? (
+                            <a
+                                key={child.id || cidx}
+                                href={childHref}
+                                onClick={(e) => {
+                                    if (!childHref.startsWith('http')) {
+                                        e.preventDefault();
+                                        onNavigate(child);
+                                    }
+                                }}
+                                className="w-full text-left py-1.5 px-3 text-[11px] text-slate-500 hover:text-blue-600 flex items-center gap-2 border-0 bg-transparent font-semibold no-underline"
+                            >
+                                {childContent}
+                            </a>
+                        ) : (
+                            <button
+                                key={child.id || cidx}
+                                onClick={() => onNavigate(child)}
+                                className="w-full text-left py-1.5 px-3 text-[11px] text-slate-500 hover:text-blue-600 flex items-center gap-2 border-0 bg-transparent font-semibold"
+                                type="button"
+                            >
+                                {childContent}
+                            </button>
+                        );
+                    })}
                 </div>
             )}
         </div>
@@ -229,28 +361,50 @@ const MobileNavItem = ({ item, onNavigate }) => {
     const [expanded, setExpanded] = React.useState(false);
 
     const isDocServices = (item.label || '').toLowerCase().includes('document services');
+    const href = (!hasChildren && !isDocServices && item.type !== 'dropdown') ? getPublicHref(item) : null;
+
+    const navContent = (
+        <>
+            {item.icon && <span>{item.icon}</span>}
+            <span>{item.label}</span>
+        </>
+    );
 
     return (
         <div className="border-b border-slate-100 last:border-0 pb-2">
             <div className="flex justify-between items-center py-2">
-                <button
-                    onClick={() => {
-                        if (isDocServices) {
-                            onNavigate({ type: 'document_services_panel', item });
-                        } else if (item.type === "template") {
-                            onNavigate(item);
-                        } else if (!hasChildren && item.url) {
-                            onNavigate(item);
-                        } else {
-                            setExpanded(!expanded);
-                        }
-                    }}
-                    className="flex items-center gap-2 text-sm font-black text-slate-700 hover:text-blue-600 transition-colors text-left"
-                    type="button"
-                >
-                    {item.icon && <span>{item.icon}</span>}
-                    <span>{item.label}</span>
-                </button>
+                {href ? (
+                    <a
+                        href={href}
+                        onClick={(e) => {
+                            if (!href.startsWith('http')) {
+                                e.preventDefault();
+                                onNavigate(item);
+                            }
+                        }}
+                        className="flex items-center gap-2 text-sm font-black text-slate-700 hover:text-blue-600 transition-colors text-left no-underline"
+                    >
+                        {navContent}
+                    </a>
+                ) : (
+                    <button
+                        onClick={() => {
+                            if (isDocServices) {
+                                onNavigate({ type: 'document_services_panel', item });
+                            } else if (item.type === "template") {
+                                onNavigate(item);
+                            } else if (!hasChildren && item.url) {
+                                onNavigate(item);
+                            } else {
+                                setExpanded(!expanded);
+                            }
+                        }}
+                        className="flex items-center gap-2 text-sm font-black text-slate-700 hover:text-blue-600 transition-colors text-left"
+                        type="button"
+                    >
+                        {navContent}
+                    </button>
+                )}
                 {hasChildren && !isDocServices && (
                     <button
                         onClick={() => setExpanded(!expanded)}
@@ -301,7 +455,14 @@ const GovHeader = ({
             <div className="w-full mx-auto px-2 sm:px-3 lg:px-2.5 xl:px-3.5 2xl:px-6">
                 <div className="flex justify-between items-center h-20 sm:h-22 xl:h-24">
                     {/* 1. BRANDING (Left, flex-shrink-0) */}
-                    <div className="flex items-center gap-2 sm:gap-2.5 cursor-pointer select-none shrink-0" onClick={() => onNavigate('home')}>
+                    <a
+                        href="/"
+                        className="flex items-center gap-2 sm:gap-2.5 cursor-pointer select-none shrink-0 no-underline text-inherit"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            onNavigate('home');
+                        }}
+                    >
                         <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-gradient-to-br from-blue-700 to-sky-500 flex items-center justify-center text-white shadow-md shadow-blue-500/10 hover:scale-105 transition-transform shrink-0">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-5.5 w-5.5 sm:h-6 sm:w-6">
                                 <path d="M12 22V8M5 12H19M5 12A3.5 3.5 0 0 1 12 8.5M19 12A3.5 3.5 0 0 0 12 8.5M5 12L12 16.5L19 12" />
@@ -315,7 +476,7 @@ const GovHeader = ({
                                 Professional Legal Document Automation Platform
                             </p>
                         </div>
-                    </div>
+                    </a>
 
                     {/* 2. NAVIGATION (Flexible middle region) */}
                     <nav className="hidden lg:flex items-center space-x-0.5 xl:space-x-0.5 h-full ml-1 lg:ml-1.5 xl:ml-2 mr-auto shrink min-w-0">

@@ -22,7 +22,10 @@ def get_pages(db: Session = Depends(database.get_db)):
 
 @router.get("/{slug}")
 def get_page(slug: str, db: Session = Depends(database.get_db)):
-    page = db.query(models.StaticPage).filter(models.StaticPage.slug == slug).first()
+    clean_slug = slug[5:] if slug.startswith("page:") else slug
+    page = db.query(models.StaticPage).filter(
+        (models.StaticPage.slug == clean_slug) | (models.StaticPage.slug == slug)
+    ).first()
     if not page:
         raise HTTPException(status_code=404, detail="Page not found")
     return page

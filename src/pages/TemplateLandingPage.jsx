@@ -51,7 +51,26 @@ const TemplateLandingPage = ({ templateSlug, templates = [], isTemplatesLoading 
             document.title = 'Template ઉપલબ્ધ નથી | DraftSetu';
             const staleBreadcrumb = document.getElementById('schema-template-breadcrumb');
             if (staleBreadcrumb) staleBreadcrumb.remove();
+
+            // Missing/inactive template: Prevent fake 200 SEO indexing
+            // Remove canonical tag and apply noindex, nofollow so Googlebot WRS drops this URL
+            const canonicalTag = document.querySelector('link[rel="canonical"]');
+            if (canonicalTag) canonicalTag.remove();
+
+            let robotsTag = document.querySelector('meta[name="robots"]');
+            if (!robotsTag) {
+                robotsTag = document.createElement('meta');
+                robotsTag.setAttribute('name', 'robots');
+                document.head.appendChild(robotsTag);
+            }
+            robotsTag.setAttribute('content', 'noindex, nofollow');
             return;
+        }
+
+        // Active valid template: ensure indexable
+        let activeRobotsTag = document.querySelector('meta[name="robots"]');
+        if (activeRobotsTag) {
+            activeRobotsTag.setAttribute('content', 'index, follow');
         }
 
         const templateName = matchedTemplate.name || 'કાનૂની દસ્તાવેજ Template';
@@ -145,6 +164,10 @@ const TemplateLandingPage = ({ templateSlug, templates = [], isTemplatesLoading 
             const script = document.getElementById('schema-template-breadcrumb');
             if (script) {
                 script.remove();
+            }
+            const robots = document.querySelector('meta[name="robots"]');
+            if (robots) {
+                robots.setAttribute('content', 'index, follow');
             }
         };
 
@@ -252,13 +275,18 @@ const TemplateLandingPage = ({ templateSlug, templates = [], isTemplatesLoading 
                                 આ દસ્તાવેજ Template હાલમાં ઉપલબ્ધ નથી અથવા કાઢી નાખવામાં આવ્યું છે.
                             </p>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => onNavigate('home')}
-                            className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-blue-900/20 transition-all font-sans cursor-pointer"
+                        <a
+                            href="/"
+                            onClick={(e) => {
+                                if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                    e.preventDefault();
+                                    onNavigate('home');
+                                }
+                            }}
+                            className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-blue-900/20 transition-all font-sans cursor-pointer block no-underline text-center"
                         >
                             બધા દસ્તાવેજો જુઓ (Browse All Templates)
-                        </button>
+                        </a>
                     </div>
                 </div>
                 <Footer onNavigate={onNavigate} />
@@ -280,21 +308,31 @@ const TemplateLandingPage = ({ templateSlug, templates = [], isTemplatesLoading 
                     
                     {/* Breadcrumbs */}
                     <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs font-bold text-blue-200/80 font-sans flex-wrap">
-                        <button
-                            type="button"
-                            onClick={() => onNavigate('home')}
-                            className="hover:text-white transition cursor-pointer flex items-center gap-1"
+                        <a
+                            href="/"
+                            onClick={(e) => {
+                                if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                    e.preventDefault();
+                                    onNavigate('home');
+                                }
+                            }}
+                            className="hover:text-white transition cursor-pointer flex items-center gap-1 no-underline text-inherit"
                         >
                             <span>🏠 મુખ્ય પૃષ્ઠ</span>
-                        </button>
+                        </a>
                         <span>/</span>
-                        <button
-                            type="button"
-                            onClick={() => onNavigate('home')}
-                            className="hover:text-white transition cursor-pointer"
+                        <a
+                            href="/#quick-services"
+                            onClick={(e) => {
+                                if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                    e.preventDefault();
+                                    onNavigate('home');
+                                }
+                            }}
+                            className="hover:text-white transition cursor-pointer no-underline text-inherit"
                         >
                             <span>દસ્તાવેજ નમૂનાઓ</span>
-                        </button>
+                        </a>
                         <span>/</span>
                         <span className="text-white font-black truncate max-w-[200px] sm:max-w-none">
                             {matchedTemplate.name}

@@ -349,15 +349,18 @@ def get_sitemap_xml(db: Session = Depends(database.get_db)):
         static_pages = db.query(models.StaticPage).filter(models.StaticPage.is_active == True).all()
         for page in static_pages:
             if page.slug:
-                clean_slug = page.slug.strip()
+                raw_slug = page.slug.strip()
+                clean_slug = raw_slug[5:] if raw_slug.startswith("page:") else raw_slug
                 lastmod = page.updated_at.strftime("%Y-%m-%d") if page.updated_at else today
-                loc = f"{base_url}/non-agricultural" if clean_slug == "non-agricultural" else f"{base_url}/page:{clean_slug}"
-                urls.append({
-                    "loc": loc,
-                    "lastmod": lastmod,
-                    "changefreq": "monthly",
-                    "priority": "0.8"
-                })
+                loc = f"{base_url}/{clean_slug}"
+                # Ensure no duplicate locs
+                if not any(u["loc"] == loc for u in urls):
+                    urls.append({
+                        "loc": loc,
+                        "lastmod": lastmod,
+                        "changefreq": "monthly",
+                        "priority": "0.8"
+                    })
     except Exception as e:
         logger.error(f"Error querying static pages for sitemap: {e}")
 
@@ -385,6 +388,11 @@ Allow: /
 Allow: /privacy-policy
 Allow: /terms-of-service
 Allow: /non-agricultural
+Allow: /user-guide
+Allow: /faqs
+Allow: /heirship
+Allow: /relinquishment
+Allow: /contact
 Allow: /templates/*
 Allow: /page:*
 Disallow: /api/

@@ -2,25 +2,20 @@ import React from 'react';
 import Footer from '../components/Footer.jsx';
 
 export const getShareUrl = (slug) => {
+    const cleanSlug = slug ? String(slug).trim().replace(/^\/?page:/, '').replace(/^\/+|\/+$/g, '') : '';
     if (typeof window === 'undefined') {
-        return `https://draftsetu.in/${slug === 'non-agricultural' ? 'non-agricultural' : `page:${slug}`}`;
+        return `https://draftsetu.in/${cleanSlug}`;
     }
 
     const hostname = window.location.hostname;
     const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
 
     if (isLocal) {
-        if (slug === 'non-agricultural') {
-            return `${window.location.origin}/non-agricultural`;
-        }
-        return `${window.location.origin}/page:${slug}`;
+        return `${window.location.origin}/${cleanSlug}`;
     }
 
     // Production URL resolution
-    if (slug === 'non-agricultural') {
-        return 'https://draftsetu.in/non-agricultural';
-    }
-    return `https://draftsetu.in/page:${slug}`;
+    return `https://draftsetu.in/${cleanSlug}`;
 };
 
 export const getShareTitle = (slug, pageData) => {
@@ -106,15 +101,29 @@ const StaticPageView = ({ slug, onNavigate }) => {
             document.head.appendChild(canonicalLink);
         }
 
-        if (slug === 'non-agricultural') {
+        let robotsMeta = document.querySelector('meta[name="robots"]');
+        const cleanSlug = slug ? String(slug).trim().replace(/^\/?page:/, '').replace(/^\/+|\/+$/g, '') : '';
+
+        if (cleanSlug === 'non-agricultural') {
             document.title = 'બિનખેતી (NA) માર્ગદર્શિકા | DraftSetu';
             metaDesc.setAttribute('content', 'બિનખેતી (NA) જમીન ઉપયોગ માટેની માર્ગદર્શિકા અને કાનૂની સહાય.');
             canonicalLink.setAttribute('href', 'https://draftsetu.in/non-agricultural');
+            if (robotsMeta) robotsMeta.setAttribute('content', 'index, follow');
         } else if (page && page.title) {
             document.title = `${page.title} | DraftSetu`;
             const customDesc = page.description || `DraftSetu પર ${page.title} માર્ગદર્શિકા અને કાનૂની વિગતો વાંચો.`;
             metaDesc.setAttribute('content', customDesc);
-            canonicalLink.setAttribute('href', `https://draftsetu.in/page:${slug}`);
+            canonicalLink.setAttribute('href', `https://draftsetu.in/${cleanSlug}`);
+            if (robotsMeta) robotsMeta.setAttribute('content', 'index, follow');
+        } else if (!loading && !page) {
+            document.title = '404: પાનું મળ્યું નથી | DraftSetu';
+            if (canonicalLink) canonicalLink.remove();
+            if (!robotsMeta) {
+                robotsMeta = document.createElement('meta');
+                robotsMeta.setAttribute('name', 'robots');
+                document.head.appendChild(robotsMeta);
+            }
+            robotsMeta.setAttribute('content', 'noindex, nofollow');
         }
 
         return () => {
@@ -123,12 +132,19 @@ const StaticPageView = ({ slug, onNavigate }) => {
             if (defaultDesc) {
                 defaultDesc.setAttribute('content', 'DraftSetu પર તૈયાર Gujarati legal document Templates પસંદ કરો, માહિતી દાખલ કરો, Live Preview તપાસો અને DOCX/PDF Document તૈયાર કરો.');
             }
-            const defaultCanonical = document.querySelector('link[rel="canonical"]');
-            if (defaultCanonical) {
-                defaultCanonical.setAttribute('href', 'https://draftsetu.in/');
+            let restoredCanonical = document.querySelector('link[rel="canonical"]');
+            if (!restoredCanonical) {
+                restoredCanonical = document.createElement('link');
+                restoredCanonical.setAttribute('rel', 'canonical');
+                document.head.appendChild(restoredCanonical);
+            }
+            restoredCanonical.setAttribute('href', 'https://draftsetu.in/');
+            const currentRobots = document.querySelector('meta[name="robots"]');
+            if (currentRobots) {
+                currentRobots.setAttribute('content', 'index, follow');
             }
         };
-    }, [slug, page]);
+    }, [slug, page, loading]);
 
     React.useEffect(() => {
         if (!slug) {
@@ -141,7 +157,8 @@ const StaticPageView = ({ slug, onNavigate }) => {
         setLoading(true);
 
         const fetchPage = async () => {
-            if (slug === 'user-guide') {
+            const cleanSlug = slug ? String(slug).trim().replace(/^\/?page:/, '').replace(/^\/+|\/+$/g, '') : '';
+            if (cleanSlug === 'user-guide') {
                 if (isMounted) {
                     setPage({
                         title: 'DraftSetu – Document Creation User Manual (દસ્તાવેજ નિર્માણ માર્ગદર્શિકા)',
@@ -169,7 +186,7 @@ const StaticPageView = ({ slug, onNavigate }) => {
                 return;
             }
 
-            if (slug === 'non-agricultural') {
+            if (cleanSlug === 'non-agricultural') {
                 if (isMounted) {
                     setPage({
                         title: 'બિનખેતી (NA) માર્ગદર્શિકા (Non-Agricultural Land Guide)',
@@ -226,7 +243,7 @@ const StaticPageView = ({ slug, onNavigate }) => {
 
             try {
                 if (typeof window.apiFetch === 'function') {
-                    const r = await window.apiFetch(`/api/pages/${slug}`);
+                    const r = await window.apiFetch(`/api/pages/${cleanSlug}`);
                     if (r && r.ok) {
                         const data = await r.json();
                         if (isMounted) {

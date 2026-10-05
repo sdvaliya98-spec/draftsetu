@@ -74,7 +74,7 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [], isAuthHydr
             enTitle: "Relinquishment Guide",
             desc: "વારસાઈ હક્ક કમી કરવા અથવા ખાતેદારના હક્ક છોડવા અંગેની કરાર પદ્ધતિ અને સોગંદનામા બનાવો.",
             icon: "❌",
-            url: "page:relinquishment",
+            url: "/relinquishment",
             badge: "માહિતી પત્રક",
             color: "border-rose-200 hover:border-rose-500 hover:shadow-rose-50 bg-rose-50/20"
         },
@@ -92,7 +92,7 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [], isAuthHydr
             enTitle: "Heirship / Succession",
             desc: "મૂળ જમીન માલિકના અવસાન બાદ પેઢીનામું અને કાયદેસરના વારસાઈ રેકોર્ડ માટેના દસ્તાવેજો ડ્રાફ્ટ કરો.",
             icon: "👥",
-            url: "page:heirship",
+            url: "/heirship",
             badge: "નવું ફોર્મ",
             color: "border-purple-200 hover:border-purple-500 hover:shadow-purple-50 bg-purple-50/20"
         },
@@ -173,7 +173,7 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [], isAuthHydr
                                     if (target) {
                                         target.scrollIntoView({ behavior: 'smooth' });
                                     } else {
-                                        onNavigate('page:user-guide');
+                                        onNavigate('/user-guide');
                                     }
                                 }}
                                 className="bg-white/10 hover:bg-white/20 text-white border border-white/20 font-black text-xs sm:text-sm uppercase tracking-wider px-5 sm:px-6 py-3.5 sm:py-4 rounded-xl transition flex items-center gap-2 cursor-pointer font-sans"
@@ -450,36 +450,56 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [], isAuthHydr
                     {/* Dynamic Active Templates Grid */}
                     {filteredTemplates.length > 0 ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {filteredTemplates.map((t) => (
-                                <div 
-                                    key={t.id} 
-                                    className="border rounded-[28px] p-6 flex flex-col justify-between transition-all duration-300 hover:-translate-y-2 hover:shadow-xl hover:shadow-slate-200/50 bg-white group border-indigo-100 hover:border-indigo-300"
-                                >
-                                    <div>
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-2xl flex-shrink-0 group-hover:scale-110 transition duration-300 shadow-sm border border-indigo-100">
-                                                📄
-                                            </div>
-                                            <span className="text-[9px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full font-sans border border-indigo-200">
-                                                {t.category || 'General'}
-                                            </span>
-                                        </div>
-                                        <h3 className="text-lg font-black text-slate-800 mb-2 group-hover:text-indigo-900 transition leading-snug">
-                                            {t.name}
-                                        </h3>
-                                        <p className="text-xs text-slate-500 leading-relaxed font-semibold line-clamp-3">
-                                            {(t.content || '').replace(/<[^>]+>/g, ' ').trim() || 'પ્રમાણિત કાનૂની બ્લુપ્રિન્ટ અને ઓટોમેટેડ ડ્રાફ્ટ.'}
-                                        </p>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => onNavigate(`templates/${getTemplateSlug(t)}`)}
-                                        className="mt-6 w-full py-2.5 bg-indigo-50 group-hover:bg-indigo-600 text-indigo-700 group-hover:text-white rounded-xl text-xs font-black transition-all border border-indigo-100 group-hover:border-indigo-600 text-center tracking-wider font-sans shadow-sm cursor-pointer"
+                            {filteredTemplates.map((t) => {
+                                const slug = getTemplateSlug(t);
+                                const tplHref = `/templates/${slug}`;
+                                return (
+                                    <div 
+                                        key={t.id} 
+                                        className="border rounded-[28px] p-6 flex flex-col justify-between transition-all duration-300 hover:-translate-y-2 hover:shadow-xl hover:shadow-slate-200/50 bg-white group border-indigo-100 hover:border-indigo-300"
                                     >
-                                        દસ્તાવેજ પસંદ કરો &rarr;
-                                    </button>
-                                </div>
-                            ))}
+                                        <div>
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-2xl flex-shrink-0 group-hover:scale-110 transition duration-300 shadow-sm border border-indigo-100">
+                                                    📄
+                                                </div>
+                                                <span className="text-[9px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full font-sans border border-indigo-200">
+                                                    {t.category || 'General'}
+                                                </span>
+                                            </div>
+                                            <h3 className="text-lg font-black text-slate-800 mb-2 group-hover:text-indigo-900 transition leading-snug">
+                                                <a
+                                                    href={tplHref}
+                                                    onClick={(e) => {
+                                                        if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                                            e.preventDefault();
+                                                            onNavigate(`templates/${slug}`);
+                                                        }
+                                                    }}
+                                                    className="hover:text-indigo-600 transition-colors no-underline text-inherit"
+                                                >
+                                                    {t.name}
+                                                </a>
+                                            </h3>
+                                            <p className="text-xs text-slate-500 leading-relaxed font-semibold line-clamp-3">
+                                                {(t.content || '').replace(/<[^>]+>/g, ' ').trim() || 'પ્રમાણિત કાનૂની બ્લુપ્રિન્ટ અને ઓટોમેટેડ ડ્રાફ્ટ.'}
+                                            </p>
+                                        </div>
+                                        <a
+                                            href={tplHref}
+                                            onClick={(e) => {
+                                                if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                                    e.preventDefault();
+                                                    onNavigate(`templates/${slug}`);
+                                                }
+                                            }}
+                                            className="mt-6 w-full py-2.5 bg-indigo-50 group-hover:bg-indigo-600 text-indigo-700 group-hover:text-white rounded-xl text-xs font-black transition-all border border-indigo-100 group-hover:border-indigo-600 text-center tracking-wider font-sans shadow-sm cursor-pointer block no-underline"
+                                        >
+                                            દસ્તાવેજ પસંદ કરો &rarr;
+                                        </a>
+                                    </div>
+                                );
+                            })}
                         </div>
                     ) : (
                         <div className="bg-slate-50 border border-slate-200 border-dashed rounded-[28px] p-12 text-center space-y-3">
@@ -513,57 +533,105 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [], isAuthHydr
                                 <div>
                                     <div className="text-3xl mb-3">🏗️</div>
                                     <h4 className="text-base font-black text-slate-800 mb-1 group-hover:text-amber-900 transition">
-                                        બિનખેતી (NA) માર્ગદર્શિકા
+                                        <a
+                                            href="/non-agricultural"
+                                            onClick={(e) => {
+                                                if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                                    e.preventDefault();
+                                                    onNavigate('/non-agricultural');
+                                                }
+                                            }}
+                                            className="hover:text-amber-900 transition-colors no-underline text-inherit"
+                                        >
+                                            બિનખેતી (NA) માર્ગદર્શિકા
+                                        </a>
                                     </h4>
                                     <p className="text-xs text-slate-600 font-semibold leading-relaxed">
                                         જમીનને બિનખેતીમાં રૂપાંતર કરવા અંગેના નિયમો અને સોગંદનામાની વિગતો.
                                     </p>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => onNavigate('/non-agricultural')}
-                                    className="mt-4 text-xs font-black text-amber-800 hover:text-amber-900 flex items-center gap-1 font-sans cursor-pointer text-left"
+                                <a
+                                    href="/non-agricultural"
+                                    onClick={(e) => {
+                                        if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                            e.preventDefault();
+                                            onNavigate('/non-agricultural');
+                                        }
+                                    }}
+                                    className="mt-4 text-xs font-black text-amber-800 hover:text-amber-900 flex items-center gap-1 font-sans cursor-pointer text-left no-underline"
                                 >
                                     માર્ગદર્શિકા વાંચો &rarr;
-                                </button>
+                                </a>
                             </div>
 
                             <div className="bg-rose-50/40 border border-rose-200 rounded-[24px] p-5 flex flex-col justify-between hover:shadow-md transition group">
                                 <div>
                                     <div className="text-3xl mb-3">❌</div>
                                     <h4 className="text-base font-black text-slate-800 mb-1 group-hover:text-rose-900 transition">
-                                        હક્ક કમી (Relinquishment)
+                                        <a
+                                            href="/relinquishment"
+                                            onClick={(e) => {
+                                                if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                                    e.preventDefault();
+                                                    onNavigate('/relinquishment');
+                                                }
+                                            }}
+                                            className="hover:text-rose-900 transition-colors no-underline text-inherit"
+                                        >
+                                            હક્ક કમી (Relinquishment)
+                                        </a>
                                     </h4>
                                     <p className="text-xs text-slate-600 font-semibold leading-relaxed">
                                         વારસાઈ હક્ક કમી કરવા અથવા ખાતેદારના હક્ક છોડવા અંગેની માહિતી.
                                     </p>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => onNavigate('page:relinquishment')}
-                                    className="mt-4 text-xs font-black text-rose-800 hover:text-rose-900 flex items-center gap-1 font-sans cursor-pointer text-left"
+                                <a
+                                    href="/relinquishment"
+                                    onClick={(e) => {
+                                        if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                            e.preventDefault();
+                                            onNavigate('/relinquishment');
+                                        }
+                                    }}
+                                    className="mt-4 text-xs font-black text-rose-800 hover:text-rose-900 flex items-center gap-1 font-sans cursor-pointer text-left no-underline"
                                 >
                                     માહિતી પત્રક જુઓ &rarr;
-                                </button>
+                                </a>
                             </div>
 
                             <div className="bg-purple-50/40 border border-purple-200 rounded-[24px] p-5 flex flex-col justify-between hover:shadow-md transition group">
                                 <div>
                                     <div className="text-3xl mb-3">👥</div>
                                     <h4 className="text-base font-black text-slate-800 mb-1 group-hover:text-purple-900 transition">
-                                        વારસાઈ (Heirship Guide)
+                                        <a
+                                            href="/heirship"
+                                            onClick={(e) => {
+                                                if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                                    e.preventDefault();
+                                                    onNavigate('/heirship');
+                                                }
+                                            }}
+                                            className="hover:text-purple-900 transition-colors no-underline text-inherit"
+                                        >
+                                            વારસાઈ (Heirship Guide)
+                                        </a>
                                     </h4>
                                     <p className="text-xs text-slate-600 font-semibold leading-relaxed">
                                         પેઢીનામું અને કાયદેસરના વારસાઈ રેકોર્ડ માટેના દસ્તાવેજો અંગે માર્ગદર્શન.
                                     </p>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => onNavigate('page:heirship')}
-                                    className="mt-4 text-xs font-black text-purple-800 hover:text-purple-900 flex items-center gap-1 font-sans cursor-pointer text-left"
+                                <a
+                                    href="/heirship"
+                                    onClick={(e) => {
+                                        if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                            e.preventDefault();
+                                            onNavigate('/heirship');
+                                        }
+                                    }}
+                                    className="mt-4 text-xs font-black text-purple-800 hover:text-purple-900 flex items-center gap-1 font-sans cursor-pointer text-left no-underline"
                                 >
                                     વારસાઈ ગાઈડ &rarr;
-                                </button>
+                                </a>
                             </div>
                         </div>
                     </div>
