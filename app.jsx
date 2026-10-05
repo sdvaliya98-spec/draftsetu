@@ -778,6 +778,12 @@ const App = () => {
 
     // Synchronize browser URL on popstate (Back / Forward buttons)
     useEffect(() => {
+        // Safe redirect: If user loaded legacy /page:non-agricultural, replaceState with clean canonical /non-agricultural
+        const initialPath = window.location.pathname.toLowerCase();
+        if (initialPath === '/page:non-agricultural' || initialPath === '/page:non-agricultural/') {
+            window.history.replaceState({ view: 'page', slug: 'non-agricultural' }, '', '/non-agricultural');
+        }
+
         const handlePopState = (event) => {
             const state = event && event.state;
             if (state && state.view) {
@@ -831,9 +837,19 @@ const App = () => {
                 setCurrentPageSlug('');
                 setCurrentTemplateSlug(window.location.pathname.slice(11).trim().replace(/\/+$/, ''));
             } else if (path.startsWith('/page:')) {
-                setCurrentView('page');
-                setCurrentPageSlug(window.location.pathname.slice(6).trim());
-                setCurrentTemplateSlug('');
+                const slug = window.location.pathname.slice(6).trim();
+                if (slug.toLowerCase() === 'non-agricultural') {
+                    setCurrentView('page');
+                    setCurrentPageSlug('non-agricultural');
+                    setCurrentTemplateSlug('');
+                    if (window.location.pathname !== '/non-agricultural') {
+                        window.history.replaceState({ view: 'page', slug: 'non-agricultural' }, '', '/non-agricultural');
+                    }
+                } else {
+                    setCurrentView('page');
+                    setCurrentPageSlug(slug);
+                    setCurrentTemplateSlug('');
+                }
             } else {
                 const searchParams = new URLSearchParams(window.location.search);
                 const pageParam = searchParams.get('page');
@@ -1082,6 +1098,16 @@ const App = () => {
         if (url.startsWith('page:') || url.startsWith('/page:')) {
             const raw = url.startsWith('/') ? url.slice(1) : url;
             const slug = raw.slice(5).trim();
+            if (slug.toLowerCase() === 'non-agricultural') {
+                setCurrentView('page');
+                setCurrentPageSlug('non-agricultural');
+                setCurrentTemplateSlug('');
+                if (window.location.pathname !== '/non-agricultural') {
+                    window.history.pushState({ view: 'page', slug: 'non-agricultural' }, '', '/non-agricultural');
+                }
+                window.scrollTo({ top: 0, behavior: 'instant' });
+                return;
+            }
             setCurrentView('page');
             setCurrentPageSlug(slug);
             setCurrentTemplateSlug('');

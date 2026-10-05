@@ -51,7 +51,7 @@ def seed_database():
             ("હક્ક રીલીઝનો લેખ (Release Deed)", "#", "✒️", parents["DOCUMENT SERVICES"], 4, True, "template", "tpl_737760b1"),
             
             # Submenus for LEGAL SERVICES
-            ("બિનખેતી (Non-Agricultural)", "page:non-agricultural", "🏗️", parents["LEGAL SERVICES"], 1, True, "page", None),
+            ("બિનખેતી (Non-Agricultural)", "/non-agricultural", "🏗️", parents["LEGAL SERVICES"], 1, True, "page", None),
             ("હક્ક કમી (Relinquishment)", "page:relinquishment", "❌", parents["LEGAL SERVICES"], 2, True, "page", None),
             ("વારસાઈ (Heirship)", "page:heirship", "👥", parents["LEGAL SERVICES"], 3, True, "page", None),
             

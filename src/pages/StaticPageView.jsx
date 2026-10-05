@@ -92,30 +92,41 @@ const StaticPageView = ({ slug, onNavigate }) => {
 
     // Page SEO & Meta title management
     React.useEffect(() => {
+        let metaDesc = document.querySelector('meta[name="description"]');
+        if (!metaDesc) {
+            metaDesc = document.createElement('meta');
+            metaDesc.setAttribute('name', 'description');
+            document.head.appendChild(metaDesc);
+        }
+
+        let canonicalLink = document.querySelector('link[rel="canonical"]');
+        if (!canonicalLink) {
+            canonicalLink = document.createElement('link');
+            canonicalLink.setAttribute('rel', 'canonical');
+            document.head.appendChild(canonicalLink);
+        }
+
         if (slug === 'non-agricultural') {
             document.title = 'બિનખેતી (NA) માર્ગદર્શિકા | DraftSetu';
-
-            let metaDesc = document.querySelector('meta[name="description"]');
-            if (!metaDesc) {
-                metaDesc = document.createElement('meta');
-                metaDesc.setAttribute('name', 'description');
-                document.head.appendChild(metaDesc);
-            }
             metaDesc.setAttribute('content', 'બિનખેતી (NA) જમીન ઉપયોગ માટેની માર્ગદર્શિકા અને કાનૂની સહાય.');
-
-            let canonicalLink = document.querySelector('link[rel="canonical"]');
-            if (!canonicalLink) {
-                canonicalLink = document.createElement('link');
-                canonicalLink.setAttribute('rel', 'canonical');
-                document.head.appendChild(canonicalLink);
-            }
             canonicalLink.setAttribute('href', 'https://draftsetu.in/non-agricultural');
         } else if (page && page.title) {
             document.title = `${page.title} | DraftSetu`;
+            const customDesc = page.description || `DraftSetu પર ${page.title} માર્ગદર્શિકા અને કાનૂની વિગતો વાંચો.`;
+            metaDesc.setAttribute('content', customDesc);
+            canonicalLink.setAttribute('href', `https://draftsetu.in/page:${slug}`);
         }
 
         return () => {
             document.title = 'DraftSetu — Gujarati Legal Document Templates & DOCX/PDF';
+            const defaultDesc = document.querySelector('meta[name="description"]');
+            if (defaultDesc) {
+                defaultDesc.setAttribute('content', 'DraftSetu પર તૈયાર Gujarati legal document Templates પસંદ કરો, માહિતી દાખલ કરો, Live Preview તપાસો અને DOCX/PDF Document તૈયાર કરો.');
+            }
+            const defaultCanonical = document.querySelector('link[rel="canonical"]');
+            if (defaultCanonical) {
+                defaultCanonical.setAttribute('href', 'https://draftsetu.in/');
+            }
         };
     }, [slug, page]);
 

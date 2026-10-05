@@ -351,8 +351,9 @@ def get_sitemap_xml(db: Session = Depends(database.get_db)):
             if page.slug:
                 clean_slug = page.slug.strip()
                 lastmod = page.updated_at.strftime("%Y-%m-%d") if page.updated_at else today
+                loc = f"{base_url}/non-agricultural" if clean_slug == "non-agricultural" else f"{base_url}/page:{clean_slug}"
                 urls.append({
-                    "loc": f"{base_url}/page:{clean_slug}",
+                    "loc": loc,
                     "lastmod": lastmod,
                     "changefreq": "monthly",
                     "priority": "0.8"
@@ -383,6 +384,7 @@ def get_robots_txt():
 Allow: /
 Allow: /privacy-policy
 Allow: /terms-of-service
+Allow: /non-agricultural
 Allow: /templates/*
 Allow: /page:*
 Disallow: /api/

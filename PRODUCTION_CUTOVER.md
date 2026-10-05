@@ -396,6 +396,58 @@ If database query timeouts or connection pool exhaustion errors appear in logs:
    sudo systemctl restart postgresql
    ```
 
+### D.5 Safe Handling of Orphan Docker Containers (Production Procedure Only)
+During production cutovers or container redeployments, previous or dangling containers may be left in an orphaned state. Follow this non-destructive procedure to safely audit, isolate, and remove them:
+
+1. **Audit Running and Stopped Containers**:
+   ```bash
+   # List all containers on the host with status and names
+   docker ps -a --format "table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"
+   
+   # List active containers managed by the current docker-compose project
+   docker-compose ps
+   ```
+
+2. **Identify Orphan Candidates**:
+   - Compare the output. Any container NOT listed under `docker-compose ps` (and not part of a separate intentional host service, like standalone PostgreSQL) is an orphan candidate (e.g. `legalsetu_backend_old`, legacy image containers, or unnamed containers).
+   - Valid current production containers in `docker-compose.yml` are:
+     * `legal-doc-backend`
+     * `legal-doc-proxy`
+
+3. **Verify Container Purpose Before Modifying**:
+   Inspect the candidate container to confirm it is not bound to critical production ports (80, 443, 8000, 5432) or volume mounts:
+   ```bash
+   docker inspect <CONTAINER_ID_OR_NAME> --format '{{json .HostConfig.PortBindings}}'
+   docker inspect <CONTAINER_ID_OR_NAME> --format '{{json .Mounts}}'
+   docker logs --tail 50 <CONTAINER_ID_OR_NAME>
+   ```
+
+4. **Safe Decommissioning Sequence**:
+   - **Step A (Graceful Stop)**:
+     ```bash
+     docker stop -t 30 <ORPHAN_CONTAINER_ID_OR_NAME>
+     ```
+   - **Step B (Validate Production Health)**:
+     ```bash
+     curl -f http://127.0.0.1:8000/api/health
+     curl -I http://127.0.0.1:8080/
+     ```
+   - **Step C (Safe Removal)**:
+     Once health is confirmed, remove only that specific container:
+     ```bash
+     docker rm <ORPHAN_CONTAINER_ID_OR_NAME>
+     ```
+
+5. **Automated Compose Orphan Cleanup (Deploy Time)**:
+   When redeploying with Docker Compose, pass the `--remove-orphans` flag so compose safely removes only containers defined in previous versions of the compose file:
+   ```bash
+   docker-compose up -d --build --remove-orphans
+   ```
+
+   > [!CAUTION]
+   > NEVER run `docker system prune -a --volumes` or remove containers blindly. This will permanently destroy uncommitted database data, logs, and user upload volumes (`backend/uploads/`).
+
+
 ---
 
 ## SECTION E: Final GO / NO-GO

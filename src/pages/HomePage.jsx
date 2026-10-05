@@ -65,7 +65,7 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [], isAuthHydr
             enTitle: "Non-Agricultural Guide",
             desc: "જમીનને બિનખેતીમાં રૂપાંતર કરવા અંગેના અરજી સોગંદનામા અને જરૂરી નિયમોનું માર્ગદર્શન મેળવો.",
             icon: "🏗️",
-            url: "page:non-agricultural",
+            url: "/non-agricultural",
             badge: "માર્ગદર્શિકા",
             color: "border-amber-200 hover:border-amber-500 hover:shadow-amber-50 bg-amber-50/20"
         },
@@ -521,7 +521,7 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [], isAuthHydr
                                 </div>
                                 <button
                                     type="button"
-                                    onClick={() => onNavigate('page:non-agricultural')}
+                                    onClick={() => onNavigate('/non-agricultural')}
                                     className="mt-4 text-xs font-black text-amber-800 hover:text-amber-900 flex items-center gap-1 font-sans cursor-pointer text-left"
                                 >
                                     માર્ગદર્શિકા વાંચો &rarr;
