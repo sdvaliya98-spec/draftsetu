@@ -889,7 +889,7 @@ const FormPanel = ({
                     },
                     body: JSON.stringify({
                         template_id: String(activeTemplateId),
-                        data: data || {},
+                        data: (window.sanitizeTemplatePayload ? window.sanitizeTemplatePayload(data || {}, activeTemplate) : (data || {})),
                         format: "docx",
                         preview: true
                     }),
@@ -1035,7 +1035,7 @@ const FormPanel = ({
                 },
                 body: JSON.stringify({
                     template_id: tplId,
-                    data: data || {}
+                    data: (window.sanitizeTemplatePayload ? window.sanitizeTemplatePayload(data || {}, activeTemplate) : (data || {}))
                 }),
                 signal: controller.signal
             });
@@ -1454,7 +1454,9 @@ const FormPanel = ({
                                     onChange={(val) => {
                                         setData(prev => {
                                             const processedVal = processFieldValue(variable, val);
-                                            const newData = { ...prev, [variable]: processedVal };
+                                            const resetFn = window.resetInactiveBranchData;
+                                            let newData = resetFn ? resetFn(prev, variable, processedVal, activeTemplate) : { ...prev, [variable]: processedVal };
+                                            newData[variable] = processedVal;
                                             if (variable === 'amount') {
                                                 const hasAmountInWords = structuredVariables.some(v => v.name === 'amount_in_words');
                                                 if (hasAmountInWords) {

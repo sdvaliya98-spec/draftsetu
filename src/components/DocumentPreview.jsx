@@ -377,23 +377,65 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
                 }
             }
 
+            const deduplicateRows = (list) => {
+                if (!Array.isArray(list) || list.length <= 1) return Array.isArray(list) ? list : [];
+                const seen = new Set();
+                const unique = [];
+                list.forEach((item, idx) => {
+                    if (!item || typeof item !== 'object') {
+                        unique.push(item);
+                        return;
+                    }
+                    const nonIndexEntries = Object.entries(item)
+                        .filter(([k]) => k.toLowerCase() !== 'index' && k.toLowerCase() !== '_index' && k.toLowerCase() !== 'id')
+                        .map(([k, v]) => `${k.toLowerCase()}:${String(v ?? '').trim().toLowerCase()}`)
+                        .sort();
+                    const sig = nonIndexEntries.filter(s => !s.endsWith(':')).join('|');
+                    if (sig && seen.has(sig)) {
+                        return;
+                    }
+                    if (sig) seen.add(sig);
+                    unique.push({ ...item, index: String(unique.length + 1) });
+                });
+                return unique;
+            };
+
             for (const { gBase, gRep, cBase, cRep } of partyPairs) {
                 const repActive = checkCondActive(cRep);
                 const baseActive = checkCondActive(cBase);
 
-                const baseKey = Object.keys(out).find(k => k.toLowerCase() === gBase.toLowerCase()) || gBase;
-                const repKey = Object.keys(out).find(k => k.toLowerCase() === gRep.toLowerCase()) || gRep;
+                const baseKeys = Object.keys(out).filter(k => k.toLowerCase() === gBase.toLowerCase());
+                if (baseKeys.length === 0) baseKeys.push(gBase);
+                const repKeys = Object.keys(out).filter(k => k.toLowerCase() === gRep.toLowerCase());
+                if (repKeys.length === 0) repKeys.push(gRep);
 
                 if (repActive) {
-                    const reps = Array.isArray(raw[repKey]) ? raw[repKey] : [];
-                    out[repKey] = reps;
-                    out[baseKey] = reps;
+                    let rawReps = null;
+                    for (const rk of repKeys) {
+                        if (Array.isArray(raw[rk]) && raw[rk].length > 0) {
+                            rawReps = raw[rk];
+                            break;
+                        }
+                    }
+                    if (!rawReps) rawReps = raw[repKeys[0]] || [];
+                    const reps = deduplicateRows(rawReps);
+                    for (const rk of repKeys) out[rk] = reps;
+                    for (const bk of baseKeys) out[bk] = reps;
                 } else if (baseActive) {
-                    out[baseKey] = Array.isArray(raw[baseKey]) ? raw[baseKey] : [];
-                    out[repKey] = [];
+                    let rawBase = null;
+                    for (const bk of baseKeys) {
+                        if (Array.isArray(raw[bk]) && raw[bk].length > 0) {
+                            rawBase = raw[bk];
+                            break;
+                        }
+                    }
+                    if (!rawBase) rawBase = raw[baseKeys[0]] || [];
+                    const baseData = deduplicateRows(rawBase);
+                    for (const bk of baseKeys) out[bk] = baseData;
+                    for (const rk of repKeys) out[rk] = [];
                 } else {
-                    out[baseKey] = [];
-                    out[repKey] = [];
+                    for (const bk of baseKeys) out[bk] = [];
+                    for (const rk of repKeys) out[rk] = [];
                 }
             }
 
@@ -419,7 +461,9 @@ const DocumentPreview = ({ template, data, printRef, pageSize = 'A4', templateId
             return out;
         };
 
-        const payloadData = sanitizePayload(rawData);
+        const payloadData = window.sanitizeTemplatePayload
+            ? window.sanitizeTemplatePayload(rawData, activeTpl)
+            : sanitizePayload(rawData);
 
         setIsPreviewLoading(true);
         setPreviewError(null);

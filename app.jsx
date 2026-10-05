@@ -574,7 +574,11 @@ const App = () => {
             const path = trackingId ? `/api/documents/${trackingId}` : '/api/documents/draft';
             const method = trackingId ? 'PUT' : 'POST';
 
+            const targetTpl = allTemplates?.find(t => t.id === targetTemplateId || String(t.id) === String(targetTemplateId) || String(t.template_id) === String(targetTemplateId));
             const normalizedData = normalizeDates(data);
+            const sanitizedData = window.sanitizeTemplatePayload
+                ? window.sanitizeTemplatePayload(normalizedData, targetTpl)
+                : normalizedData;
             const response = await window.apiFetch(path, {
                 method: method,
                 headers: {
@@ -582,10 +586,10 @@ const App = () => {
                     'Authorization': `Bearer ${authToken}`
                 },
                 body: JSON.stringify({
-                    ...normalizedData,
-                    survey_no: normalizedData.survey_no || '',
-                    buyer_name: normalizedData.buyer_name || '',
-                    amount: normalizedData.amount || '',
+                    ...sanitizedData,
+                    survey_no: sanitizedData.survey_no || '',
+                    buyer_name: sanitizedData.buyer_name || '',
+                    amount: sanitizedData.amount || '',
                     template_id: targetTemplateId,
                     is_final: false
                 })
@@ -607,7 +611,7 @@ const App = () => {
                 // Update session in SessionManager
                 if (window.SessionManager) {
                     window.SessionManager.saveSession(targetTemplateId, {
-                        data: normalizedData,
+                        data: sanitizedData,
                         trackingId: savedTrackingId,
                         isLocked: false
                     });
@@ -615,7 +619,7 @@ const App = () => {
 
                 // Update cache in DraftCacheManager
                 if (window.DraftCacheManager) {
-                    window.DraftCacheManager.save(targetTemplateId, normalizedData, savedTrackingId, false, currentUser);
+                    window.DraftCacheManager.save(targetTemplateId, sanitizedData, savedTrackingId, false, currentUser);
                 }
 
                 trackEvent('draft_saved', { template_id: targetTemplateId, tracking_id: savedTrackingId });
@@ -704,7 +708,11 @@ const App = () => {
                     authenticated: Boolean(currentUser)
                 });
 
+                const targetTpl = allTemplates?.find(t => t.id === targetTemplateId || String(t.id) === String(targetTemplateId) || String(t.template_id) === String(targetTemplateId));
                 const normalizedData = normalizeDates(data);
+                const sanitizedData = window.sanitizeTemplatePayload
+                    ? window.sanitizeTemplatePayload(normalizedData, targetTpl)
+                    : normalizedData;
                 const response = await window.apiFetch(`/api/documents/${trackingId}`, {
                     method: 'PUT',
                     headers: {
@@ -712,10 +720,10 @@ const App = () => {
                         'Authorization': `Bearer ${authToken}`
                     },
                     body: JSON.stringify({
-                        ...normalizedData,
-                        survey_no: normalizedData.survey_no || '',
-                        buyer_name: normalizedData.buyer_name || '',
-                        amount: normalizedData.amount || '',
+                        ...sanitizedData,
+                        survey_no: sanitizedData.survey_no || '',
+                        buyer_name: sanitizedData.buyer_name || '',
+                        amount: sanitizedData.amount || '',
                         template_id: targetTemplateId,
                         is_final: true
                     })

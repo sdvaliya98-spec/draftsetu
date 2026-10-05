@@ -867,6 +867,23 @@ def start_background_pdf_generation(tracking_id: str, body: dict):
                 output_path=temp_docx_path,
                 tracking_id=tracking_id,
             )
+
+            import sys
+            logger.error("=== LIVE_PDF_RETRY_CONVERTER_V2 ===")
+            docx_size_bytes = os.path.getsize(rendered_temp_docx) if os.path.exists(rendered_temp_docx) else 0
+            logger.info(
+                f"\n[RETRY_PDF_DIAGNOSTIC]\n"
+                f"endpoint: POST /api/documents/{tracking_id}/retry-pdf\n"
+                f"document_id: {tracking_id}\n"
+                f"template_id: {template_id}\n"
+                f"DOCX path: {rendered_temp_docx}\n"
+                f"DOCX size: {docx_size_bytes} bytes\n"
+                f"converter function name: {convert_docx_to_pdf.__name__}\n"
+                f"converter selected: {'LIBREOFFICE' if libreoffice_available() and False else 'MICROSOFT_WORD_FALLBACK'}\n"
+                f"process ID: {os.getpid()}\n"
+                f"Python executable: {sys.executable}\n"
+                f"module path of convert_docx_to_pdf: {convert_docx_to_pdf.__module__}"
+            )
             
             logger.info(f"⏳ [Background Thread] Converting temp DOCX to PDF for {tracking_id}")
             temp_pdf_path = convert_docx_to_pdf(rendered_temp_docx, temp_renders_dir)

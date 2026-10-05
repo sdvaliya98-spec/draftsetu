@@ -363,13 +363,21 @@
             });
         };
 
-        // 1. On-Demand Docx Preview & JSZip Loader
+        // 1. On-Demand Docx Preview & JSZip Loader (Local fast path + CDN fallback)
         window.loadDocxPreview = async function () {
             if (!window.JSZip) {
-                await window.loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");
+                try {
+                    await window.loadScript("/vendor/jszip.min.js");
+                } catch (_) {
+                    await window.loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");
+                }
             }
             if (!window.docx) {
-                await window.loadScript("https://cdn.jsdelivr.net/npm/docx-preview@0.1.15/dist/docx-preview.min.js");
+                try {
+                    await window.loadScript("/vendor/docx-preview.min.js");
+                } catch (_) {
+                    await window.loadScript("https://cdn.jsdelivr.net/npm/docx-preview@0.1.15/dist/docx-preview.min.js");
+                }
             }
             return window.docx;
         };

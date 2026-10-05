@@ -172,14 +172,287 @@ const getRepeaterTitle = (name) => {
     return { gu: name.replace(/_/g, ' ').toUpperCase(), icon: '📋' };
 };
 
+const sanitizeTemplatePayload = (raw, activeTpl) => {
+    if (!raw || typeof raw !== 'object') return raw;
+    const conds = activeTpl?.conditions || activeTpl?.variables?.conditions || activeTpl?.fieldOrder?.conditions;
+    if (!conds || typeof conds !== 'object' || Object.keys(conds).length === 0) {
+        return raw;
+    }
+    const cleanVal = (v) => {
+        if (v === undefined || v === null) return '';
+        let s = String(v).trim();
+        if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+            s = s.slice(1, -1).trim();
+        }
+        return s.toLowerCase();
+    };
+
+    const out = { ...raw };
+
+    const checkCondActive = (cond) => {
+        if (!cond) return true;
+        let fieldName = cond.field || cond.var || cond.variable;
+        let op = cond.op || cond.operator || '==';
+        let targetVal = cond.value !== undefined ? cond.value : (cond.val !== undefined ? cond.val : '');
+        if (!fieldName && cond.raw && typeof cond.raw === 'string') {
+            const cleanCond = cond.raw.replace(/^\(+|\)+$/g, '').trim();
+            const m = cleanCond.match(/^\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*(==|!=)\s*["']?([^"']+)["']?\s*$/);
+            if (m) {
+                fieldName = m[1];
+                op = m[2];
+                targetVal = m[3];
+            }
+        }
+        if (!fieldName) return true;
+        let rawVal = raw[fieldName];
+        if (rawVal === undefined) {
+            const foundKey = Object.keys(raw).find(k => k.toLowerCase() === fieldName.toLowerCase());
+            if (foundKey) rawVal = raw[foundKey];
+        }
+        if (rawVal === undefined || rawVal === null || String(rawVal).trim() === '') {
+            const defaultVal = activeTpl?.fields?.[fieldName]?.default
+                || activeTpl?.fields?.[fieldName.toLowerCase()]?.default
+                || activeTpl?.fields?.[fieldName.toUpperCase()]?.default
+                || '';
+            rawVal = defaultVal;
+        }
+        const currentVal = cleanVal(rawVal);
+        const cleanTarget = cleanVal(targetVal);
+        if (cleanTarget === 'true' || cleanTarget === 'false') {
+            const isTruthy = Boolean(rawVal) && String(rawVal).trim() !== '' && String(rawVal).trim().toLowerCase() !== 'false' && String(rawVal).trim() !== '0';
+            const expected = cleanTarget === 'true';
+            return op === '==' ? (isTruthy === expected) : (isTruthy !== expected);
+        }
+        return op === '==' ? (currentVal === cleanTarget) : (currentVal !== cleanTarget);
+    };
+
+    const tplGroups = activeTpl?.groups || activeTpl?.variables?.groups || activeTpl?.fieldOrder?.groups || null;
+    const tplGroupNames = tplGroups
+        ? (Array.isArray(tplGroups)
+            ? tplGroups.map(g => (typeof g === 'string' ? g : (g.name || g.group || ''))).filter(Boolean)
+            : Object.keys(tplGroups))
+        : [];
+
+    const scalarSuffixes = [
+        '_name', '_pan', '_address', '_type', '_aadhaar', '_share',
+        '_age', '_relation', '_mobile', '_email', '_phone', '_date',
+        '_amount', '_no', '_number', '_details', '_desc', '_status'
+    ];
+
+    const isRepeaterCollection = (name) => {
+        if (!name || typeof name !== 'string') return false;
+        const lower = name.toLowerCase();
+        if (scalarSuffixes.some(s => lower.endsWith(s) || lower.includes('_entity_'))) {
+            return false;
+        }
+        if (tplGroupNames.length > 0) {
+            return tplGroupNames.some(g => g.toLowerCase() === lower);
+        }
+        return (
+            lower.includes('representative') ||
+            lower.includes('rep') ||
+            lower.endsWith('s') ||
+            Array.isArray(raw[name]) ||
+            Array.isArray(raw[Object.keys(raw).find(k => k.toLowerCase() === lower)])
+        );
+    };
+
+    const partyPairs = [];
+    const handledGroups = new Set();
+    for (const [gRep, cRep] of Object.entries(conds)) {
+        if (!cRep || !isRepeaterCollection(gRep)) continue;
+        const field = cRep.field || cRep.var || cRep.variable;
+        const gRepLower = gRep.toLowerCase();
+        if (gRepLower.includes('representative') || gRepLower.includes('rep') || gRepLower.includes('agent')) {
+            for (const [gBase, cBase] of Object.entries(conds)) {
+                if (gBase === gRep || !isRepeaterCollection(gBase)) continue;
+                const gBaseLower = gBase.toLowerCase();
+                if (gBaseLower.includes('representative') || gBaseLower.includes('rep') || gBaseLower.includes('agent')) continue;
+                const baseField = cBase?.field || cBase?.var || cBase?.variable;
+                if (baseField && baseField.toLowerCase() === (field || '').toLowerCase()) {
+                    partyPairs.push({ gBase, gRep, field, cBase, cRep });
+                    handledGroups.add(gBase.toLowerCase());
+                    handledGroups.add(gRep.toLowerCase());
+                }
+            }
+        }
+    }
+
+    const deduplicateRows = (list) => {
+        if (!Array.isArray(list) || list.length <= 1) return Array.isArray(list) ? list : [];
+        const seen = new Set();
+        const unique = [];
+        list.forEach((item, idx) => {
+            if (!item || typeof item !== 'object') {
+                unique.push(item);
+                return;
+            }
+            const nonIndexEntries = Object.entries(item)
+                .filter(([k]) => k.toLowerCase() !== 'index' && k.toLowerCase() !== '_index' && k.toLowerCase() !== 'id')
+                .map(([k, v]) => `${k.toLowerCase()}:${String(v ?? '').trim().toLowerCase()}`)
+                .sort();
+            const sig = nonIndexEntries.filter(s => !s.endsWith(':')).join('|');
+            if (sig && seen.has(sig)) {
+                return;
+            }
+            if (sig) seen.add(sig);
+            unique.push({ ...item, index: String(unique.length + 1) });
+        });
+        return unique;
+    };
+
+    for (const { gBase, gRep, cBase, cRep } of partyPairs) {
+        const repActive = checkCondActive(cRep);
+        const baseActive = checkCondActive(cBase);
+
+        const baseKeys = Object.keys(out).filter(k => k.toLowerCase() === gBase.toLowerCase());
+        if (baseKeys.length === 0) baseKeys.push(gBase);
+        const repKeys = Object.keys(out).filter(k => k.toLowerCase() === gRep.toLowerCase());
+        if (repKeys.length === 0) repKeys.push(gRep);
+
+        if (repActive) {
+            let rawReps = null;
+            for (const rk of repKeys) {
+                if (Array.isArray(raw[rk]) && raw[rk].length > 0) {
+                    rawReps = raw[rk];
+                    break;
+                }
+            }
+            if (!rawReps) rawReps = raw[repKeys[0]] || [];
+            const reps = deduplicateRows(rawReps);
+            for (const rk of repKeys) out[rk] = reps;
+            for (const bk of baseKeys) out[bk] = reps;
+        } else if (baseActive) {
+            let rawBase = null;
+            for (const bk of baseKeys) {
+                if (Array.isArray(raw[bk]) && raw[bk].length > 0) {
+                    rawBase = raw[bk];
+                    break;
+                }
+            }
+            if (!rawBase) rawBase = raw[baseKeys[0]] || [];
+            const baseData = deduplicateRows(rawBase);
+            for (const bk of baseKeys) out[bk] = baseData;
+            for (const rk of repKeys) out[rk] = [];
+        } else {
+            for (const bk of baseKeys) out[bk] = [];
+            for (const rk of repKeys) out[rk] = [];
+        }
+    }
+
+    for (const [itemName, cond] of Object.entries(conds)) {
+        if (handledGroups.has(itemName.toLowerCase())) continue;
+        if (!checkCondActive(cond)) {
+            if (Array.isArray(out[itemName])) {
+                out[itemName] = [];
+            } else if (typeof out[itemName] === 'string' || out[itemName] === undefined) {
+                out[itemName] = '';
+            }
+        }
+    }
+
+    for (const [key, val] of Object.entries(out)) {
+        if (!isRepeaterCollection(key)) {
+            if (Array.isArray(val) || (val !== null && typeof val === 'object')) {
+                out[key] = '';
+            }
+        }
+    }
+    return out;
+};
+
+const resetInactiveBranchData = (currentData, fieldName, newVal, tpl) => {
+    if (!currentData || typeof currentData !== 'object') return currentData;
+    const conds = tpl?.conditions || tpl?.variables?.conditions || tpl?.fieldOrder?.conditions;
+    if (!conds || typeof conds !== 'object') return { ...currentData, [fieldName]: newVal };
+
+    const clean = (v) => {
+        if (v === undefined || v === null) return '';
+        let s = String(v).trim();
+        if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+            s = s.slice(1, -1).trim();
+        }
+        return s.toLowerCase();
+    };
+
+    const nextData = { ...currentData, [fieldName]: newVal };
+
+    const checkCond = (cond) => {
+        if (!cond) return true;
+        let cField = cond.field || cond.var || cond.variable;
+        let op = cond.op || cond.operator || '==';
+        let targetVal = cond.value !== undefined ? cond.value : (cond.val !== undefined ? cond.val : '');
+        if (!cField && cond.raw && typeof cond.raw === 'string') {
+            const cleanCond = cond.raw.replace(/^\(+|\)+$/g, '').trim();
+            const m = cleanCond.match(/^\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*(==|!=)\s*["']?([^"']+)["']?\s*$/);
+            if (m) {
+                cField = m[1];
+                op = m[2];
+                targetVal = m[3];
+            }
+        }
+        if (!cField) return true;
+        let valToCheck = nextData[cField];
+        if (valToCheck === undefined) {
+            const foundKey = Object.keys(nextData).find(k => k.toLowerCase() === cField.toLowerCase());
+            if (foundKey) valToCheck = nextData[foundKey];
+        }
+        if (valToCheck === undefined || valToCheck === null || String(valToCheck).trim() === '') {
+            const defaultVal = tpl?.fields?.[cField]?.default
+                || tpl?.fields?.[cField.toLowerCase()]?.default
+                || tpl?.fields?.[cField.toUpperCase()]?.default
+                || '';
+            valToCheck = defaultVal;
+        }
+        const curVal = clean(valToCheck);
+        const tgtVal = clean(targetVal);
+        if (tgtVal === 'true' || tgtVal === 'false') {
+            const isTruthy = Boolean(valToCheck) && String(valToCheck).trim() !== '' && String(valToCheck).trim().toLowerCase() !== 'false' && String(valToCheck).trim() !== '0';
+            const expected = tgtVal === 'true';
+            return op === '==' ? (isTruthy === expected) : (isTruthy !== expected);
+        }
+        return op === '==' ? (curVal === tgtVal) : (curVal !== tgtVal);
+    };
+
+    for (const [targetName, cond] of Object.entries(conds)) {
+        if (!cond) continue;
+        let cField = cond.field || cond.var || cond.variable;
+        if (!cField && cond.raw && typeof cond.raw === 'string') {
+            const m = cond.raw.match(/^\s*([a-zA-Z0-9_\u0A80-\u0AFF]+)\s*(==|!=)/);
+            if (m) cField = m[1];
+        }
+        // Only reset if this condition actually depends on the field that changed
+        if (cField && cField.toLowerCase() === fieldName.toLowerCase()) {
+            const isActive = checkCond(cond);
+            if (!isActive) {
+                // Inactive! Reset matching keys in nextData
+                const matchingKeys = Object.keys(nextData).filter(k => k.toLowerCase() === targetName.toLowerCase());
+                if (matchingKeys.length === 0) matchingKeys.push(targetName);
+                for (const mk of matchingKeys) {
+                    if (Array.isArray(nextData[mk]) || Array.isArray(currentData[mk])) {
+                        nextData[mk] = [];
+                    } else if (typeof nextData[mk] === 'string' || nextData[mk] !== undefined) {
+                        nextData[mk] = '';
+                    }
+                }
+            }
+        }
+    }
+    return nextData;
+};
+
 // Global backward compatibility
-window.processFieldValue = processFieldValue;
-window.getFieldType = getFieldType;
-window.validateField = validateField;
-window.REPEATER_TITLES = REPEATER_TITLES;
-window.REPEATER_FIELD_LABELS = REPEATER_FIELD_LABELS;
-window.getRepeaterTitle = getRepeaterTitle;
-window.parseOptionsList = parseOptionsList;
+if (typeof window !== 'undefined') {
+    window.processFieldValue = processFieldValue;
+    window.getFieldType = getFieldType;
+    window.validateField = validateField;
+    window.REPEATER_TITLES = REPEATER_TITLES;
+    window.REPEATER_FIELD_LABELS = REPEATER_FIELD_LABELS;
+    window.getRepeaterTitle = getRepeaterTitle;
+    window.parseOptionsList = parseOptionsList;
+    window.sanitizeTemplatePayload = sanitizeTemplatePayload;
+    window.resetInactiveBranchData = resetInactiveBranchData;
+}
 
 export {
     processFieldValue,
@@ -188,5 +461,7 @@ export {
     REPEATER_TITLES,
     REPEATER_FIELD_LABELS,
     getRepeaterTitle,
-    parseOptionsList
+    parseOptionsList,
+    sanitizeTemplatePayload,
+    resetInactiveBranchData
 };

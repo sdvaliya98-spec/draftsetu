@@ -1041,4 +1041,322 @@ def test_docx_template_7d27c1de_exact_entity_rendering():
             os.remove(out_path)
 
 
+def test_entity_representatives_no_duplication_in_main_and_signature_sections():
+    """Verify Entity representatives are never duplicated in main section or signature section."""
+    tpl_text = [
+        "{%p if VENDOR_TYPE == 'INDIVIDUAL' %}",
+        "{%p for vendor in VENDORS %}",
+        "IndVendor: {{ vendor.name }}",
+        "{%p endfor %}",
+        "{%p endif %}",
+        "{%p if VENDOR_TYPE == 'ENTITY' %}",
+        "The Vendor Entity: {{ VENDOR_ENTITY_NAME }}",
+        "Pancard No. {{ VENDOR_ENTITY_PAN }}",
+        "{%p for vendor in VENDOR_REPRESENTATIVES %}",
+        "Rep: {{ vendor.index }}. {{ vendor.name }}",
+        "{%p endfor %}",
+        "{%p endif %}",
+        "--- Signature ---",
+        "{%p for vendor in VENDORS %}",
+        "Sign: {{ vendor.index }}. {{ vendor.name }}",
+        "{%p endfor %}",
+    ]
+    tmpl_path = create_docx_with_paragraphs(tpl_text)
+    out_path = get_temp_out()
+    try:
+        # Case 1: Exactly 1 representative
+        data_1 = {
+            "VENDOR_TYPE": "ENTITY",
+            "VENDOR_ENTITY_NAME": "Sagar LLP",
+            "VENDOR_ENTITY_PAN": "ABCDE1234F",
+            "VENDORS": [{"name": "Old Vendor Individual"}],
+            "VENDOR_REPRESENTATIVES": [
+                {"name": "Darshankumar", "relation": "son of Shivubhai", "pan": "ABCDE1234F"}
+            ]
+        }
+        render_docx_template(tmpl_path, data_1, out_path, preview=True)
+        txt1 = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert "The Vendor Entity: Sagar LLP" in txt1
+        assert "Pancard No. ABCDE1234F" in txt1
+        assert txt1.count("Rep: 1. Darshankumar") == 1
+        assert txt1.count("Sign: 1. Darshankumar") == 1
+        assert "Old Vendor Individual" not in txt1
+        assert "IndVendor:" not in txt1
+
+        # Case 2: Exactly 2 representatives
+        data_2 = {
+            "VENDOR_TYPE": "ENTITY",
+            "VENDOR_ENTITY_NAME": "Sagar LLP",
+            "VENDOR_ENTITY_PAN": "ABCDE1234F",
+            "VENDORS": [{"name": "Old Vendor Individual"}],
+            "VENDOR_REPRESENTATIVES": [
+                {"name": "Darshankumar", "relation": "son of Shivubhai", "pan": "ABCDE1234F"},
+                {"name": "Sagar", "relation": "son of Somabhai", "pan": "ABCDE1234F"}
+            ]
+        }
+        render_docx_template(tmpl_path, data_2, out_path, preview=True)
+        txt2 = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert txt2.count("Rep: 1. Darshankumar") == 1
+        assert txt2.count("Rep: 2. Sagar") == 1
+        assert txt2.count("Sign: 1. Darshankumar") == 1
+        assert txt2.count("Sign: 2. Sagar") == 1
+        assert "Old Vendor Individual" not in txt2
+
+        # Case 3: Incoming payload with merged/duplicated representative array
+        data_dup = {
+            "VENDOR_TYPE": "ENTITY",
+            "VENDOR_ENTITY_NAME": "Sagar LLP",
+            "VENDOR_ENTITY_PAN": "ABCDE1234F",
+            "VENDOR_REPRESENTATIVES": [
+                {"name": "Darshankumar", "relation": "son of Shivubhai", "pan": "ABCDE1234F"},
+                {"name": "Sagar", "relation": "son of Somabhai", "pan": "ABCDE1234F"},
+                {"name": "Darshankumar", "relation": "son of Shivubhai", "pan": "ABCDE1234F"},
+                {"name": "Sagar", "relation": "son of Somabhai", "pan": "ABCDE1234F"}
+            ]
+        }
+        render_docx_template(tmpl_path, data_dup, out_path, preview=True)
+        txt_dup = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert txt_dup.count("Rep: 1. Darshankumar") == 1
+        assert txt_dup.count("Rep: 2. Sagar") == 1
+        assert txt_dup.count("Sign: 1. Darshankumar") == 1
+        assert txt_dup.count("Sign: 2. Sagar") == 1
+        assert "Rep: 3." not in txt_dup
+        assert "Rep: 4." not in txt_dup
+
+        # Case 4: 3 representatives
+        data_3 = {
+            "VENDOR_TYPE": "ENTITY",
+            "VENDOR_ENTITY_NAME": "Sagar LLP",
+            "VENDOR_ENTITY_PAN": "ABCDE1234F",
+            "VENDOR_REPRESENTATIVES": [
+                {"name": "Darshankumar"},
+                {"name": "Sagar"},
+                {"name": "Pravin"}
+            ]
+        }
+        render_docx_template(tmpl_path, data_3, out_path, preview=True)
+        txt3 = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert txt3.count("Rep: 1. Darshankumar") == 1
+        assert txt3.count("Rep: 2. Sagar") == 1
+        assert txt3.count("Rep: 3. Pravin") == 1
+        assert txt3.count("Sign: 1. Darshankumar") == 1
+        assert txt3.count("Sign: 2. Sagar") == 1
+        assert txt3.count("Sign: 3. Pravin") == 1
+    finally:
+        for f in [tmpl_path, out_path]:
+            if os.path.exists(f): os.remove(f)
+
+
+def test_purchaser_entity_representatives_no_duplication():
+    """Verify Purchaser Entity representatives are never duplicated in main section or signature section."""
+    tpl_text = [
+        "{%p if PURCHASER_TYPE == 'INDIVIDUAL' %}",
+        "{%p for p in PURCHASERS %}",
+        "IndPurchaser: {{ p.name }}",
+        "{%p endfor %}",
+        "{%p endif %}",
+        "{%p if PURCHASER_TYPE == 'ENTITY' %}",
+        "Purchaser Entity: {{ PURCHASER_ENTITY_NAME }}",
+        "Purchaser PAN: {{ PURCHASER_ENTITY_PAN }}",
+        "{%p for p in PURCHASER_REPRESENTATIVES %}",
+        "PRep: {{ p.index }}. {{ p.name }}",
+        "{%p endfor %}",
+        "{%p endif %}",
+        "--- Purchaser Signature ---",
+        "{%p for p in PURCHASERS %}",
+        "PSign: {{ p.index }}. {{ p.name }}",
+        "{%p endfor %}",
+    ]
+    tmpl_path = create_docx_with_paragraphs(tpl_text)
+    out_path = get_temp_out()
+    try:
+        data_dup = {
+            "PURCHASER_TYPE": "ENTITY",
+            "PURCHASER_ENTITY_NAME": "Buildcon Ltd",
+            "PURCHASER_ENTITY_PAN": "BLDCN1234E",
+            "PURCHASERS": [{"name": "Old Purchaser Individual"}],
+            "PURCHASER_REPRESENTATIVES": [
+                {"name": "Kirit Shah", "pan": "BLDCN1234E"},
+                {"name": "Anil Patel", "pan": "BLDCN1234E"},
+                {"name": "Kirit Shah", "pan": "BLDCN1234E"},
+                {"name": "Anil Patel", "pan": "BLDCN1234E"}
+            ]
+        }
+        render_docx_template(tmpl_path, data_dup, out_path, preview=True)
+        txt = strip_markers("\n".join(p.text for p in Document(out_path).paragraphs))
+        assert "Purchaser Entity: Buildcon Ltd" in txt
+        assert "Purchaser PAN: BLDCN1234E" in txt
+        assert txt.count("PRep: 1. Kirit Shah") == 1
+        assert txt.count("PRep: 2. Anil Patel") == 1
+        assert txt.count("PSign: 1. Kirit Shah") == 1
+        assert txt.count("PSign: 2. Anil Patel") == 1
+        assert "PRep: 3." not in txt
+        assert "Old Purchaser Individual" not in txt
+        assert "IndPurchaser:" not in txt
+    finally:
+        for f in [tmpl_path, out_path]:
+            if os.path.exists(f): os.remove(f)
+
+
+def test_template_d2b220_exact_entity_representatives_rendering():
+    """Verify real English plot template d2b22056 renders exactly once per representative in main cell and signature."""
+    tpl_file = os.path.join("backend", "uploads", "templates_storage", "d2b22056060a49348c26ac5568e5a8b1.docx")
+    if not os.path.exists(tpl_file):
+        pytest.skip("Template d2b22056060a49348c26ac5568e5a8b1.docx not found")
+
+    out_path = get_temp_out()
+    try:
+        data = {
+            "VENDOR_TYPE": "ENTITY",
+            "VENDOR_ENTITY_NAME": "Sagar LLP",
+            "VENDOR_ENTITY_PAN": "ABCDE1234F",
+            "VENDORS": [{"name": "Old Individual"}],
+            "VENDOR_REPRESENTATIVES": [
+                {"name": "Darshankumar", "relation": "son of Shivubhai", "pan": "ABCDE1234F", "aadhaar": "1234567890"},
+                {"name": "Sagar", "relation": "son of Somabhai", "pan": "ABCDE1234F", "aadhaar": "1234567890"}
+            ]
+        }
+        # 1. Preview mode
+        render_docx_template(tpl_file, data, out_path, preview=True)
+        doc = Document(out_path)
+        main_vendor_cell_text = strip_markers(doc.tables[0].rows[0].cells[1].text)
+        assert "Sagar LLP" in main_vendor_cell_text
+        assert "ABCDE1234F" in main_vendor_cell_text
+        assert main_vendor_cell_text.count("1. Darshankumar") == 1
+        assert main_vendor_cell_text.count("2. Sagar") == 1
+        assert "Old Individual" not in main_vendor_cell_text
+
+        signature_text = strip_markers("\n".join(p.text for p in doc.paragraphs))
+        assert signature_text.count("1. Darshankumar") == 1
+        assert signature_text.count("2. Sagar") == 1
+        assert "Old Individual" not in signature_text
+
+        # 2. Final/PDF preview mode (preview=False)
+        render_docx_template(tpl_file, data, out_path, preview=False)
+        doc2 = Document(out_path)
+        main_vendor_cell_text2 = doc2.tables[0].rows[0].cells[1].text
+        assert "Sagar LLP" in main_vendor_cell_text2
+        assert "ABCDE1234F" in main_vendor_cell_text2
+        assert main_vendor_cell_text2.count("1. Darshankumar") == 1
+        assert main_vendor_cell_text2.count("2. Sagar") == 1
+        assert "Old Individual" not in main_vendor_cell_text2
+
+        signature_text2 = "\n".join(p.text for p in doc2.paragraphs)
+        assert signature_text2.count("1. Darshankumar") == 1
+        assert signature_text2.count("2. Sagar") == 1
+        assert "Old Individual" not in signature_text2
+    finally:
+        if os.path.exists(out_path):
+            os.remove(out_path)
+
+
+def test_vendor_and_purchaser_exact_switching_sequence():
+    """
+    Exact User Sequence Test:
+    A. Select INDIVIDUAL -> enter individual vendor
+    B. Switch to ENTITY -> enter Sagar LLP, ABCDE1234F, 2 reps (Darshankumar, Sagar)
+    C. Verify no stale individual vendor in ENTITY mode
+    D. Switch to INDIVIDUAL -> verify no entity name/PAN or reps
+    E. Switch back to ENTITY -> verify no stale individual rows survive
+    F. Symmetrical test for PURCHASER ENTITY mode
+    """
+    tpl_file = os.path.normpath(os.path.join(
+        os.path.dirname(__file__), "..", "backend", "uploads", "templates_storage",
+        "d2b22056060a49348c26ac5568e5a8b1.docx"
+    ))
+    if not os.path.exists(tpl_file):
+        pytest.skip(f"Template 80 docx file not found at {tpl_file}")
+
+    out_path = get_temp_out()
+    try:
+        # Step A & B: INDIVIDUAL mode
+        data_step_a = {
+            "VENDOR_TYPE": "INDIVIDUAL",
+            "VENDORS": [{"name": "Dharmakumar Shivubhai Makwana"}],
+            "PURCHASER_TYPE": "INDIVIDUAL",
+            "PURCHASERS": [{"name": "Ghanshyam Patel"}]
+        }
+        render_docx_template(tpl_file, data_step_a, out_path, preview=True)
+        doc_a = Document(out_path)
+        text_a = strip_markers("\n".join(p.text for p in doc_a.paragraphs))
+        cell_a = strip_markers(doc_a.tables[0].rows[0].cells[1].text)
+        assert "Dharmakumar Shivubhai Makwana" in cell_a
+        assert "Dharmakumar Shivubhai Makwana" in text_a
+        assert "Sagar LLP" not in cell_a
+
+        # Step C & D & E: Switch to ENTITY mode with stale VENDORS present in raw payload
+        data_step_b = {
+            "VENDOR_TYPE": "ENTITY",
+            "VENDOR_ENTITY_NAME": "Sagar LLP",
+            "VENDOR_ENTITY_PAN": "ABCDE1234F",
+            "VENDOR_REPRESENTATIVES": [
+                {"name": "Darshankumar"},
+                {"name": "Sagar"}
+            ],
+            "VENDORS": [{"name": "Dharmakumar Shivubhai Makwana"}],
+            "PURCHASER_TYPE": "ENTITY",
+            "PURCHASER_ENTITY_NAME": "Purchaser Enterprises Ltd",
+            "PURCHASER_ENTITY_PAN": "PPPPP9999P",
+            "PURCHASER_REPRESENTATIVES": [{"name": "Kiran Patel"}],
+            "PURCHASERS": [{"name": "Ghanshyam Patel"}]
+        }
+        render_docx_template(tpl_file, data_step_b, out_path, preview=True)
+        doc_b = Document(out_path)
+        vendor_cell_b = strip_markers(doc_b.tables[0].rows[0].cells[1].text)
+        purchaser_cell_b = strip_markers(doc_b.tables[1].rows[0].cells[1].text)
+        sig_text_b = strip_markers("\n".join(p.text for p in doc_b.paragraphs))
+
+        # Main vendor section
+        assert "Sagar LLP" in vendor_cell_b
+        assert "ABCDE1234F" in vendor_cell_b
+        assert "1. Darshankumar" in vendor_cell_b
+        assert "2. Sagar" in vendor_cell_b
+        assert "Dharmakumar" not in vendor_cell_b
+
+        # Signature section
+        assert "1. Darshankumar" in sig_text_b
+        assert "2. Sagar" in sig_text_b
+        assert "Dharmakumar" not in sig_text_b
+
+        # Purchaser ENTITY section
+        assert "Purchaser Enterprises Ltd" in purchaser_cell_b
+        assert "PPPPP9999P" in purchaser_cell_b
+        assert "Kiran Patel" in purchaser_cell_b
+        assert "Ghanshyam Patel" not in purchaser_cell_b
+
+        # Step F: Switch back to INDIVIDUAL with stale entity fields present
+        data_step_f = {
+            "VENDOR_TYPE": "INDIVIDUAL",
+            "VENDORS": [{"name": "Dharmakumar Shivubhai Makwana"}],
+            "VENDOR_ENTITY_NAME": "Sagar LLP",
+            "VENDOR_ENTITY_PAN": "ABCDE1234F",
+            "VENDOR_REPRESENTATIVES": [
+                {"name": "Darshankumar"},
+                {"name": "Sagar"}
+            ],
+            "PURCHASER_TYPE": "INDIVIDUAL",
+            "PURCHASERS": [{"name": "Ghanshyam Patel"}],
+            "PURCHASER_ENTITY_NAME": "Purchaser Enterprises Ltd",
+            "PURCHASER_ENTITY_PAN": "PPPPP9999P",
+            "PURCHASER_REPRESENTATIVES": [{"name": "Kiran Patel"}]
+        }
+        render_docx_template(tpl_file, data_step_f, out_path, preview=True)
+        doc_f = Document(out_path)
+        vendor_cell_f = strip_markers(doc_f.tables[0].rows[0].cells[1].text)
+        purchaser_cell_f = strip_markers(doc_f.tables[1].rows[0].cells[1].text)
+        sig_text_f = strip_markers("\n".join(p.text for p in doc_f.paragraphs))
+
+        assert "Dharmakumar Shivubhai Makwana" in vendor_cell_f
+        assert "Dharmakumar Shivubhai Makwana" in sig_text_f
+        assert "Sagar LLP" not in vendor_cell_f
+        assert "Darshankumar" not in vendor_cell_f
+        assert "Ghanshyam Patel" in purchaser_cell_f
+        assert "Purchaser Enterprises Ltd" not in purchaser_cell_f
+    finally:
+        if os.path.exists(out_path):
+            os.remove(out_path)
+
+
+
+
 

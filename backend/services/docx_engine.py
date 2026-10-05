@@ -17,12 +17,14 @@ import uuid
 import time
 import shutil
 import logging
+import zipfile
 import subprocess
 import threading
 from typing import Optional
 from pathlib import Path
 
 from docx import Document
+from docx.oxml import OxmlElement
 from docxtpl import DocxTemplate
 from backend.core.config import settings
 
@@ -127,14 +129,91 @@ def normalize_jinja_xml(src_xml: str) -> str:
     return src_xml
 
 
+def repair_docx_openxml_integrity(docx_doc) -> int:
+    """
+    Repairs OpenXML schema violations in a python-docx Document object.
+
+    ECMA-376 / ISO/IEC 29500 mandates that:
+    1. Every table cell (<w:tc>) MUST contain at least one block-level element
+       (typically a paragraph <w:p> or table <w:tbl>). When docxtpl / Jinja tags
+       (e.g., {%p for ... %} or {%p if ... %}) expand to empty, docxtpl removes
+       all paragraphs from the cell, leaving only <w:tcPr>.
+       Microsoft Word strictly enforces this rule and will refuse to open the
+       file, reporting: "The file appears to be corrupted".
+    2. Table rows (<w:tr>) must contain at least one cell (<w:tc>).
+    3. Tables (<w:tbl>) must contain at least one row (<w:tr>).
+    4. Headers (<w:hdr>) and footers (<w:ftr>) must contain at least one block-level element (<w:p>).
+
+    This function traverses document body, headers, and footers to ensure schema compliance,
+    preventing Word COM and LibreOffice corruption errors.
+    """
+    if not docx_doc or not hasattr(docx_doc, "_element"):
+        return 0
+
+    elements_to_check = [docx_doc._element]
+    if hasattr(docx_doc, "sections"):
+        for s in docx_doc.sections:
+            for part in (
+                getattr(s, "header", None),
+                getattr(s, "footer", None),
+                getattr(s, "first_page_header", None),
+                getattr(s, "first_page_footer", None),
+                getattr(s, "even_page_header", None),
+                getattr(s, "even_page_footer", None),
+            ):
+                if part is not None and hasattr(part, "_element"):
+                    elements_to_check.append(part._element)
+
+    repaired_cells = 0
+    for el in elements_to_check:
+        try:
+            # 1. Prune empty rows that have no cells
+            for tr in el.xpath(".//w:tr"):
+                if not tr.xpath("./w:tc"):
+                    parent = tr.getparent()
+                    if parent is not None:
+                        parent.remove(tr)
+
+            # 2. Prune empty tables that have no rows
+            for tbl in el.xpath(".//w:tbl"):
+                if not tbl.xpath("./w:tr"):
+                    parent = tbl.getparent()
+                    if parent is not None:
+                        parent.remove(tbl)
+
+            # 3. Ensure all table cells have at least one block-level element (w:p or w:tbl)
+            for tc in el.xpath(".//w:tc"):
+                if not tc.xpath("./w:p | ./w:tbl"):
+                    tc.append(OxmlElement("w:p"))
+                    repaired_cells += 1
+
+            # 4. Ensure header/footer has at least one paragraph
+            tag = el.tag.split("}")[-1] if "}" in el.tag else el.tag
+            if tag in ("hdr", "ftr") and not el.xpath("./w:p | ./w:tbl"):
+                el.append(OxmlElement("w:p"))
+        except Exception as e:
+            logger.warning(f"Error checking OpenXML schema element: {e}")
+
+    if repaired_cells > 0:
+        logger.info(f"🛡️ Repaired {repaired_cells} empty table cell(s) for OpenXML schema compliance.")
+
+    return repaired_cells
+
+
 class DraftSetuDocxTemplate(DocxTemplate):
     """
     Subclass of DocxTemplate with XML preprocessing for robust paragraph-level
-    and run-split Jinja tag rendering across body, headers, footers, and footnotes.
+    and run-split Jinja tag rendering across body, headers, footers, and footnotes,
+    and OpenXML schema integrity repair on save.
     """
     def patch_xml(self, src_xml):
         src_xml = normalize_jinja_xml(src_xml)
         return super().patch_xml(src_xml)
+
+    def pre_processing(self):
+        super().pre_processing()
+        if hasattr(self, "docx") and self.docx is not None:
+            repair_docx_openxml_integrity(self.docx)
 
 
 # ─── VARIABLE EXTRACTION ────────────────────────────────────────────────────
@@ -781,27 +860,96 @@ def _apply_conditional_visibility(context: dict, template_path: str):
                         handled_groups.add(g_base.lower())
                         handled_groups.add(g_rep.lower())
 
+        def _deduplicate_repeater_list(items: list) -> list:
+            """
+            Deduplicates a list of repeater rows while preserving order and normalizing 1-based index.
+            Two rows are considered duplicates if all their user-visible content fields match,
+            or if they are identical dict objects.
+            """
+            if not isinstance(items, list) or len(items) <= 1:
+                return list(items) if isinstance(items, list) else []
+
+            unique_items = []
+            seen_signatures = set()
+
+            for i, item in enumerate(items):
+                if not isinstance(item, dict):
+                    if item not in seen_signatures:
+                        seen_signatures.add(item)
+                        unique_items.append(item)
+                    continue
+
+                sig_parts = []
+                for k in sorted(item.keys()):
+                    if k.lower() in ('index', '_index', 'id'):
+                        continue
+                    v = str(item.get(k) or '').strip().lower()
+                    if v:
+                        sig_parts.append((k.lower(), v))
+
+                sig = tuple(sig_parts) if sig_parts else (f"__empty_row_{i}__",)
+                if sig_parts and sig in seen_signatures:
+                    continue
+
+                if sig_parts:
+                    seen_signatures.add(sig)
+
+                clean_item = dict(item)
+                clean_item['index'] = str(len(unique_items) + 1)
+                unique_items.append(clean_item)
+
+            return unique_items
+
         # 1. Resolve party pairs dynamically based on active party mode
         for g_base, g_rep, field, c_base, c_rep in party_pairs:
             is_rep_active = _evaluate_condition(c_rep, context, options)
             is_base_active = _evaluate_condition(c_base, context, options)
 
-            base_key = next((k for k in context.keys() if k.lower() == g_base.lower()), g_base)
-            rep_key = next((k for k in context.keys() if k.lower() == g_rep.lower()), g_rep)
+            # Match all case variations of base and rep keys in context
+            base_keys = [k for k in context.keys() if k.lower() == g_base.lower()]
+            if not base_keys:
+                base_keys = [g_base]
+            rep_keys = [k for k in context.keys() if k.lower() == g_rep.lower()]
+            if not rep_keys:
+                rep_keys = [g_rep]
 
             if is_rep_active:
                 # Entity mode: active party collection for both main section and signature loops is the representatives
-                rep_data = list(context.get(rep_key) or [])
-                context[rep_key] = rep_data
-                context[base_key] = rep_data
+                raw_rep_data = None
+                for rk in rep_keys:
+                    val = context.get(rk)
+                    if isinstance(val, list) and len(val) > 0:
+                        raw_rep_data = val
+                        break
+                if raw_rep_data is None:
+                    raw_rep_data = context.get(rep_keys[0]) or []
+
+                rep_data = _deduplicate_repeater_list(list(raw_rep_data))
+                for rk in rep_keys:
+                    context[rk] = rep_data
+                for bk in base_keys:
+                    context[bk] = rep_data
             elif is_base_active:
                 # Individual mode: active party collection is the individual parties
-                base_data = list(context.get(base_key) or [])
-                context[base_key] = base_data
-                context[rep_key] = []
+                raw_base_data = None
+                for bk in base_keys:
+                    val = context.get(bk)
+                    if isinstance(val, list) and len(val) > 0:
+                        raw_base_data = val
+                        break
+                if raw_base_data is None:
+                    raw_base_data = context.get(base_keys[0]) or []
+
+                base_data = _deduplicate_repeater_list(list(raw_base_data))
+                for bk in base_keys:
+                    context[bk] = base_data
+                for rk in rep_keys:
+                    context[rk] = []
             else:
-                context[base_key] = []
-                context[rep_key] = []
+                for bk in base_keys:
+                    context[bk] = []
+                for rk in rep_keys:
+                    context[rk] = []
 
         # 2. Handle remaining items
         for item_name, cond in conditions.items():
@@ -936,6 +1084,7 @@ def render_docx_template(
             else:
                 doc.render(context)
 
+            repair_docx_openxml_integrity(doc.docx)
             doc.save(output_path)
 
             duration = time.perf_counter() - start
@@ -1143,16 +1292,205 @@ def kill_zombie_winword():
         logger.error(f"Failed to run zombie winword killer: {e}")
 
 
-def _convert_via_word(docx_path: str, output_dir: str, target_pdf_path: Optional[str] = None) -> str:
+def repair_docx_openxml_integrity(doc: Document) -> int:
     """
-    Convert DOCX → PDF using Microsoft Word COM automation (Windows only).
-    Preserves ALL Word formatting, Gujarati fonts, and complex layouts exactly
-    because it uses Word's own rendering engine.
+    Repairs common ECMA-376 schema violations and XML inconsistencies in a python-docx Document:
+    1. Table cells without paragraphs (ECMA-376 Part 1, §17.4.66 requires >= 1 <w:p> inside <w:tc>).
+       Missing <w:p> causes Microsoft Word COM to abort with "The file appears to be corrupted."
+    2. Strips XML 1.0 invalid control characters (\x00-\x08, \x0b-\x0c, \x0e-\x1f) from text nodes.
+    3. Handles header/footer tables and paragraphs.
 
-    Raises RuntimeError on failure.
+    Returns the count of repaired elements.
+    """
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    import re
+
+    repaired_count = 0
+    INVALID_XML_CHARS_RE = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]')
+
+    # 1. Clean document body paragraphs
+    for p in doc.paragraphs:
+        for r in p.runs:
+            if r.text and INVALID_XML_CHARS_RE.search(r.text):
+                r.text = INVALID_XML_CHARS_RE.sub('', r.text)
+                repaired_count += 1
+
+    # 2. Check and repair all tables in body
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                tc = cell._tc
+                p_elements = tc.xpath('.//w:p')
+                if not p_elements:
+                    # Inject mandatory paragraph element into empty cell
+                    new_p = OxmlElement('w:p')
+                    tc.append(new_p)
+                    repaired_count += 1
+                else:
+                    for p in cell.paragraphs:
+                        for r in p.runs:
+                            if r.text and INVALID_XML_CHARS_RE.search(r.text):
+                                r.text = INVALID_XML_CHARS_RE.sub('', r.text)
+                                repaired_count += 1
+
+    # 3. Check and repair headers and footers across all sections
+    for section in doc.sections:
+        for hf_attr in (
+            'header', 'footer',
+            'first_page_header', 'first_page_footer',
+            'even_page_header', 'even_page_footer'
+        ):
+            hf = getattr(section, hf_attr, None)
+            if hf is not None:
+                for p in hf.paragraphs:
+                    for r in p.runs:
+                        if r.text and INVALID_XML_CHARS_RE.search(r.text):
+                            r.text = INVALID_XML_CHARS_RE.sub('', r.text)
+                            repaired_count += 1
+                for table in hf.tables:
+                    for row in table.rows:
+                        for cell in row.cells:
+                            tc = cell._tc
+                            p_elements = tc.xpath('.//w:p')
+                            if not p_elements:
+                                new_p = OxmlElement('w:p')
+                                tc.append(new_p)
+                                repaired_count += 1
+                            else:
+                                for p in cell.paragraphs:
+                                    for r in p.runs:
+                                        if r.text and INVALID_XML_CHARS_RE.search(r.text):
+                                            r.text = INVALID_XML_CHARS_RE.sub('', r.text)
+                                            repaired_count += 1
+
+    return repaired_count
+
+
+def validate_docx_before_conversion(docx_path: str) -> dict:
+    """
+    Validates that a generated DOCX file is a structurally sound OpenXML package
+    before sending it to LibreOffice or Microsoft Word COM.
+
+    Checks:
+      1. File existence and non-zero size.
+      2. Valid ZIP archive structure.
+      3. Broken XML, invalid relationships, corrupted media/parts.
+      4. Invalid Unicode/control characters.
+      5. Valid python-docx Document object and XML tree parsing.
+      6. Malformed tables (e.g. empty <w:tc> without <w:p>).
+      7. Unclosed template constructs.
+
+    Returns a dict with diagnostic info:
+      {"path": str, "exists": bool, "size": int, "is_zip": bool, "docx_valid": bool, "error": str/None}
+
+    Raises ValueError with a descriptive message if the file is corrupt.
+    """
+    import zipfile
+    from xml.etree import ElementTree as ET
+
+    diag = {
+        "path": docx_path,
+        "exists": False,
+        "size": 0,
+        "is_zip": False,
+        "docx_valid": False,
+        "error": None
+    }
+
+    # 1. Existence check
+    if not os.path.exists(docx_path):
+        diag["error"] = f"Generated DOCX does not exist on disk: {docx_path}"
+        logger.error(f"❌ [DOCX_VALIDATE] {diag['error']}")
+        raise ValueError(f"Generated DOCX is invalid before PDF conversion: {diag['error']}")
+
+    diag["exists"] = True
+    diag["size"] = os.path.getsize(docx_path)
+
+    # 2. Size check
+    if diag["size"] == 0:
+        diag["error"] = f"Generated DOCX file is empty (0 bytes): {docx_path}"
+        logger.error(f"❌ [DOCX_VALIDATE] {diag['error']}")
+        raise ValueError(f"Generated DOCX is invalid before PDF conversion: {diag['error']}")
+
+    # 3. ZIP package check
+    if not zipfile.is_zipfile(docx_path):
+        diag["error"] = f"Generated DOCX is not a valid ZIP package: {docx_path}"
+        logger.error(f"❌ [DOCX_VALIDATE] {diag['error']}")
+        raise ValueError(f"Generated DOCX is invalid before PDF conversion: {diag['error']}")
+
+    diag["is_zip"] = True
+
+    # 4. Deep OpenXML package & relationship validation
+    try:
+        with zipfile.ZipFile(docx_path, 'r') as zf:
+            file_list = zf.namelist()
+            if "word/document.xml" not in file_list:
+                diag["error"] = "DOCX ZIP archive missing critical 'word/document.xml' part"
+                logger.error(f"❌ [DOCX_VALIDATE] {diag['error']}")
+                raise ValueError(f"Generated DOCX is invalid before PDF conversion: {diag['error']}")
+
+            # Validate XML syntax of all XML and rels parts
+            for item in file_list:
+                if item.endswith('.xml') or item.endswith('.rels'):
+                    try:
+                        part_data = zf.read(item)
+                        ET.fromstring(part_data)
+                    except Exception as xml_err:
+                        diag["error"] = f"Malformed XML in DOCX part '{item}': {xml_err}"
+                        logger.error(f"❌ [DOCX_VALIDATE] {diag['error']}")
+                        raise ValueError(f"Generated DOCX is invalid before PDF conversion: {diag['error']}") from xml_err
+    except ValueError:
+        raise
+    except Exception as zip_err:
+        diag["error"] = f"Error reading DOCX ZIP archive contents: {zip_err}"
+        logger.error(f"❌ [DOCX_VALIDATE] {diag['error']}")
+        raise ValueError(f"Generated DOCX is invalid before PDF conversion: {diag['error']}") from zip_err
+
+    # 5. python-docx document model validation and schema repair
+    try:
+        doc = Document(docx_path)
+        _ = doc.element.body
+
+        # Check for unclosed template constructs
+        for p in doc.paragraphs:
+            if "{{" in p.text and "}}" not in p.text:
+                logger.warning(f"⚠️ [DOCX_VALIDATE] Unclosed template tag detected in paragraph: '{p.text[:60]}...'")
+
+        # Repair any residual ECMA-376 schema inconsistencies (empty cells, invalid chars)
+        fixed = repair_docx_openxml_integrity(doc)
+        if fixed > 0:
+            doc.save(docx_path)
+            diag["size"] = os.path.getsize(docx_path)
+            logger.info(f"🛡️ [DOCX_VALIDATE] Repaired {fixed} schema items in {os.path.basename(docx_path)}")
+
+        diag["docx_valid"] = True
+    except Exception as e:
+        diag["error"] = f"python-docx Document parsing failed: {e}"
+        logger.error(f"❌ [DOCX_VALIDATE] {diag['error']}")
+        raise ValueError(f"Generated DOCX is invalid before PDF conversion: {diag['error']}") from e
+
+    return diag
+
+
+def _convert_via_word(docx_path: str, output_dir: str, target_pdf_path: Optional[str] = None) -> tuple[str, int, str, str]:
+    """
+    Convert DOCX → PDF using Microsoft Word COM automation (Windows-only fallback).
+    Requirements:
+      - Uses isolated DispatchEx instead of reusing shared Word instance
+      - Visible=False, DisplayAlerts=0
+      - Documents.Open with ReadOnly=True
+      - ExportAsFixedFormat (Format=17)
+      - Explicit Document.Close(0) and Word.Quit(0)
+      - pythoncom.CoUninitialize() and COM reference release
+      - Strict WINWORD.EXE PID tracking to ensure zero orphan processes are leaked.
+
+    Returns:
+        tuple of (pdf_path, return_code, stdout, stderr)
     """
     import pythoncom
     import win32com.client
+    import psutil
 
     if target_pdf_path:
         pdf_path = target_pdf_path
@@ -1171,11 +1509,16 @@ def _convert_via_word(docx_path: str, output_dir: str, target_pdf_path: Optional
     if os.path.exists(abs_pdf):
         _safe_remove(abs_pdf)
 
+    # Snapshot existing Word PIDs to track and clean up the exact process created
+    before_pids = {p.pid for p in psutil.process_iter() if p.name().lower() == 'winword.exe'}
+
     pythoncom.CoInitialize()
     word = None
     doc = None
+    spawned_pids = set()
+
     try:
-        word = win32com.client.Dispatch("Word.Application")
+        word = win32com.client.DispatchEx("Word.Application")
         word.Visible = False
         word.DisplayAlerts = 0  # wdAlertsNone = 0
         try:
@@ -1184,30 +1527,56 @@ def _convert_via_word(docx_path: str, output_dir: str, target_pdf_path: Optional
         except Exception:
             pass
 
-        # Open with explicit parameters to avoid COM returning method object
-        doc = word.Documents.Open(
-            abs_docx,   # FileName
-            False,      # ConfirmConversions
-            False,      # ReadOnly
-            False,      # AddToRecentFiles
-        )
+        after_pids = {p.pid for p in psutil.process_iter() if p.name().lower() == 'winword.exe'}
+        spawned_pids = after_pids - before_pids
+
+        # Open with ReadOnly=True to avoid locking conflicts and ~$ lock files
+        try:
+            doc = word.Documents.Open(
+                abs_docx,   # FileName
+                False,      # ConfirmConversions
+                True,       # ReadOnly = True
+                False,      # AddToRecentFiles
+            )
+        except Exception as open_err:
+            if "corrupted" in str(open_err).lower() or "-2146822496" in str(open_err):
+                logger.warning(f"Word reported file corruption: {open_err}. Attempting OpenXML schema repair on {abs_docx}...")
+                try:
+                    repaired_doc = Document(abs_docx)
+                    fixed = repair_docx_openxml_integrity(repaired_doc)
+                    if fixed > 0:
+                        repaired_doc.save(abs_docx)
+                        doc = word.Documents.Open(abs_docx, False, True, False)
+                    else:
+                        raise open_err
+                except Exception:
+                    raise open_err
+            else:
+                raise open_err
 
         if doc is None:
             raise RuntimeError("Word.Documents.Open returned None — file may be locked or corrupted.")
 
-        # wdFormatPDF = 17
+        # Export using dedicated ExportAsFixedFormat API (wdExportFormatPDF = 17)
         try:
-            doc.SaveAs2(abs_pdf, FileFormat=17)
+            doc.ExportAsFixedFormat(
+                OutputFileName=abs_pdf,
+                ExportFormat=17,
+                OpenAfterExport=False,
+                OptimizeFor=0,     # wdExportOptimizeForPrint = 0
+                CreateBookmarks=1, # wdExportCreateHeadingBookmarks = 1
+                DocStructureTags=True
+            )
         except AttributeError:
             doc.SaveAs(abs_pdf, FileFormat=17)
 
     except Exception as e:
-        logger.error("⚠️ WORD COM FAILED")
+        logger.error(f"⚠️ WORD COM FAILED: {e}")
         raise RuntimeError(f"Microsoft Word PDF conversion failed: {e}") from e
     finally:
         if doc is not None:
             try:
-                doc.Close(0)
+                doc.Close(0)  # wdDoNotSaveChanges = 0
             except Exception:
                 pass
             try:
@@ -1227,7 +1596,7 @@ def _convert_via_word(docx_path: str, output_dir: str, target_pdf_path: Optional
                 pass
             word = None
 
-        time.sleep(0.3)
+        time.sleep(0.1)
         import gc
         gc.collect()
         try:
@@ -1235,41 +1604,50 @@ def _convert_via_word(docx_path: str, output_dir: str, target_pdf_path: Optional
         except Exception:
             pass
 
-    if not os.path.exists(pdf_path):
+        # Terminate any spawned Word processes that failed to exit
+        for pid in spawned_pids:
+            if psutil.pid_exists(pid):
+                try:
+                    proc = psutil.Process(pid)
+                    proc.terminate()
+                    proc.wait(timeout=2)
+                except Exception:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+
+    if not os.path.exists(pdf_path) or os.path.getsize(pdf_path) == 0:
         raise RuntimeError(
-            f"Word COM conversion appeared to succeed but PDF not found at: {pdf_path}"
+            f"Word COM conversion appeared to succeed but PDF not found or empty at: {pdf_path}"
         )
 
     duration = time.perf_counter() - start
     logger.info("✅ PDF READY")
     logger.info(f"[WORD COM] PDF created in {duration:.3f}s: {os.path.basename(pdf_path)}")
-    return pdf_path
+    return pdf_path, 0, f"Word COM ExportAsFixedFormat completed in {duration:.3f}s", ""
 
 
-# ── Engine 2: LibreOffice subprocess ─────────────────────────────────────────
-
-def _convert_via_libreoffice(docx_path: str, output_dir: str) -> str:
+def _convert_via_libreoffice(docx_path: str, output_dir: str, timeout: int = 45) -> tuple[str, int, str, str]:
     """
-    Convert DOCX → PDF using LibreOffice headless subprocess.
-    Used as fallback when Microsoft Word is not available.
+    Convert DOCX → PDF using LibreOffice headless subprocess (primary converter).
 
-    Raises Exception on failure.
+    Returns:
+        tuple of (pdf_path, return_code, stdout, stderr)
     """
-    from pathlib import Path
-
     global LIBREOFFICE_PATH
     if LIBREOFFICE_PATH:
         LIBREOFFICE_PATH = os.path.normpath(LIBREOFFICE_PATH)
 
     if not LIBREOFFICE_PATH or not os.path.isfile(LIBREOFFICE_PATH):
-        raise Exception(
-            f"Invalid LibreOffice executable: {LIBREOFFICE_PATH}"
+        raise RuntimeError(
+            f"LibreOffice executable not found or invalid: {LIBREOFFICE_PATH}"
         )
 
     out_dir = os.path.normpath(output_dir)
     docx_path = os.path.normpath(docx_path)
 
-    # 1. Setup isolated user profile directory (cross-platform safe)
+    # Isolated user profile directory to allow concurrent conversions
     user_profile_uuid = uuid.uuid4().hex
     if os.name == 'nt':
         temp_dir_raw = os.environ.get('TEMP', 'C:\\Temp')
@@ -1291,24 +1669,19 @@ def _convert_via_libreoffice(docx_path: str, output_dir: str) -> str:
         str(docx_path)
     ]
 
-    print("RUNNING COMMAND:", command)
-
     try:
         result = subprocess.run(
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            timeout=timeout,
             shell=False
         )
 
-        print("STDOUT:", result.stdout)
-        print("STDERR:", result.stderr)
-        print("RETURN CODE:", result.returncode)
-
         if result.returncode != 0:
-            raise Exception(
-                f"LibreOffice PDF conversion failed: {result.stderr}"
+            raise RuntimeError(
+                f"LibreOffice PDF conversion failed (code {result.returncode}): {result.stderr or result.stdout}"
             )
 
         pdf_path = os.path.join(
@@ -1316,18 +1689,16 @@ def _convert_via_libreoffice(docx_path: str, output_dir: str) -> str:
             Path(docx_path).stem + ".pdf"
         )
 
-        if not os.path.exists(pdf_path):
-            raise Exception(
-                f"PDF file not generated: {pdf_path}"
+        if not os.path.exists(pdf_path) or os.path.getsize(pdf_path) == 0:
+            raise RuntimeError(
+                f"PDF file not generated or empty by LibreOffice: {pdf_path}"
             )
 
-        return pdf_path
+        return pdf_path, result.returncode, result.stdout, result.stderr
     finally:
-        # 2. Guarantee cleanup of the temporary profile directory to avoid disk space/inode exhaustion
         if os.path.exists(profile_disk_path):
             try:
                 shutil.rmtree(profile_disk_path)
-                logger.info(f"🧹 Cleaned up temporary LibreOffice profile: {profile_disk_path}")
             except Exception as cleanup_err:
                 logger.warning(f"Failed to clean up LibreOffice profile directory {profile_disk_path}: {cleanup_err}")
 
@@ -1428,8 +1799,11 @@ def convert_docx_to_pdf(
 ) -> str:
     """
     Convert a rendered DOCX file to PDF using the best available engine:
-      1. Microsoft Word COM (docx2pdf) — preferred on Windows, pixel-perfect fidelity
-      2. LibreOffice headless subprocess — cross-platform fallback
+      1. LibreOffice headless subprocess (primary converter)
+         soffice --headless --convert-to pdf --outdir <output_dir> <input.docx>
+      2. Microsoft Word COM (isolated DispatchEx fallback on Windows)
+
+    Validates DOCX integrity before conversion and emits structured [PDF_CONVERSION] logs.
 
     Args:
         docx_path:   Absolute path to the .docx file to convert.
@@ -1440,66 +1814,116 @@ def convert_docx_to_pdf(
         Absolute path to the generated .pdf file.
 
     Raises:
-        RuntimeError if no PDF engine is available or conversion fails.
+        RuntimeError or ValueError if conversion fails or input DOCX is invalid.
     """
-    if not PDF_ENGINE_AVAILABLE:
-        raise RuntimeError(
-            "No PDF engine available. "
-            "On Windows: Microsoft Word must be installed (and pip install docx2pdf). "
-            "On Linux/macOS: install LibreOffice (sudo apt install libreoffice)."
-        )
-
-    if not os.path.exists(docx_path):
-        raise FileNotFoundError(f"DOCX file not found: {docx_path}")
+    # Step 1: Pre-conversion DOCX validation (checks ZIP, XML, tables, runs, control chars)
+    diag = validate_docx_before_conversion(docx_path)
 
     out_dir = output_dir or os.path.dirname(docx_path)
     os.makedirs(out_dir, exist_ok=True)
-
     expected_pdf_path = os.path.join(out_dir, f"{Path(docx_path).stem}.pdf")
 
-    pdf_result = None
-    # Engine 1 — Microsoft Word COM (Windows, best quality for Gujarati fonts)
-    if DOCX2PDF_AVAILABLE:
-        logger.info("🟦 STARTING PDF CONVERSION")
-        logger.info("🔒 WAITING FOR WORD LOCK")
-        with word_pdf_lock:
-            for attempt in range(3):
-                try:
-                    kill_zombie_winword()
-                    pdf_result = _convert_via_word(docx_path, out_dir, target_pdf_path=expected_pdf_path)
-                    break
-                except Exception as e:
-                    logger.warning(f"Word COM attempt {attempt + 1} failed: {e}")
-                    if attempt < 2:
-                        logger.info("♻️ RETRYING")
-                        time.sleep(1)
-                    else:
-                        logger.warning(f"⚠️ Word COM failed, trying LibreOffice fallback: {e}")
-                        if not LIBREOFFICE_AVAILABLE:
-                            raise  # No fallback — surface the error
+    pdf_result_path = None
+    ret_code = -1
+    ret_stdout = ""
+    ret_stderr = ""
+    converter_used = "None"
 
-    if not pdf_result:
-        # Engine 2 — LibreOffice (fallback / Linux / macOS)
-        pdf_result = _convert_via_libreoffice(docx_path, out_dir)
-        if pdf_result and pdf_result != expected_pdf_path and os.path.exists(pdf_result):
-            if os.path.exists(expected_pdf_path):
-                _safe_remove(expected_pdf_path)
-            try:
-                os.replace(pdf_result, expected_pdf_path)
-                pdf_result = expected_pdf_path
-            except Exception as ren_err:
-                logger.warning(f"Could not rename PDF to expected path: {ren_err}")
+    # Step 2: Primary Engine — LibreOffice headless
+    if LIBREOFFICE_AVAILABLE and LIBREOFFICE_PATH and os.path.isfile(LIBREOFFICE_PATH):
+        converter_used = "LIBREOFFICE"
+        logger.info("Converter selected: LIBREOFFICE")
+        logger.info(f"🔄 [PDF_CONVERSION] Primary engine: LibreOffice headless ({LIBREOFFICE_PATH})")
+        try:
+            pdf_result_path, ret_code, ret_stdout, ret_stderr = _convert_via_libreoffice(
+                docx_path, out_dir, timeout=45
+            )
+        except Exception as lo_err:
+            ret_stderr = str(lo_err)
+            logger.warning(f"⚠️ [PDF_CONVERSION] LibreOffice conversion failed: {lo_err}")
+            pdf_result_path = None
+    else:
+        logger.info("LibreOffice unavailable — using Microsoft Word fallback")
 
-    # Post-process: Apply clean PDF-level watermark only when requested (for Preview PDFs)
-    if watermark and pdf_result and os.path.exists(pdf_result):
-        pdf_result = add_watermark_to_pdf(pdf_result, pdf_result, text=watermark)
+    # Step 3: Fallback Engine — Microsoft Word COM (Windows only)
+    if not pdf_result_path:
+        if DOCX2PDF_AVAILABLE and os.name == 'nt':
+            converter_used = "MICROSOFT_WORD_FALLBACK"
+            logger.info("Converter selected: MICROSOFT_WORD_FALLBACK")
+            logger.info(f"🔄 [PDF_CONVERSION] Converter: {converter_used}")
+            with word_pdf_lock:
+                for attempt in range(2):
+                    try:
+                        kill_zombie_winword()
+                        pdf_result_path, ret_code, ret_stdout, ret_stderr = _convert_via_word(
+                            docx_path, out_dir, target_pdf_path=expected_pdf_path
+                        )
+                        if pdf_result_path and os.path.exists(pdf_result_path):
+                            break
+                    except Exception as word_err:
+                        ret_stderr = str(word_err)
+                        logger.warning(f"Word COM attempt {attempt + 1} failed: {word_err}")
+                        if attempt < 1:
+                            time.sleep(1)
+        else:
+            err_msg = (
+                "No PDF conversion engine available. "
+                f"LibreOffice available: {LIBREOFFICE_AVAILABLE} (path: {LIBREOFFICE_PATH}). "
+                f"Microsoft Word available: {DOCX2PDF_AVAILABLE} (OS: {os.name})."
+            )
+            logger.error(f"❌ [PDF_CONVERSION] {err_msg}")
+            raise RuntimeError(err_msg)
 
-    return pdf_result
+    # Step 4: Ensure PDF is at the expected path
+    if pdf_result_path and pdf_result_path != expected_pdf_path and os.path.exists(pdf_result_path):
+        if os.path.exists(expected_pdf_path):
+            _safe_remove(expected_pdf_path)
+        try:
+            os.replace(pdf_result_path, expected_pdf_path)
+            pdf_result_path = expected_pdf_path
+        except Exception as ren_err:
+            logger.warning(f"Could not rename PDF to expected path: {ren_err}")
+
+    # Step 5: Verify generated PDF exists and size > 0
+    pdf_exists = bool(pdf_result_path and os.path.exists(pdf_result_path) and os.path.getsize(pdf_result_path) > 0)
+    pdf_size = os.path.getsize(pdf_result_path) if pdf_exists else 0
+
+    # Step 6: Detailed backend logging as required by specification
+    conversion_log = (
+        f"\n[PDF_CONVERSION]\n"
+        f"DOCX path: {diag.get('path')}\n"
+        f"DOCX exists: {diag.get('exists')}\n"
+        f"DOCX size: {diag.get('size')} bytes\n"
+        f"DOCX ZIP valid: {diag.get('is_zip')}\n"
+        f"python-docx valid: {diag.get('docx_valid')}\n"
+        f"Converter: {converter_used}\n"
+        f"LibreOffice path: {LIBREOFFICE_PATH or 'None'}\n"
+        f"Return code: {ret_code}\n"
+        f"stdout: {ret_stdout.strip() if ret_stdout else 'None'}\n"
+        f"stderr: {ret_stderr.strip() if ret_stderr else 'None'}\n"
+        f"PDF exists: {pdf_exists}\n"
+        f"PDF size: {pdf_size} bytes"
+    )
+    logger.info(conversion_log)
+    _safe_print(conversion_log)
+
+    if not pdf_exists:
+        raise RuntimeError(
+            f"PDF conversion failed via {converter_used}. "
+            f"Exit code: {ret_code}, stderr: {ret_stderr or 'output PDF missing or empty'}"
+        )
+
+    # Step 7: Apply watermark if requested
+    if watermark and pdf_result_path and os.path.exists(pdf_result_path):
+        pdf_result_path = add_watermark_to_pdf(pdf_result_path, pdf_result_path, text=watermark)
+
+    return pdf_result_path
 
 
 def libreoffice_available() -> bool:
     """
-    Returns True if ANY PDF engine is available (Word COM or LibreOffice).
+    Returns True if ANY PDF engine is available (LibreOffice or Word COM).
     Named for backward compatibility — all callers work without changes.
     """
     return PDF_ENGINE_AVAILABLE
+
