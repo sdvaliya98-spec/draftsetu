@@ -398,6 +398,7 @@ Allow: /page:*
 Disallow: /api/
 Disallow: /debug/
 Disallow: /admin
+Disallow: /editor
 
 Sitemap: https://draftsetu.in/sitemap.xml
 """

@@ -64,7 +64,12 @@ const TemplateLandingPage = ({ templateSlug, templates = [], isTemplatesLoading 
                 document.head.appendChild(robotsTag);
             }
             robotsTag.setAttribute('content', 'noindex, nofollow');
-            return;
+            return () => {
+                const robots = document.querySelector('meta[name="robots"]');
+                if (robots) {
+                    robots.setAttribute('content', 'index, follow');
+                }
+            };
         }
 
         // Active valid template: ensure indexable

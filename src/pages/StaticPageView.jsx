@@ -104,17 +104,18 @@ const StaticPageView = ({ slug, onNavigate }) => {
         let robotsMeta = document.querySelector('meta[name="robots"]');
         const cleanSlug = slug ? String(slug).trim().replace(/^\/?page:/, '').replace(/^\/+|\/+$/g, '') : '';
 
+        if (cleanSlug) {
+            canonicalLink.setAttribute('href', cleanSlug === 'non-agricultural' ? 'https://draftsetu.in/non-agricultural' : `https://draftsetu.in/${cleanSlug}`);
+            if (robotsMeta) robotsMeta.setAttribute('content', 'index, follow');
+        }
+
         if (cleanSlug === 'non-agricultural') {
             document.title = 'બિનખેતી (NA) માર્ગદર્શિકા | DraftSetu';
             metaDesc.setAttribute('content', 'બિનખેતી (NA) જમીન ઉપયોગ માટેની માર્ગદર્શિકા અને કાનૂની સહાય.');
-            canonicalLink.setAttribute('href', 'https://draftsetu.in/non-agricultural');
-            if (robotsMeta) robotsMeta.setAttribute('content', 'index, follow');
         } else if (page && page.title) {
             document.title = `${page.title} | DraftSetu`;
             const customDesc = page.description || `DraftSetu પર ${page.title} માર્ગદર્શિકા અને કાનૂની વિગતો વાંચો.`;
             metaDesc.setAttribute('content', customDesc);
-            canonicalLink.setAttribute('href', `https://draftsetu.in/${cleanSlug}`);
-            if (robotsMeta) robotsMeta.setAttribute('content', 'index, follow');
         } else if (!loading && !page) {
             document.title = '404: પાનું મળ્યું નથી | DraftSetu';
             if (canonicalLink) canonicalLink.remove();

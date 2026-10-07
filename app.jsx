@@ -436,6 +436,13 @@ const App = () => {
                 document.head.appendChild(canonicalLink);
             }
             canonicalLink.setAttribute('href', 'https://draftsetu.in/');
+            let robotsMeta = document.querySelector('meta[name="robots"]');
+            if (!robotsMeta) {
+                robotsMeta = document.createElement('meta');
+                robotsMeta.setAttribute('name', 'robots');
+                document.head.appendChild(robotsMeta);
+            }
+            robotsMeta.setAttribute('content', 'index, follow');
         }
     }, [currentView, currentPageSlug, currentTemplateSlug, activeTemplateId]);
 
