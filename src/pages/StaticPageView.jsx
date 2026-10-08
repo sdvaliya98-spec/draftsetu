@@ -87,12 +87,15 @@ const StaticPageView = ({ slug, onNavigate }) => {
 
     // Page SEO & Meta title management
     React.useEffect(() => {
-        let metaDesc = document.querySelector('meta[name="description"]');
-        if (!metaDesc) {
-            metaDesc = document.createElement('meta');
-            metaDesc.setAttribute('name', 'description');
-            document.head.appendChild(metaDesc);
-        }
+        const setMetaTag = (attr, val, content) => {
+            let el = document.querySelector(`meta[${attr}="${val}"]`);
+            if (!el) {
+                el = document.createElement('meta');
+                el.setAttribute(attr, val);
+                document.head.appendChild(el);
+            }
+            el.setAttribute('content', content);
+        };
 
         let canonicalLink = document.querySelector('link[rel="canonical"]');
         if (!canonicalLink) {
@@ -103,19 +106,90 @@ const StaticPageView = ({ slug, onNavigate }) => {
 
         let robotsMeta = document.querySelector('meta[name="robots"]');
         const cleanSlug = slug ? String(slug).trim().replace(/^\/?page:/, '').replace(/^\/+|\/+$/g, '') : '';
+        const defaultOgImage = 'https://draftsetu.in/logo.png';
+        const pageCanonical = cleanSlug === 'non-agricultural'
+            ? 'https://draftsetu.in/non-agricultural'
+            : `https://draftsetu.in/${cleanSlug}`;
 
         if (cleanSlug) {
-            canonicalLink.setAttribute('href', cleanSlug === 'non-agricultural' ? 'https://draftsetu.in/non-agricultural' : `https://draftsetu.in/${cleanSlug}`);
+            canonicalLink.setAttribute('href', pageCanonical);
             if (robotsMeta) robotsMeta.setAttribute('content', 'index, follow');
         }
 
         if (cleanSlug === 'non-agricultural') {
-            document.title = 'બિનખેતી (NA) માર્ગદર્શિકા | DraftSetu';
-            metaDesc.setAttribute('content', 'બિનખેતી (NA) જમીન ઉપયોગ માટેની માર્ગદર્શિકા અને કાનૂની સહાય.');
+            const pageTitle = 'બિનખેતી (NA) માર્ગદર્શિકા | DraftSetu';
+            const pageDesc = 'બિનખેતી (NA) જમીન ઉપયોગ માટેની સંપૂર્ણ માર્ગદર્શિકા, જરૂરી સોગંદનામા, અરજી પ્રક્રિયા અને કાનૂની સહાય.';
+            document.title = pageTitle;
+            setMetaTag('name', 'description', pageDesc);
+
+            // OpenGraph & Twitter
+            setMetaTag('property', 'og:title', pageTitle);
+            setMetaTag('property', 'og:description', pageDesc);
+            setMetaTag('property', 'og:url', pageCanonical);
+            setMetaTag('property', 'og:type', 'article');
+            setMetaTag('property', 'og:image', defaultOgImage);
+            setMetaTag('name', 'twitter:card', 'summary');
+            setMetaTag('name', 'twitter:title', pageTitle);
+            setMetaTag('name', 'twitter:description', pageDesc);
+            setMetaTag('name', 'twitter:image', defaultOgImage);
         } else if (page && page.title) {
-            document.title = `${page.title} | DraftSetu`;
-            const customDesc = page.description || `DraftSetu પર ${page.title} માર્ગદર્શિકા અને કાનૂની વિગતો વાંચો.`;
-            metaDesc.setAttribute('content', customDesc);
+            const pageTitle = `${page.title} | DraftSetu`;
+            const customDesc = page.description || `DraftSetu પર ${page.title} માર્ગદર્શિકા વાંચો. નિયમો, પ્રક્રિયા અને પ્રમાણભૂત દસ્તાવેજોની સંપૂર્ણ કાનૂની વિગતો.`;
+            document.title = pageTitle;
+            setMetaTag('name', 'description', customDesc);
+
+            // OpenGraph & Twitter
+            setMetaTag('property', 'og:title', pageTitle);
+            setMetaTag('property', 'og:description', customDesc);
+            setMetaTag('property', 'og:url', pageCanonical);
+            setMetaTag('property', 'og:type', 'article');
+            setMetaTag('property', 'og:image', defaultOgImage);
+            setMetaTag('name', 'twitter:card', 'summary');
+            setMetaTag('name', 'twitter:title', pageTitle);
+            setMetaTag('name', 'twitter:description', customDesc);
+            setMetaTag('name', 'twitter:image', defaultOgImage);
+
+            // FAQPage Schema Injection (when slug is 'faqs')
+            if (cleanSlug === 'faqs') {
+                const faqSchema = {
+                    "@context": "https://schema.org",
+                    "@type": "FAQPage",
+                    "mainEntity": [
+                        {
+                            "@type": "Question",
+                            "name": "DraftSetu શું સેવા પ્રદાન કરે છે?",
+                            "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "DraftSetu એ ખાનગી કાનૂની ટેકનોલોજી પ્લેટફોર્મ છે જે દસ્તાવેજોના સચોટ અને ઝડપી ઓટોમેશન માટે વર્ડ ટેમ્પલેટ્સ પૂરા પાડે છે."
+                            }
+                        },
+                        {
+                            "@type": "Question",
+                            "name": "શું મારા સેવ કરેલા ડ્રાફ્ટ સુરક્ષિત છે?",
+                            "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "હા, તમારા કાનૂની ડ્રાફ્ટ્સ અત્યંત સુરક્ષિત એન્ક્રિપ્ટેડ કલાઉડ વોલ્ટ (My Documents) માં સેવ રહે છે અને માત્ર તમે જ તે એક્સેસ કરી શકો છો."
+                            }
+                        },
+                        {
+                            "@type": "Question",
+                            "name": "શું અહીં તૈયાર કરેલા દસ્તાવેજો કાનૂની રીતે માન્ય છે?",
+                            "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "DraftSetu તમને પ્રમાણિત કાનૂની ડ્રાફ્ટ્સ તૈયાર કરી આપે છે. તેને પૂર્ણ કાનૂની માન્યતા આપવા માટે સબ-રજીસ્ટ્રાર કચેરીએ નોધણી કરાવવી અને સ્ટેમ્પ ડ્યુટી ભરવી અનિવાર્ય છે."
+                            }
+                        }
+                    ]
+                };
+                let faqScript = document.getElementById('schema-faq-page');
+                if (!faqScript) {
+                    faqScript = document.createElement('script');
+                    faqScript.id = 'schema-faq-page';
+                    faqScript.type = 'application/ld+json';
+                    document.head.appendChild(faqScript);
+                }
+                faqScript.textContent = JSON.stringify(faqSchema, null, 2);
+            }
         } else if (!loading && !page) {
             document.title = '404: પાનું મળ્યું નથી | DraftSetu';
             if (canonicalLink) canonicalLink.remove();
@@ -129,10 +203,18 @@ const StaticPageView = ({ slug, onNavigate }) => {
 
         return () => {
             document.title = 'DraftSetu — Gujarati Legal Document Templates & DOCX/PDF';
-            const defaultDesc = document.querySelector('meta[name="description"]');
-            if (defaultDesc) {
-                defaultDesc.setAttribute('content', 'DraftSetu પર તૈયાર Gujarati legal document Templates પસંદ કરો, માહિતી દાખલ કરો, Live Preview તપાસો અને DOCX/PDF Document તૈયાર કરો.');
-            }
+            const defaultDesc = 'DraftSetu પર તૈયાર Gujarati legal document Templates પસંદ કરો, માહિતી દાખલ કરો, Live Preview તપાસો અને DOCX/PDF Document તૈયાર કરો.';
+            setMetaTag('name', 'description', defaultDesc);
+            setMetaTag('property', 'og:title', 'DraftSetu — Gujarati Legal Document Templates & DOCX/PDF');
+            setMetaTag('property', 'og:description', defaultDesc);
+            setMetaTag('property', 'og:url', 'https://draftsetu.in/');
+            setMetaTag('property', 'og:type', 'website');
+            setMetaTag('property', 'og:image', defaultOgImage);
+            setMetaTag('name', 'twitter:card', 'summary');
+            setMetaTag('name', 'twitter:title', 'DraftSetu — Gujarati Legal Document Templates & DOCX/PDF');
+            setMetaTag('name', 'twitter:description', defaultDesc);
+            setMetaTag('name', 'twitter:image', defaultOgImage);
+
             let restoredCanonical = document.querySelector('link[rel="canonical"]');
             if (!restoredCanonical) {
                 restoredCanonical = document.createElement('link');
@@ -143,6 +225,11 @@ const StaticPageView = ({ slug, onNavigate }) => {
             const currentRobots = document.querySelector('meta[name="robots"]');
             if (currentRobots) {
                 currentRobots.setAttribute('content', 'index, follow');
+            }
+
+            const faqScript = document.getElementById('schema-faq-page');
+            if (faqScript) {
+                faqScript.remove();
             }
         };
     }, [slug, page, loading]);

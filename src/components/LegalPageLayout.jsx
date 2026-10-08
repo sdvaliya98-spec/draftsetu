@@ -32,6 +32,33 @@ const LegalPageLayout = ({
                     : 'https://draftsetu.in/'
         );
 
+        const targetDesc = (pageType === 'Privacy Policy' || titleEn === 'Privacy Policy')
+            ? 'DraftSetu પ્રાઇવસી પોલિસી: તમારા એકાઉન્ટ ડેટા, દસ્તાવેજ સુરક્ષા, કૂકીઝ અને ગોપનીયતાના રક્ષણ અંગેની કાનૂની માહિતી.'
+            : (pageType === 'Terms of Service' || titleEn === 'Terms of Service')
+                ? 'DraftSetu સેવાની શરતો (Terms of Service): પ્લેટફોર્મ ઉપયોગના કાનૂની નિયમો, અધિકારો, જવાબદારીઓ અને સેવા નીતિઓ.'
+                : 'DraftSetu કાનૂની નિયમો અને સેવા શરતો.';
+
+        const setMetaTag = (attr, val, content) => {
+            let el = document.querySelector(`meta[${attr}="${val}"]`);
+            if (!el) {
+                el = document.createElement('meta');
+                el.setAttribute(attr, val);
+                document.head.appendChild(el);
+            }
+            el.setAttribute('content', content);
+        };
+
+        setMetaTag('name', 'description', targetDesc);
+        setMetaTag('property', 'og:title', seoTitle);
+        setMetaTag('property', 'og:description', targetDesc);
+        setMetaTag('property', 'og:url', targetCanonical);
+        setMetaTag('property', 'og:type', 'article');
+        setMetaTag('property', 'og:image', 'https://draftsetu.in/logo.png');
+        setMetaTag('name', 'twitter:card', 'summary');
+        setMetaTag('name', 'twitter:title', seoTitle);
+        setMetaTag('name', 'twitter:description', targetDesc);
+        setMetaTag('name', 'twitter:image', 'https://draftsetu.in/logo.png');
+
         let canonicalLink = document.querySelector('link[rel="canonical"]');
         if (!canonicalLink) {
             canonicalLink = document.createElement('link');
@@ -45,6 +72,14 @@ const LegalPageLayout = ({
             if (currentLink) {
                 currentLink.setAttribute('href', 'https://draftsetu.in/');
             }
+            const defaultDesc = 'DraftSetu પર તૈયાર Gujarati legal document Templates પસંદ કરો, માહિતી દાખલ કરો, Live Preview તપાસો અને DOCX/PDF Document તૈયાર કરો.';
+            setMetaTag('name', 'description', defaultDesc);
+            setMetaTag('property', 'og:title', 'DraftSetu — Gujarati Legal Document Templates & DOCX/PDF');
+            setMetaTag('property', 'og:description', defaultDesc);
+            setMetaTag('property', 'og:url', 'https://draftsetu.in/');
+            setMetaTag('property', 'og:type', 'website');
+            setMetaTag('name', 'twitter:title', 'DraftSetu — Gujarati Legal Document Templates & DOCX/PDF');
+            setMetaTag('name', 'twitter:description', defaultDesc);
         };
     }, [seoTitle, canonicalUrl, pageType, titleEn]);
 

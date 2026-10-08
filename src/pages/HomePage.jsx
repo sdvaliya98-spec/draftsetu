@@ -8,6 +8,13 @@ const HomePage = ({ currentUser, onNavigate, onLogin, templates = [], isAuthHydr
 
     React.useEffect(() => {
         document.title = 'DraftSetu — Gujarati Legal Document Templates & DOCX/PDF';
+        let metaDesc = document.querySelector('meta[name="description"]');
+        if (!metaDesc) {
+            metaDesc = document.createElement('meta');
+            metaDesc.setAttribute('name', 'description');
+            document.head.appendChild(metaDesc);
+        }
+        metaDesc.setAttribute('content', 'DraftSetu પર તૈયાર Gujarati legal document Templates પસંદ કરો, માહિતી દાખલ કરો, Live Preview તપાસો અને DOCX/PDF Document તૈયાર કરો.');
     }, []);
 
     const activeTemplates = React.useMemo(() => {

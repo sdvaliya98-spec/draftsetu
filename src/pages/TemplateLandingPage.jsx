@@ -45,6 +45,29 @@ const TemplateLandingPage = ({ templateSlug, templates = [], isTemplatesLoading 
         return `${base}/templates/${canonicalSlug}`;
     }, [canonicalSlug]);
 
+    const fieldLabels = React.useMemo(() => {
+        if (!matchedTemplate) return [];
+        const fields = matchedTemplate.fields || {};
+        const labels = [];
+        if (typeof fields === 'object' && fields !== null) {
+            Object.values(fields).forEach(f => {
+                if (f && f.label && typeof f.label === 'string') {
+                    labels.push(f.label.trim());
+                }
+            });
+        }
+        if (labels.length === 0 && Array.isArray(matchedTemplate.variables)) {
+            matchedTemplate.variables.forEach(v => {
+                if (typeof v === 'string') {
+                    labels.push(v.replace(/_/g, ' '));
+                } else if (v && v.label) {
+                    labels.push(v.label);
+                }
+            });
+        }
+        return Array.from(new Set(labels)).slice(0, 16);
+    }, [matchedTemplate]);
+
     // SEO Metadata Management
     useEffect(() => {
         if (!matchedTemplate || !isAccessible) {
@@ -110,17 +133,21 @@ const TemplateLandingPage = ({ templateSlug, templates = [], isTemplatesLoading 
         setMetaTag('name', 'description', descriptionContent);
         setLinkTag('canonical', canonicalUrl);
 
+        const defaultOgImage = 'https://draftsetu.in/logo.png';
+
         // OpenGraph
         setMetaTag('property', 'og:title', pageTitle);
         setMetaTag('property', 'og:description', descriptionContent);
         setMetaTag('property', 'og:url', canonicalUrl);
         setMetaTag('property', 'og:type', 'website');
         setMetaTag('property', 'og:site_name', 'DraftSetu');
+        setMetaTag('property', 'og:image', defaultOgImage);
 
         // Twitter
         setMetaTag('name', 'twitter:card', 'summary');
         setMetaTag('name', 'twitter:title', pageTitle);
         setMetaTag('name', 'twitter:description', descriptionContent);
+        setMetaTag('name', 'twitter:image', defaultOgImage);
 
         // Schema.org BreadcrumbList JSON-LD
         const breadcrumbData = {
@@ -157,6 +184,33 @@ const TemplateLandingPage = ({ templateSlug, templates = [], isTemplatesLoading 
         }
         breadcrumbScript.textContent = JSON.stringify(breadcrumbData, null, 2);
 
+        // Schema.org WebApplication JSON-LD
+        const webAppData = {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": `${templateName} - DraftSetu`,
+            "url": canonicalUrl,
+            "applicationCategory": "LegalApplication",
+            "operatingSystem": "All",
+            "inLanguage": "gu",
+            "description": descriptionContent,
+            "browserRequirements": "Requires JavaScript. Requires HTML5.",
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "INR"
+            }
+        };
+
+        let webAppScript = document.getElementById('schema-template-webapp');
+        if (!webAppScript) {
+            webAppScript = document.createElement('script');
+            webAppScript.id = 'schema-template-webapp';
+            webAppScript.type = 'application/ld+json';
+            document.head.appendChild(webAppScript);
+        }
+        webAppScript.textContent = JSON.stringify(webAppData, null, 2);
+
         // GA4 Telemetry for Template Landing View
         const templateId = matchedTemplate.template_id || matchedTemplate.id || '';
         trackEvent('template_landing_view', {
@@ -169,6 +223,10 @@ const TemplateLandingPage = ({ templateSlug, templates = [], isTemplatesLoading 
             const script = document.getElementById('schema-template-breadcrumb');
             if (script) {
                 script.remove();
+            }
+            const appScript = document.getElementById('schema-template-webapp');
+            if (appScript) {
+                appScript.remove();
             }
             const robots = document.querySelector('meta[name="robots"]');
             if (robots) {
@@ -304,6 +362,8 @@ const TemplateLandingPage = ({ templateSlug, templates = [], isTemplatesLoading 
     const shortDescription = rawContent && rawContent.length > 20
         ? (rawContent.length > 220 ? `${rawContent.substring(0, 220)}...` : rawContent)
         : `આ Template દ્વારા DraftSetu પર સંબંધિત કાનૂની માહિતી દાખલ કરીને સરળતાથી ${matchedTemplate.name} તૈયાર કરી શકાય છે.`;
+
+
 
     return (
         <div className="w-full bg-slate-50 flex flex-col font-gujarati min-h-screen overflow-x-hidden">
@@ -471,6 +531,49 @@ const TemplateLandingPage = ({ templateSlug, templates = [], isTemplatesLoading 
                             </p>
                         </div>
                     </div>
+                </section>
+
+                {/* 2.5 Dedicated Document Scope & Overview Section (SEO & Rich Content) */}
+                <section aria-labelledby="template-legal-scope-heading" className="bg-white border border-slate-200 rounded-[28px] p-6 sm:p-8 shadow-sm space-y-6">
+                    <div className="border-b border-slate-100 pb-4">
+                        <span className="text-[10px] font-black text-indigo-800 bg-indigo-50 px-3 py-1 rounded-full uppercase tracking-wider font-sans border border-indigo-100">
+                            LEGAL SCOPE & DETAILS
+                        </span>
+                        <h2 id="template-legal-scope-heading" className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight mt-2">
+                            કાનૂની રૂપરેખા અને વિગતો (Document Scope & Requirements)
+                        </h2>
+                        <p className="text-xs sm:text-sm text-slate-500 font-semibold mt-1">
+                            આ દસ્તાવેજ તૈયાર કરવા માટેની કાનૂની પૂર્વશરતો અને માળખાકીય માર્ગદર્શન:
+                        </p>
+                    </div>
+
+                    <div className="prose max-w-none text-slate-600 text-xs sm:text-sm font-semibold leading-relaxed space-y-4">
+                        <p>
+                            DraftSetu પ્લેટફોર્મ પર ઉપલબ્ધ <strong>{matchedTemplate.name}</strong> એ ગુજરાત રાજ્યમાં પ્રચલિત કાનૂની પ્રથાઓ અને મહેસૂલી નિયમો મુજબ પ્રમાણિત કાનૂની બ્લુપ્રિન્ટ છે. આ દસ્તાવેજ દ્વારા પક્ષકારોના હક્ક, હિસ્સા, મિલકત વર્ણન અને નિયત શરતોનું સચોટ આલેખન ઓટોમેટેડ રીતે થાય છે.
+                        </p>
+                        <p>
+                            આ ડ્રાફ્ટ પૂર્ણ કરતી વખતે પક્ષકારોના ઓળખ પુરાવા (આધાર કાર્ડ/ચૂંટણી કાર્ડ), મહેસૂલી રેકોર્ડ (૭/૧૨, ૮-અ અથવા સિટી સર્વે ઉતારો) અને લાગુ પડતી સ્ટેમ્પ ડ્યુટીના નિયમોનું પાલન કરવું આવશ્યક છે. DraftSetu તમને Live Preview અને ભૂલરહિત DOCX તેમજ PDF જનરેશન પૂરું પાડે છે, જેથી સબ-રજીસ્ટ્રાર કચેરીએ અથવા નોટરી સમક્ષ રજૂ કરતી વખતે કોઈ ત્રુટિ ન રહે.
+                        </p>
+                    </div>
+
+                    {fieldLabels.length > 0 && (
+                        <div className="pt-2">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 font-sans mb-3">
+                                આ દસ્તાવેજમાં સમાવિષ્ટ મુખ્ય વિગતો (Required Document Fields):
+                            </h3>
+                            <div className="flex flex-wrap gap-2">
+                                {fieldLabels.map((lbl, idx) => (
+                                    <span 
+                                        key={idx}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-indigo-50 text-slate-700 hover:text-indigo-900 border border-slate-200/80 text-xs font-bold transition"
+                                    >
+                                        <span className="text-indigo-600 text-[10px]">●</span>
+                                        <span>{lbl}</span>
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </section>
 
                 {/* 3. Steps & How To Use */}
