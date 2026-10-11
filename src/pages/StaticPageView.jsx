@@ -59,8 +59,20 @@ export const extractTelegramUrl = (content) => {
 };
 
 export const renderContactContent = (rawContent) => {
-    const telegramUrl = extractTelegramUrl(rawContent);
-    const isTelegramActive = Boolean(telegramUrl);
+    let telegramUrl = extractTelegramUrl(rawContent);
+
+    // If no custom URL is embedded in rawContent, fall back to official DRAFTSETU_TELEGRAM_GROUP_URL
+    // unless explicitly disabled or placeholder
+    const isExplicitlyAbsent = rawContent && typeof rawContent === 'string' && (
+        /data-telegram=["'](?:none|disabled|false|coming-soon)["']/i.test(rawContent) ||
+        /<!--\s*no-telegram\s*-->/i.test(rawContent)
+    );
+
+    if (!telegramUrl && !isExplicitlyAbsent && DRAFTSETU_TELEGRAM_GROUP_URL && !isPlaceholderTelegram(DRAFTSETU_TELEGRAM_GROUP_URL)) {
+        telegramUrl = DRAFTSETU_TELEGRAM_GROUP_URL;
+    }
+
+    const isTelegramActive = Boolean(telegramUrl && !isPlaceholderTelegram(telegramUrl));
 
     // Determine channel vs group label from content
     const isChannel = rawContent && /channel|ચેનલ/i.test(rawContent);

@@ -10,7 +10,7 @@ import './ActivityLogs.jsx';
 import AdminDashboard from './AdminDashboard.jsx';
 import AdminWalletPanel from './AdminWalletPanel.jsx';
 import { showConfirmDialog, showAlertDialog } from './CustomDialog.jsx';
-import { extractTelegramUrl, DRAFTSETU_TELEGRAM_GROUP_URL } from '../pages/StaticPageView.jsx';
+import { extractTelegramUrl, DRAFTSETU_TELEGRAM_GROUP_URL, isPlaceholderTelegram } from '../pages/StaticPageView.jsx';
 
 const {
     LayoutDashboardIcon,
@@ -875,8 +875,8 @@ const StaticPageManager = ({ refreshTrigger }) => {
                                 setForm(p => ({ ...p, content: v }));
                                 if (form.slug === 'contact') {
                                     const detected = extractTelegramUrl(v);
-                                    if (detected !== telegramUrlInput) {
-                                        setTelegramUrlInput(detected || '');
+                                    if (detected && detected !== telegramUrlInput) {
+                                        setTelegramUrlInput(detected);
                                     }
                                 }
                             }}
@@ -903,7 +903,24 @@ const StaticPageManager = ({ refreshTrigger }) => {
                     }
                     const isNew = editing === 'new';
                     const url = isNew ? '/api/pages/' : `/api/pages/${editing}`;
-                    await window.apiFetch(url, { method: isNew ? 'POST' : 'PUT', body: form });
+                    let contentToSave = form.content || '';
+                    if (form.slug === 'contact') {
+                        const trimmedTg = (telegramUrlInput || '').trim();
+                        const existingTg = extractTelegramUrl(contentToSave);
+                        if (trimmedTg && !isPlaceholderTelegram(trimmedTg)) {
+                            if (existingTg) {
+                                contentToSave = contentToSave.replace(new RegExp(existingTg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), trimmedTg);
+                            } else {
+                                contentToSave = contentToSave + `<p><strong>Telegram:</strong> <a href="${trimmedTg}" target="_blank" rel="noopener noreferrer">${trimmedTg}</a></p>`;
+                            }
+                        } else if (!trimmedTg) {
+                            if (existingTg) {
+                                contentToSave = contentToSave.replace(new RegExp(existingTg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '');
+                            }
+                        }
+                    }
+                    const payload = { ...form, content: contentToSave };
+                    await window.apiFetch(url, { method: isNew ? 'POST' : 'PUT', body: payload });
                     setEditing(null); reload();
                 }} className="px-10 py-3 bg-blue-600 text-white rounded-2xl font-black text-xs hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all uppercase tracking-widest btn-premium">Deploy Page</button>
             </div>
