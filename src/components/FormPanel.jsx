@@ -4,7 +4,7 @@ import HybridDropdownField from './HybridDropdownField.jsx';
 import ApplicantMultiSelectField from './ApplicantMultiSelectField.jsx';
 import PreviewModal from './PreviewModal.jsx';
 import PdfPreviewModal from './PdfPreviewModal.jsx';
-import { showAlertDialog } from './CustomDialog.jsx';
+import { showAlertDialog, showConfirmDialog } from './CustomDialog.jsx';
 import { trackEvent } from '../utils/analytics.js';
 
 const {
@@ -421,8 +421,17 @@ const FormPanel = ({
     userCredits,
     isLoggedIn,
     onLogin,
-    onNewDocument
+    onNewDocument,
+    onOpenWallet
 }) => {
+    const handleRechargeWallet = () => {
+        if (typeof onOpenWallet === 'function') {
+            onOpenWallet();
+        } else if (typeof window.openWalletModal === 'function') {
+            window.openWalletModal();
+        }
+    };
+
     const hasAuthToken = Boolean(localStorage.getItem('authToken') || localStorage.getItem('token'));
     const isVisitor = isLoggedIn !== undefined ? !isLoggedIn : !hasAuthToken;
 
@@ -1744,32 +1753,68 @@ const FormPanel = ({
                                                         return (
                                                             <>
                                                                 {userCredits !== null && userCredits !== undefined && (
-                                                                    <div className={`p-3 rounded-lg border text-[11px] font-bold transition flex items-center gap-2 mb-1
+                                                                    <div className={`p-3 rounded-lg border text-[11px] font-bold transition flex flex-col gap-1 mb-1
                                                                         ${hasInsufficientCredits
-                                                                            ? 'bg-rose-50 border-rose-200 text-rose-800'
+                                                                            ? 'bg-amber-50 border-amber-200 text-amber-900'
                                                                             : 'bg-blue-50 border-blue-100 text-blue-800'
                                                                         }`}
                                                                     >
-                                                                        <span>🪙</span>
-                                                                        <div className="flex-1">
-                                                                            આ ટેમ્પલેટ લોક કરવાની કિંમત: <span className="underline">{creditCost} ક્રેડિટ્સ</span>.
-                                                                            {hasInsufficientCredits ? (
-                                                                                <div className="text-[10px] text-rose-600 mt-0.5 font-semibold">તમારી પાસે અપૂરતી ક્રેડિટ છે (Insufficient credits: {userCredits} available).</div>
-                                                                            ) : (
-                                                                                <div className="text-[10px] text-blue-600 mt-0.5 font-semibold">તમારી વર્તમાન ક્રેડિટ: {userCredits} (Current credits: {userCredits}).</div>
-                                                                            )}
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span>🪙</span>
+                                                                            <div className="flex-1">
+                                                                                આ ટેમ્પલેટ લોક કરવાની કિંમત: <span className="underline">{creditCost} ક્રેડિટ્સ</span>.
+                                                                            </div>
                                                                         </div>
+                                                                        {hasInsufficientCredits ? (
+                                                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-1 pt-1 border-t border-amber-200/60">
+                                                                                <div className="text-[10px] text-amber-800 font-semibold">
+                                                                                    તમારી પાસે અપૂરતી ક્રેડિટ છે (ઉપલબ્ધ: {userCredits} / જરૂરી: {creditCost}).
+                                                                                </div>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        trackEvent('recharge_cta_clicked', {
+                                                                                            source: 'insufficient_credits_banner',
+                                                                                            template_id: activeTemplateId,
+                                                                                            credit_cost: creditCost,
+                                                                                            current_credits: userCredits
+                                                                                        });
+                                                                                        handleRechargeWallet();
+                                                                                    }}
+                                                                                    className="shrink-0 self-start sm:self-center px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-[11px] font-bold transition shadow-sm flex items-center gap-1 cursor-pointer"
+                                                                                >
+                                                                                    <span>💳</span>
+                                                                                    <span>ક્રેડિટ્સ ઉમેરો (Recharge Now)</span>
+                                                                                </button>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="text-[10px] text-blue-600 mt-0.5 font-semibold">
+                                                                                તમારી વર્તમાન ક્રેડિટ: {userCredits} (Current credits: {userCredits}).
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                 )}
                                                                 <button
-                                                                    onClick={() => {
+                                                                    onClick={async () => {
                                                                         if (hasInsufficientCredits) {
-                                                                            showAlertDialog({
+                                                                            const shouldRecharge = await showConfirmDialog({
                                                                                 title: 'અપૂરતી ક્રેડિટ (Insufficient Credits)',
-                                                                                subtitle: 'Credit Required',
-                                                                                message: `આ દસ્તાવેજ લોક કરવા માટે અપૂરતી ક્રેડિટ.\nજરૂરી ક્રેડિટ: ${creditCost}\nતમારી ક્રેડિટ: ${userCredits}`,
-                                                                                type: 'warning'
+                                                                                subtitle: 'Recharge Required',
+                                                                                message: `આ દસ્તાવેજ લોક કરવા માટે ${creditCost} ક્રેડિટ જરૂરી છે. તમારી પાસે ${userCredits} ક્રેડિટ ઉપલબ્ધ છે.\n\nશું તમે અત્યારે વોલેટમાં ક્રેડિટ્સ ઉમેરવા (Recharge) માંગો છો? તમારા ફોર્મનો ડેટા સુરક્ષિત રહેશે.`,
+                                                                                confirmText: 'ક્રેડિટ્સ ઉમેરો (Recharge Now)',
+                                                                                cancelText: 'રદ કરો (Cancel)',
+                                                                                type: 'primary',
+                                                                                icon: '💳'
                                                                             });
+                                                                            if (shouldRecharge) {
+                                                                                trackEvent('recharge_cta_clicked', {
+                                                                                    source: 'lock_button_prompt',
+                                                                                    template_id: activeTemplateId,
+                                                                                    credit_cost: creditCost,
+                                                                                    current_credits: userCredits
+                                                                                });
+                                                                                handleRechargeWallet();
+                                                                            }
                                                                             return;
                                                                         }
                                                                         const isValid = validateRequiredFields();
@@ -1785,11 +1830,13 @@ const FormPanel = ({
                                                                         }
                                                                         onFinalSubmit();
                                                                     }}
-                                                                    disabled={isSavingDraft || isFinalizing || hasInsufficientCredits}
+                                                                    disabled={isSavingDraft || isFinalizing}
                                                                     className={`w-full py-2.5 rounded font-bold transition flex items-center justify-center gap-2 text-white shadow
-                                                                    ${isSavingDraft || isFinalizing || hasInsufficientCredits
+                                                                    ${isSavingDraft || isFinalizing
                                                                             ? 'bg-gray-400 cursor-not-allowed opacity-60'
-                                                                            : 'bg-red-600 hover:bg-red-700'
+                                                                            : hasInsufficientCredits
+                                                                                ? 'bg-amber-600 hover:bg-amber-700'
+                                                                                : 'bg-red-600 hover:bg-red-700'
                                                                         }`}
                                                                     id="btn-final-lock"
                                                                 >
@@ -1797,6 +1844,10 @@ const FormPanel = ({
                                                                         <>
                                                                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                                                                             <span>લોક થઈ રહ્યું છે... (Finalizing...)</span>
+                                                                        </>
+                                                                    ) : hasInsufficientCredits ? (
+                                                                        <>
+                                                                            <span>💳 ક્રેડિટ્સ ઉમેરો અને લોક કરો (Recharge & Lock)</span>
                                                                         </>
                                                                     ) : (
                                                                         <>

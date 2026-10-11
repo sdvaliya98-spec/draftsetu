@@ -10,6 +10,7 @@ import './ActivityLogs.jsx';
 import AdminDashboard from './AdminDashboard.jsx';
 import AdminWalletPanel from './AdminWalletPanel.jsx';
 import { showConfirmDialog, showAlertDialog } from './CustomDialog.jsx';
+import { extractTelegramUrl, DRAFTSETU_TELEGRAM_GROUP_URL } from '../pages/StaticPageView.jsx';
 
 const {
     LayoutDashboardIcon,
@@ -111,8 +112,8 @@ const MenuItemFormModal = ({ item, parentId, allFlatItems, templates, dbTemplate
                         {/* Row 2: Menu Type */}
                         <div className="col-span-1">
                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Menu Type</label>
-                            <select 
-                                value={form.type} 
+                            <select
+                                value={form.type}
                                 onChange={e => {
                                     const newType = e.target.value;
                                     setForm(p => ({
@@ -135,8 +136,8 @@ const MenuItemFormModal = ({ item, parentId, allFlatItems, templates, dbTemplate
                             {form.type === 'template' && (
                                 <div>
                                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Load Template *</label>
-                                    <select 
-                                        value={form.template_id} 
+                                    <select
+                                        value={form.template_id}
                                         onChange={e => set('template_id', e.target.value)}
                                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl bg-white text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold text-slate-600 appearance-none cursor-pointer"
                                     >
@@ -180,7 +181,7 @@ const MenuItemFormModal = ({ item, parentId, allFlatItems, templates, dbTemplate
                 </div>
                 <div className="sticky bottom-0 z-20 bg-white border-t border-slate-100 flex justify-end gap-3 px-8 py-6 rounded-b-[32px]">
                     <button onClick={onClose} className="px-6 py-2.5 border border-slate-200 rounded-xl font-black text-xs text-slate-500 hover:bg-white transition-all uppercase tracking-widest">Cancel</button>
-                    <button 
+                    <button
                         onClick={() => {
                             if (!form.label.trim()) return;
                             if (form.type === 'template' && !form.template_id) {
@@ -193,7 +194,7 @@ const MenuItemFormModal = ({ item, parentId, allFlatItems, templates, dbTemplate
                                 return;
                             }
                             onSave(form);
-                        }} 
+                        }}
                         className="px-8 py-2.5 bg-blue-600 text-white rounded-xl font-black text-xs hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all uppercase tracking-widest btn-premium"
                     >
                         Commit Node
@@ -212,7 +213,7 @@ const MenuBuilder = ({ onMenuUpdate, templates, dbTemplates, refreshTrigger }) =
     const [childParentId, setChildParentId] = React.useState(null);
     const [showForm, setShowForm] = React.useState(false);
     const [loading, setLoading] = React.useState(false);
-    
+
     const reload = async () => {
         setLoading(true);
         try {
@@ -223,9 +224,9 @@ const MenuBuilder = ({ onMenuUpdate, templates, dbTemplates, refreshTrigger }) =
             setTree(t); setFlat(f);
         } finally { setLoading(false); }
     };
-    
+
     React.useEffect(() => { reload(); }, [refreshTrigger]);
-    
+
     return (
         <div className="h-full flex flex-col gap-6 animate-modal">
             <div className="flex items-end justify-between px-2">
@@ -233,14 +234,14 @@ const MenuBuilder = ({ onMenuUpdate, templates, dbTemplates, refreshTrigger }) =
                     <h3 className="text-3xl font-black text-slate-800 tracking-tight">Menu Architecture</h3>
                     <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Hierarchical Navigation & Routing System</p>
                 </div>
-                <button 
-                    onClick={() => { setEditItem(null); setChildParentId(null); setShowForm(true); }} 
+                <button
+                    onClick={() => { setEditItem(null); setChildParentId(null); setShowForm(true); }}
                     className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-black text-sm hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all active:scale-95 flex items-center gap-2 btn-premium"
                 >
                     <PlusIcon size={18} /> Add Root Node
                 </button>
             </div>
-            
+
             <div className="flex-1 bg-slate-50/50 rounded-[32px] border border-slate-200/60 overflow-y-auto custom-scrollbar p-6 space-y-2">
                 {loading && tree.length === 0 ? (
                     <div className="h-full flex items-center justify-center text-slate-300 font-black uppercase tracking-widest text-xs animate-pulse">Initializing Tree...</div>
@@ -250,9 +251,9 @@ const MenuBuilder = ({ onMenuUpdate, templates, dbTemplates, refreshTrigger }) =
                         <p className="font-black uppercase tracking-widest text-sm">Navigation Tree is Empty</p>
                     </div>
                 ) : tree.map(item => (
-                    <MenuItemRow 
-                        key={item.id} 
-                        item={item} 
+                    <MenuItemRow
+                        key={item.id}
+                        item={item}
                         level={0}
                         onEdit={i => { setEditItem(i); setChildParentId(null); setShowForm(true); }}
                         onDelete={async (id) => {
@@ -268,15 +269,15 @@ const MenuBuilder = ({ onMenuUpdate, templates, dbTemplates, refreshTrigger }) =
                             reload();
                             if (onMenuUpdate) onMenuUpdate();
                         }}
-                        onAddChild={i => { setEditItem(null); setChildParentId(i.id); setShowForm(true); }} 
+                        onAddChild={i => { setEditItem(null); setChildParentId(i.id); setShowForm(true); }}
                     />
                 ))}
             </div>
             {showForm && (
-                <MenuItemFormModal 
-                    item={editItem} 
-                    parentId={childParentId} 
-                    allFlatItems={flat} 
+                <MenuItemFormModal
+                    item={editItem}
+                    parentId={childParentId}
+                    allFlatItems={flat}
                     templates={templates}
                     dbTemplates={dbTemplates}
                     onSave={async (form) => {
@@ -284,8 +285,8 @@ const MenuBuilder = ({ onMenuUpdate, templates, dbTemplates, refreshTrigger }) =
                         await window.apiFetch(url, { method: editItem ? 'PUT' : 'POST', body: form });
                         setShowForm(false); reload();
                         if (onMenuUpdate) onMenuUpdate();
-                    }} 
-                    onClose={() => setShowForm(false)} 
+                    }}
+                    onClose={() => setShowForm(false)}
                 />
             )}
         </div>
@@ -555,18 +556,18 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
         }
         return dateStr || '—';
     };
-    
+
     const displayTemplates = activeSubTab === 'active' ? all : archivedTemplates;
-    
+
     return (
         <div className="h-full flex flex-col gap-6 animate-modal">
             {/* Hidden File Input for Replacement */}
-            <input 
-                type="file" 
-                ref={fileInputRef} 
-                style={{ display: 'none' }} 
-                accept=".docx" 
-                onChange={handleFileChange} 
+            <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                accept=".docx"
+                onChange={handleFileChange}
             />
 
             <div className="flex items-end justify-between px-2 flex-shrink-0">
@@ -574,8 +575,8 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
                     <h3 className="text-3xl font-black text-slate-800 tracking-tight">Template Vault</h3>
                     <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Managed Document Blueprints & Logic</p>
                 </div>
-                <button 
-                    onClick={onNewTemplate} 
+                <button
+                    onClick={onNewTemplate}
                     className="premium-gradient text-white px-8 py-3 rounded-2xl font-black text-sm hover:shadow-2xl hover:shadow-blue-300 transition-all active:scale-95 flex items-center gap-2 btn-premium"
                 >
                     <PlusIcon size={18} /> Deploy New Blueprint
@@ -584,14 +585,14 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
 
             {/* Sub Tabs */}
             <div className="flex gap-2 border-b border-slate-100 pb-2 flex-shrink-0">
-                <button 
+                <button
                     onClick={() => setActiveSubTab('active')}
                     className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all
                         ${activeSubTab === 'active' ? 'bg-blue-50 text-blue-600 border border-blue-100 shadow-sm' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
                 >
                     Active Templates ({all.length})
                 </button>
-                <button 
+                <button
                     onClick={() => setActiveSubTab('archived')}
                     className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all
                         ${activeSubTab === 'archived' ? 'bg-blue-50 text-blue-600 border border-blue-100 shadow-sm' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
@@ -599,7 +600,7 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
                     Archived Templates ({isLoadingArchived ? '...' : archivedTemplates.length})
                 </button>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-2">
                 {isLoadingArchived && activeSubTab === 'archived' ? (
                     <div className="h-full flex items-center justify-center text-slate-300 font-black uppercase tracking-widest text-xs animate-pulse">Loading Archives...</div>
@@ -645,10 +646,10 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
                                     <span>✏️</span> Edit
                                 </button>
                             )}
-                            
+
                             {t.file_path && (
-                                <button 
-                                    onClick={() => handleDownloadDocx(t)} 
+                                <button
+                                    onClick={() => handleDownloadDocx(t)}
                                     title="Download original editable Word template"
                                     className="px-3 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-black hover:bg-emerald-600 hover:text-white transition shadow-sm flex items-center gap-1"
                                 >
@@ -657,8 +658,8 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
                             )}
 
                             {activeSubTab === 'active' && t._source === 'db' && (
-                                <button 
-                                    onClick={() => triggerReplace(t.template_id || t.id)} 
+                                <button
+                                    onClick={() => triggerReplace(t.template_id || t.id)}
                                     className="px-3 py-2 bg-amber-50 text-amber-600 rounded-xl text-xs font-black hover:bg-amber-600 hover:text-white transition shadow-sm flex items-center gap-1"
                                 >
                                     <span>🔄</span> Replace DOCX
@@ -666,8 +667,8 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
                             )}
 
                             {activeSubTab === 'active' && t._source === 'db' && (
-                                <button 
-                                    onClick={() => handleArchiveTemplate(t.template_id || t.id)} 
+                                <button
+                                    onClick={() => handleArchiveTemplate(t.template_id || t.id)}
                                     className="px-3 py-2 bg-amber-50 text-amber-700 rounded-xl text-xs font-black hover:bg-amber-600 hover:text-white transition shadow-sm flex items-center gap-1"
                                 >
                                     <span>📦</span> Archive
@@ -675,8 +676,8 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
                             )}
 
                             {activeSubTab === 'archived' && t._source === 'db' && (
-                                <button 
-                                    onClick={() => handleRestoreTemplate(t.template_id || t.id)} 
+                                <button
+                                    onClick={() => handleRestoreTemplate(t.template_id || t.id)}
                                     className="px-3 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-black hover:bg-emerald-600 hover:text-white transition shadow-sm flex items-center gap-1"
                                 >
                                     <span>♻️</span> Restore
@@ -684,8 +685,8 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
                             )}
 
                             {activeSubTab === 'active' && t._source === 'db' && (
-                                <button 
-                                    onClick={() => handleDeleteTemplate(t.template_id || t.id)} 
+                                <button
+                                    onClick={() => handleDeleteTemplate(t.template_id || t.id)}
                                     className="px-3 py-2 bg-rose-50 text-rose-600 rounded-xl text-xs font-black hover:bg-rose-600 hover:text-white transition shadow-sm flex items-center gap-1"
                                 >
                                     <span>🗑</span> Delete
@@ -760,7 +761,7 @@ const TemplateManager = ({ localTemplates, dbTemplates, isLoading, onEditTemplat
                                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Word Blueprint File</label>
                                     <div className="text-xs font-mono font-bold text-slate-600 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100 flex items-center justify-between">
                                         <span>📂 {viewingTemplate.file_path}</span>
-                                        <button 
+                                        <button
                                             onClick={() => handleDownloadDocx(viewingTemplate)}
                                             className="text-xs font-black text-blue-600 hover:text-blue-800 uppercase tracking-wider"
                                         >
@@ -786,17 +787,40 @@ const StaticPageManager = ({ refreshTrigger }) => {
     const [loading, setLoading] = React.useState(true);
     const [editing, setEditing] = React.useState(null);
     const [form, setForm] = React.useState({ title: '', slug: '', content: '', is_active: true });
-    
+    const [telegramUrlInput, setTelegramUrlInput] = React.useState('');
+
     const reload = async () => {
         setLoading(true);
         try { setPages(await window.apiFetch('/api/pages/').then(r => r.json())); }
         catch { setPages([]); } finally { setLoading(false); }
     };
-    
+
     React.useEffect(() => { reload(); }, [refreshTrigger]);
-    
+
     const autoSlug = t => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    
+
+    const handleTelegramInputChange = (newUrl) => {
+        setTelegramUrlInput(newUrl);
+        setForm(prev => {
+            let content = prev.content || '';
+            const trimmed = newUrl.trim();
+            const existingTg = extractTelegramUrl(content);
+
+            if (trimmed) {
+                if (existingTg) {
+                    content = content.replace(new RegExp(existingTg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), trimmed);
+                } else {
+                    content = content + `<p><strong>Telegram:</strong> <a href="${trimmed}" target="_blank" rel="noopener noreferrer">${trimmed}</a></p>`;
+                }
+            } else {
+                if (existingTg) {
+                    content = content.replace(new RegExp(existingTg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '');
+                }
+            }
+            return { ...prev, content };
+        });
+    };
+
     if (editing !== null) return (
         <div className="h-full flex flex-col gap-6 animate-modal">
             <div className="flex items-center gap-4 flex-shrink-0 px-2">
@@ -816,13 +840,46 @@ const StaticPageManager = ({ refreshTrigger }) => {
                             className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-mono text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all" placeholder="terms-of-service" />
                     </div>
                 </div>
+
+                {form.slug === 'contact' && (
+                    <div className="p-5 bg-gradient-to-r from-sky-50 to-blue-50 border-2 border-sky-200 rounded-2xl space-y-2.5 shadow-xs">
+                        <div className="flex items-center justify-between">
+                            <label className="text-xs font-black text-sky-950 uppercase tracking-widest flex items-center gap-2">
+                                <span className="text-base">✈️</span>
+                                <span>Official Telegram Channel / Group Link</span>
+                            </label>
+                            <span className="text-[10px] font-bold text-sky-700 bg-sky-100 border border-sky-300 px-2.5 py-0.5 rounded-full">
+                                Frontend /contact Sync
+                            </span>
+                        </div>
+                        <p className="text-xs text-sky-800 font-medium">
+                            Enter the Telegram Channel or Group URL (e.g. <code className="bg-white px-1.5 py-0.5 rounded font-mono border border-sky-200 text-sky-900">https://t.me/draftsetu</code>). It is automatically synchronized with the Contact page live join button.
+                        </p>
+                        <input
+                            type="url"
+                            value={telegramUrlInput}
+                            onChange={e => handleTelegramInputChange(e.target.value)}
+                            placeholder="https://t.me/draftsetu"
+                            className="w-full px-4 py-3 bg-white border border-sky-300 rounded-xl font-mono text-xs focus:ring-4 focus:ring-sky-500/20 focus:border-sky-500 outline-none text-slate-800 transition"
+                        />
+                    </div>
+                )}
+
                 <div className="space-y-2">
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Page Content (Rich Text / TipTap Editor)</label>
                     <div className="rounded-2xl border-2 border-slate-300 overflow-hidden bg-white shadow-sm min-h-[480px]">
-                        <RichTextEditor 
+                        <RichTextEditor
                             key={editing}
-                            value={form.content} 
-                            onChange={v => setForm(p => ({ ...p, content: v }))} 
+                            value={form.content}
+                            onChange={v => {
+                                setForm(p => ({ ...p, content: v }));
+                                if (form.slug === 'contact') {
+                                    const detected = extractTelegramUrl(v);
+                                    if (detected !== telegramUrlInput) {
+                                        setTelegramUrlInput(detected || '');
+                                    }
+                                }
+                            }}
                         />
                     </div>
                 </div>
@@ -852,7 +909,7 @@ const StaticPageManager = ({ refreshTrigger }) => {
             </div>
         </div>
     );
-    
+
     return (
         <div className="h-full flex flex-col gap-6 animate-modal">
             <div className="flex items-end justify-between px-2">
@@ -860,7 +917,7 @@ const StaticPageManager = ({ refreshTrigger }) => {
                     <h3 className="text-3xl font-black text-slate-800 tracking-tight">Content Inventory</h3>
                     <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Static Informational Page Architecture</p>
                 </div>
-                <button onClick={() => { setForm({ title: '', slug: '', content: '', is_active: true }); setEditing('new'); }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-sm hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all flex items-center gap-2 btn-premium">
+                <button onClick={() => { setForm({ title: '', slug: '', content: '', is_active: true }); setTelegramUrlInput(''); setEditing('new'); }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-sm hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all flex items-center gap-2 btn-premium">
                     <PlusIcon size={18} /> New Page
                 </button>
             </div>
@@ -883,7 +940,7 @@ const StaticPageManager = ({ refreshTrigger }) => {
                             <div className="text-[10px] text-blue-400 font-black uppercase tracking-widest">Endpoint: page:{p.slug}</div>
                         </div>
                         <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
-                            <button onClick={() => { setForm({ title: p.title, slug: p.slug, content: p.content, is_active: p.is_active }); setEditing(p.slug); }} className="px-5 py-2.5 bg-blue-50 text-blue-600 rounded-xl text-xs font-black hover:bg-blue-600 hover:text-white transition shadow-sm">Edit</button>
+                            <button onClick={() => { setForm({ title: p.title, slug: p.slug, content: p.content, is_active: p.is_active }); setTelegramUrlInput(extractTelegramUrl(p.content) || (p.slug === 'contact' ? DRAFTSETU_TELEGRAM_GROUP_URL : '')); setEditing(p.slug); }} className="px-5 py-2.5 bg-blue-50 text-blue-600 rounded-xl text-xs font-black hover:bg-blue-600 hover:text-white transition shadow-sm">Edit</button>
                             <button onClick={async () => {
                                 const confirmed = await showConfirmDialog({
                                     title: 'Destroy Page',
@@ -3123,12 +3180,12 @@ const AdminPanel = ({ onClose, currentUser, templates, dbTemplates, onEditTempla
                     </div>
                     <span className="text-xl font-black text-slate-800 tracking-tight">DraftSetu Admin</span>
                 </div>
-                
+
                 <div className="flex-1 min-w-0 mx-4 overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-none flex items-center">
                     <div className="flex items-center bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
                         {TABS.map(t => (
-                            <button 
-                                key={t.id} 
+                            <button
+                                key={t.id}
                                 onClick={() => setTab(t.id)}
                                 className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 shrink-0
                                     ${tab === t.id ? 'bg-white text-blue-600 shadow-lg scale-105' : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
@@ -3140,14 +3197,14 @@ const AdminPanel = ({ onClose, currentUser, templates, dbTemplates, onEditTempla
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0 ml-4">
-                    <button 
+                    <button
                         onClick={handleRefresh}
                         className="flex items-center gap-2 text-xs font-black text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-5 py-3 rounded-2xl transition-all border border-slate-200 uppercase tracking-widest shrink-0"
                     >
                         <RefreshIcon size={14} /> Refresh
                     </button>
-                    <button 
-                        onClick={onClose} 
+                    <button
+                        onClick={onClose}
                         className="flex items-center gap-2 text-xs font-black text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 hover:border-rose-600 px-5 py-3 rounded-2xl hover:shadow-md active:scale-95 transition-all uppercase tracking-widest btn-premium shrink-0"
                     >
                         <LogOutIcon size={14} /> Exit Admin
@@ -3161,23 +3218,23 @@ const AdminPanel = ({ onClose, currentUser, templates, dbTemplates, onEditTempla
                     {tab === 'users' && <UserManagement currentAdminUsername={currentUser} refreshTrigger={refreshTrigger} />}
                     {tab === 'all-documents' && <AllDocumentsPanel refreshTrigger={refreshTrigger} />}
                     {tab === 'templates' && (
-                        <TemplateManager 
-                            localTemplates={templates} 
-                            dbTemplates={dbTemplates} 
-                            onEditTemplate={onEditTemplate} 
-                            onNewTemplate={onNewTemplate} 
-                            onDeleteLocalTemplate={onDeleteLocalTemplate} 
-                            onTemplatesUpdate={onTemplatesUpdate} 
+                        <TemplateManager
+                            localTemplates={templates}
+                            dbTemplates={dbTemplates}
+                            onEditTemplate={onEditTemplate}
+                            onNewTemplate={onNewTemplate}
+                            onDeleteLocalTemplate={onDeleteLocalTemplate}
+                            onTemplatesUpdate={onTemplatesUpdate}
                             onMenuUpdate={onMenuUpdate}
                             refreshTrigger={refreshTrigger}
                         />
                     )}
                     {tab === 'payments' && <AdminPaymentsPanel refreshTrigger={refreshTrigger} />}
                     {tab === 'menu' && (
-                        <MenuBuilder 
-                            onMenuUpdate={onMenuUpdate} 
-                            templates={templates} 
-                            dbTemplates={dbTemplates} 
+                        <MenuBuilder
+                            onMenuUpdate={onMenuUpdate}
+                            templates={templates}
+                            dbTemplates={dbTemplates}
                             refreshTrigger={refreshTrigger}
                         />
                     )}
@@ -3187,8 +3244,8 @@ const AdminPanel = ({ onClose, currentUser, templates, dbTemplates, onEditTempla
                     {tab === 'template-analytics' && <window.TemplateAnalytics refreshTrigger={refreshTrigger} />}
                     {tab === 'template-health' && <window.TemplateHealth refreshTrigger={refreshTrigger} />}
                     {tab === 'wallets' && (
-                        <window.AdminWalletPanel 
-                            token={localStorage.getItem('authToken')} 
+                        <window.AdminWalletPanel
+                            token={localStorage.getItem('authToken')}
                             refreshTrigger={refreshTrigger}
                         />
                     )}

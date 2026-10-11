@@ -237,8 +237,10 @@ const App = () => {
         };
 
         window.addEventListener('draftsetu:session-expired', onSessionExpired);
+        window.openWalletModal = () => setIsViewingWallet(true);
         return () => {
             window.removeEventListener('draftsetu:session-expired', onSessionExpired);
+            delete window.openWalletModal;
         };
     }, []);
 
@@ -1822,6 +1824,7 @@ const App = () => {
                                             setIsAuthModalOpen(true);
                                         }}
                                         onNewDocument={handleNewDocument}
+                                        onOpenWallet={() => setIsViewingWallet(true)}
                                     />
                                 </div>
 

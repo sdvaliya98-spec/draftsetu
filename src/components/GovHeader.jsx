@@ -12,6 +12,7 @@ const getPublicHref = (item) => {
     if (item.url) {
         if (item.url.startsWith('http://') || item.url.startsWith('https://')) return item.url;
         let path = item.url.startsWith('/') ? item.url : `/${item.url}`;
+        if (path === '/home') return '/';
         if (path.startsWith('/page:')) {
             path = '/' + path.slice(6);
         }
