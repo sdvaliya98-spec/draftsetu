@@ -422,7 +422,8 @@ const FormPanel = ({
     isLoggedIn,
     onLogin,
     onNewDocument,
-    onOpenWallet
+    onOpenWallet,
+    onNavigate
 }) => {
     const handleRechargeWallet = () => {
         if (typeof onOpenWallet === 'function') {
@@ -1176,6 +1177,27 @@ const FormPanel = ({
 
             {/* Template Selector */}
             <div className="p-4 border-b border-gray-200 bg-white">
+                <div className="mb-3">
+                    <button
+                        type="button"
+                        id="btn-back-to-doc-services"
+                        onClick={() => {
+                            if (typeof onNavigate === 'function') {
+                                onNavigate('/document-services');
+                            } else if (typeof window.handleAppNavigate === 'function') {
+                                window.handleAppNavigate('/document-services');
+                            } else if (typeof window.handleNavigate === 'function') {
+                                window.handleNavigate('/document-services');
+                            } else {
+                                window.history.back();
+                            }
+                        }}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl border border-blue-200 transition active:scale-95 cursor-pointer"
+                    >
+                        <span>←</span>
+                        <span>દસ્તાવેજ સેવાઓ (Document Services)</span>
+                    </button>
+                </div>
                 <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
                     <h2 className="text-[32px] font-black tracking-tight text-[#0f2460]">
                         1. દસ્તાવેજ પસંદ કરો

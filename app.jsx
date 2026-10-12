@@ -99,6 +99,7 @@ const LazyWalletDashboard = React.lazy(() => import('./src/components/WalletDash
 const LazyTemplateEditorModal = React.lazy(() => import('./src/components/TemplateEditorModal.jsx'));
 const LazyMyDocumentsModal = React.lazy(() => import('./src/components/MyDocumentsModal.jsx'));
 const LazyDocumentServicesPanel = React.lazy(() => import('./src/components/DocumentServicesPanel.jsx'));
+const LazyDocumentServicesPage = React.lazy(() => import('./src/pages/DocumentServicesPage.jsx'));
 const LazyFormPanel = React.lazy(() => import('./src/components/FormPanel.jsx'));
 const LazyDocumentPreview = React.lazy(() => import('./src/components/DocumentPreview.jsx'));
 const LazyUserProfileModal = React.lazy(() => import('./src/components/UserProfileModal.jsx'));
@@ -115,6 +116,7 @@ const App = () => {
             const path = window.location.pathname.toLowerCase().replace(/\/+$/, '') || '/';
             if (path === '/privacy-policy') return 'privacy-policy';
             if (path === '/terms-of-service') return 'terms-of-service';
+            if (path === '/document-services' || path === '/documents-services') return 'document-services';
             if (CLEAN_STATIC_PAGES.includes(path.slice(1))) return 'page';
             if (path.startsWith('/templates/')) {
                 const slug = path.slice(11).trim().replace(/\/+$/, '');
@@ -126,6 +128,7 @@ const App = () => {
             }
             const searchParams = new URLSearchParams(window.location.search);
             if (searchParams.get('view') === 'editor' || searchParams.get('template')) return 'editor';
+            if (searchParams.get('view') === 'document-services') return 'document-services';
             const pageParam = searchParams.get('page');
             if (pageParam && pageParam.trim()) return 'page';
             const tplParam = searchParams.get('template_slug');
@@ -420,6 +423,7 @@ const App = () => {
         let path = '/';
         if (currentView === 'privacy-policy') path = '/privacy-policy';
         else if (currentView === 'terms-of-service') path = '/terms-of-service';
+        else if (currentView === 'document-services') path = '/document-services';
         else if (currentView === 'page' && currentPageSlug) {
             path = CLEAN_STATIC_PAGES.includes(currentPageSlug) ? `/${currentPageSlug}` : `/page:${currentPageSlug}`;
         }
@@ -856,6 +860,10 @@ const App = () => {
                 setCurrentView('terms-of-service');
                 setCurrentPageSlug('');
                 setCurrentTemplateSlug('');
+            } else if (path === '/document-services' || path === '/documents-services') {
+                setCurrentView('document-services');
+                setCurrentPageSlug('');
+                setCurrentTemplateSlug('');
             } else if (CLEAN_STATIC_PAGES.includes(path.slice(1))) {
                 const cleanSlug = path.slice(1);
                 setCurrentView('page');
@@ -913,7 +921,7 @@ const App = () => {
         if (typeof urlOrMenu === 'object' && urlOrMenu !== null) {
             const menu = urlOrMenu;
             if (menu.type === 'document_services_panel') {
-                setIsDocServicesPanelOpen(true);
+                handleNavigate('/document-services');
                 return;
             }
             if (menu.type === 'template') {
@@ -1023,6 +1031,13 @@ const App = () => {
                 if (window.location.pathname !== '/terms-of-service') {
                     window.history.pushState({ view: 'terms-of-service' }, '', '/terms-of-service');
                 }
+            } else if (target.view === 'document-services') {
+                setCurrentView('document-services');
+                setCurrentPageSlug('');
+                setCurrentTemplateSlug('');
+                if (window.location.pathname !== '/document-services') {
+                    window.history.pushState({ view: 'document-services' }, '', '/document-services');
+                }
             } else {
                 // target is home
                 setCurrentView('home');
@@ -1050,6 +1065,14 @@ const App = () => {
         }
 
         // --- FORWARD NAVIGATION ---
+        // Save current editor session if navigating away from active editor
+        if (currentView === 'editor' && activeTemplateId && window.SessionManager) {
+            window.SessionManager.saveSession(activeTemplateId, { data, trackingId, isLocked });
+            if (window.DraftCacheManager && Object.keys(data).length > 0) {
+                window.DraftCacheManager.save(activeTemplateId, data, trackingId, isLocked, currentUser);
+            }
+        }
+
         // Push current view snapshot before transitioning
         const currentSnapshot = {
             view: currentView,
@@ -1060,6 +1083,17 @@ const App = () => {
         viewHistoryRef.current.push(currentSnapshot);
         if (viewHistoryRef.current.length > 50) {
             viewHistoryRef.current.shift();
+        }
+
+        if (url === '/document-services' || url === 'document-services') {
+            setCurrentView('document-services');
+            setCurrentPageSlug('');
+            setCurrentTemplateSlug('');
+            if (window.location.pathname !== '/document-services') {
+                window.history.pushState({ view: 'document-services' }, '', '/document-services');
+            }
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            return;
         }
 
         if (url === '/privacy-policy' || url === 'privacy-policy') {
@@ -1153,6 +1187,7 @@ const App = () => {
     };
 
     window.handleNavigate = handleNavigate;
+    window.handleAppNavigate = handleNavigate;
 
     const printRef = useRef(null);
 
@@ -1542,7 +1577,7 @@ const App = () => {
         return normalizedTemplates;
     }, [templates, dbTpls]);
 
-    handleTemplateSelect = (newTemplateId) => {
+    handleTemplateSelect = (newTemplateId, initialData = null) => {
         window.activeFocusedFieldPath = null;
 
         console.log(`[handleTemplateSelect] Switching from ${activeTemplateId} to ${newTemplateId}`);
@@ -1569,28 +1604,39 @@ const App = () => {
             template_name: newTpl.name || ''
         });
 
-        const session = window.SessionManager.restoreSession(effectiveId);
-        if (session) {
-            console.log(`[handleTemplateSelect] Restoring in-memory session for ${effectiveId}`);
-            setData(session.data);
-            setTrackingId(session.trackingId);
-            setIsLocked(session.isLocked);
-            skipRecoveryRef.current = true;
-        } else {
-            const cachedDraft = window.DraftCacheManager ? window.DraftCacheManager.load(effectiveId, currentUser) : null;
+        if (initialData && typeof initialData === 'object' && Object.keys(initialData).length > 0) {
             const empty = getTemplateEmptyState(newTpl, false);
-            const isMeaningful = cachedDraft && !cachedDraft.isLocked && window.DraftCacheManager && window.DraftCacheManager.isMeaningfulDraft(cachedDraft.data, empty);
-
-            if (isMeaningful) {
-                console.log(`[handleTemplateSelect] Found meaningful recovery cache for ${effectiveId}, letting recovery effect prompt user`);
-                skipRecoveryRef.current = false;
-            } else {
-                console.log(`[handleTemplateSelect] No session or meaningful cache for ${effectiveId}, initializing with empty state`);
-                setData(empty);
-                setTrackingId(null);
-                setIsLocked(false);
+            const populated = { ...empty, ...initialData };
+            console.log(`[handleTemplateSelect] Initializing with custom initial options/data for ${effectiveId}`);
+            setData(populated);
+            setTrackingId(null);
+            setIsLocked(false);
+            skipRecoveryRef.current = true;
+            window.SessionManager.saveSession(effectiveId, { data: populated, trackingId: null, isLocked: false });
+        } else {
+            const session = window.SessionManager.restoreSession(effectiveId);
+            if (session) {
+                console.log(`[handleTemplateSelect] Restoring in-memory session for ${effectiveId}`);
+                setData(session.data);
+                setTrackingId(session.trackingId);
+                setIsLocked(session.isLocked);
                 skipRecoveryRef.current = true;
-                window.SessionManager.saveSession(effectiveId, { data: empty, trackingId: null, isLocked: false });
+            } else {
+                const cachedDraft = window.DraftCacheManager ? window.DraftCacheManager.load(effectiveId, currentUser) : null;
+                const empty = getTemplateEmptyState(newTpl, false);
+                const isMeaningful = cachedDraft && !cachedDraft.isLocked && window.DraftCacheManager && window.DraftCacheManager.isMeaningfulDraft(cachedDraft.data, empty);
+
+                if (isMeaningful) {
+                    console.log(`[handleTemplateSelect] Found meaningful recovery cache for ${effectiveId}, letting recovery effect prompt user`);
+                    skipRecoveryRef.current = false;
+                } else {
+                    console.log(`[handleTemplateSelect] No session or meaningful cache for ${effectiveId}, initializing with empty state`);
+                    setData(empty);
+                    setTrackingId(null);
+                    setIsLocked(false);
+                    skipRecoveryRef.current = true;
+                    window.SessionManager.saveSession(effectiveId, { data: empty, trackingId: null, isLocked: false });
+                }
             }
         }
 
@@ -1792,6 +1838,33 @@ const App = () => {
                             <StaticPageView slug={currentPageSlug} onNavigate={handleNavigate} />
                         </div>
                     )}
+                    {currentView === 'document-services' && (
+                        <div className="flex-1 overflow-y-auto">
+                            <React.Suspense fallback={<LazyFallback />}>
+                                <LazyDocumentServicesPage
+                                    menuItem={docServicesMenuItem}
+                                    allTemplates={allTemplates}
+                                    onSelectTemplate={(templateId, initialData) => {
+                                        const currentSnapshot = {
+                                            view: 'document-services',
+                                            slug: '',
+                                            templateSlug: '',
+                                            templateId: ''
+                                        };
+                                        viewHistoryRef.current.push(currentSnapshot);
+                                        setCurrentView('editor');
+                                        setCurrentPageSlug('');
+                                        setCurrentTemplateSlug('');
+                                        if (window.location.pathname !== '/') {
+                                            window.history.pushState({ view: 'editor', templateId }, '', '/');
+                                        }
+                                        handleTemplateSelect(templateId, initialData);
+                                    }}
+                                    onNavigate={handleNavigate}
+                                />
+                            </React.Suspense>
+                        </div>
+                    )}
                     {currentView === 'editor' && (
                         <React.Suspense fallback={<LazyFallback />}>
                             <div className="flex flex-1 h-full overflow-hidden bg-slate-100">
@@ -1825,6 +1898,7 @@ const App = () => {
                                         }}
                                         onNewDocument={handleNewDocument}
                                         onOpenWallet={() => setIsViewingWallet(true)}
+                                        onNavigate={handleNavigate}
                                     />
                                 </div>
 
@@ -2016,10 +2090,11 @@ const App = () => {
                         isOpen={isDocServicesPanelOpen}
                         onClose={() => setIsDocServicesPanelOpen(false)}
                         menuItem={docServicesMenuItem}
-                        onSelectTemplate={(templateId) => {
+                        allTemplates={allTemplates}
+                        onSelectTemplate={(templateId, initialData) => {
                             setCurrentView('editor');
                             setCurrentPageSlug('');
-                            handleTemplateSelect(templateId);
+                            handleTemplateSelect(templateId, initialData);
                         }}
                     />
                 )}

@@ -15,6 +15,7 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
     const [loading, setLoading] = React.useState(true);
     const [trackingInput, setTrackingInput] = React.useState('');
     const [trackingError, setTrackingError] = React.useState('');
+    const [searchQuery, setSearchQuery] = React.useState('');
     const [loadingById, setLoadingById] = React.useState(false);
     const [previewDoc, setPreviewDoc] = React.useState(null);
     const [docToDelete, setDocToDelete] = React.useState(null);
@@ -139,19 +140,35 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
     const handleLoadById = async () => {
         const id = trackingInput.trim().toUpperCase();
         if (!id) return;
-        setLoadingById(true); setTrackingError('');
+        setLoadingById(true);
+        setTrackingError('');
         try {
             const res = await window.apiFetch(`/api/documents/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!res.ok) { setTrackingError('Document not found or access denied.'); return; }
+            if (!res.ok) {
+                setTrackingError(`Document not found or access denied for ID: ${id}`);
+                return;
+            }
             const doc = await res.json();
-            if (doc.is_locked) { setTrackingError('This document is locked and cannot be edited.'); return; }
+            if (doc.is_locked) {
+                setTrackingError('આ દસ્તાવેજ ફાઇનલ લોક થયેલ છે અને એડિટ કરી શકાતો નથી. (This document is locked and cannot be edited.)');
+                return;
+            }
             onSelectDraft(doc);
         } catch (err) {
-            setTrackingError(err.message === 'SERVER_DOWN'
-                ? '❌ Server not running. Start FastAPI on port 8000.'
-                : 'Failed to connect to server.');
+            if (err.message === 'SERVER_DOWN') {
+                setTrackingError('❌ સર્વર કનેક્શન નિષ્ફળ. કૃપા કરીને ખાતરી કરો કે FastAPI પોર્ટ 8000 પર ચાલુ છે. (Failed to connect to server. Ensure FastAPI is running on port 8000.)');
+            } else if (err.status === 404 || (err.message && err.message.toLowerCase().includes('not found'))) {
+                setTrackingError(`દસ્તાવેજ મળ્યો નથી: "${id}". કૃપા કરીને સાચો Tracking ID દાખલ કરો. (Document not found for Tracking ID: ${id})`);
+            } else if (err.status === 403 || (err.message && err.message.toLowerCase().includes('not authorized'))) {
+                setTrackingError('આ દસ્તાવેજ એક્સેસ કરવાની તમને મંજૂરી નથી. (Access denied for this document.)');
+            } else if (err.status === 401) {
+                setTrackingError('સેશન સમાપ્ત થયું છે. કૃપા કરીને ફરી લૉગિન કરો. (Session expired. Please log in again.)');
+            } else {
+                setTrackingError(err.message || 'દસ્તાવેજ લોડ કરવામાં ભૂલ આવી. (Failed to load document.)');
+            }
+        } finally {
+            setLoadingById(false);
         }
-        finally { setLoadingById(false); }
     };
 
     const handleDownload = async (trackingId, format = 'pdf') => {
@@ -416,6 +433,52 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
         return current;
     };
 
+    const getDocumentSearchableText = useCallback((d) => {
+        const parts = [
+            d.tracking_id || '',
+            d.template_id || '',
+            d.template_name || '',
+            d.document_name || '',
+            d.document_identity || '',
+            d.document_secondary || '',
+            d.survey_no || '',
+            d.buyer_name || '',
+            getCardTemplateName(d),
+            getDocumentTitle(d),
+        ];
+
+        if (d.data_json) {
+            try {
+                const data = typeof d.data_json === 'string' ? JSON.parse(d.data_json) : d.data_json;
+                const extractValues = (obj) => {
+                    if (!obj) return;
+                    if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean') {
+                        parts.push(String(obj));
+                    } else if (Array.isArray(obj)) {
+                        for (const item of obj) extractValues(item);
+                    } else if (typeof obj === 'object') {
+                        for (const k of Object.keys(obj)) {
+                            extractValues(obj[k]);
+                        }
+                    }
+                };
+                extractValues(data);
+            } catch (_) {
+                parts.push(String(d.data_json));
+            }
+        }
+        return parts.join(' ').toLowerCase();
+    }, [templates]);
+
+    const filteredDrafts = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return drafts;
+        return drafts.filter(d => {
+            const text = getDocumentSearchableText(d);
+            return text.includes(q);
+        });
+    }, [drafts, searchQuery, getDocumentSearchableText]);
+
     const modalContent = (
         <div 
             id="my-documents-modal-backdrop" 
@@ -475,6 +538,7 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
                     <p className="text-xs font-semibold text-blue-800 mb-2">📌 Load Draft by Tracking ID</p>
                     <div className="flex gap-2">
                         <input
+                            id="input-tracking-id"
                             value={trackingInput}
                             onChange={e => { setTrackingInput(e.target.value); setTrackingError(''); }}
                             onKeyDown={e => e.key === 'Enter' && handleLoadById()}
@@ -482,6 +546,7 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
                             className="flex-1 px-3.5 py-2 border border-blue-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
                         />
                         <button 
+                            id="btn-load-by-id"
                             onClick={handleLoadById} 
                             disabled={loadingById}
                             className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition shadow-sm disabled:opacity-60 cursor-pointer border-0"
@@ -490,7 +555,51 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
                             {loadingById ? '...' : 'Load'}
                         </button>
                     </div>
-                    {trackingError && <p className="text-xs text-red-600 mt-1.5 font-semibold">{trackingError}</p>}
+                    {trackingError && <p id="msg-tracking-error" className="text-xs text-red-600 mt-1.5 font-semibold">{trackingError}</p>}
+                </div>
+
+                {/* Search My Documents */}
+                <div className="px-4 sm:px-5 py-3 border-b border-slate-200 bg-white flex-shrink-0">
+                    <div className="relative flex items-center">
+                        <span className="absolute left-3.5 text-slate-400 text-sm select-none pointer-events-none">
+                            🔍
+                        </span>
+                        <input
+                            id="input-search-my-documents"
+                            type="text"
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            placeholder="દસ્તાવેજ શોધો... (Search by title, ID, village, or details)"
+                            aria-label="Search my documents"
+                            className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition"
+                        />
+                        {searchQuery && (
+                            <button
+                                id="btn-clear-my-documents-search"
+                                type="button"
+                                onClick={() => setSearchQuery('')}
+                                className="absolute right-3 text-slate-400 hover:text-slate-600 p-1 text-xs font-bold rounded-full hover:bg-slate-200 transition border-0 bg-transparent cursor-pointer"
+                                title="Clear search"
+                                aria-label="Clear search"
+                            >
+                                ✕
+                            </button>
+                        )}
+                    </div>
+                    {searchQuery && (
+                        <div className="flex items-center justify-between mt-2 text-[11px] font-semibold text-slate-500 px-1">
+                            <span id="my-documents-search-count">
+                                પરિણામો (Found): <strong className="text-blue-700">{filteredDrafts.length}</strong> of {drafts.length}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setSearchQuery('')}
+                                className="text-blue-600 hover:underline cursor-pointer border-0 bg-transparent text-[11px] font-bold"
+                            >
+                                બધા જુઓ (Clear Filter)
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Draft List */}
@@ -506,9 +615,27 @@ const MyDocumentsModal = ({ onClose, onSelectDraft, onDraftDeleted, token, templ
                             <h3 className="text-base font-bold text-slate-600 mb-1">No saved documents found</h3>
                             <p className="text-xs text-slate-400">Create and save drafts to access them here anytime.</p>
                         </div>
+                    ) : filteredDrafts.length === 0 ? (
+                        <div className="text-center bg-white border border-dashed border-slate-200 rounded-2xl p-10 sm:p-14 text-slate-400 animate-fade-in">
+                            <div className="text-4xl mb-2.5">🔍</div>
+                            <h3 id="msg-no-documents-found" className="text-sm sm:text-base font-bold text-slate-700 mb-1">
+                                કોઈ દસ્તાવેજ મળ્યો નથી (No documents found)
+                            </h3>
+                            <p className="text-xs text-slate-400 max-w-sm mx-auto mb-4">
+                                "{searchQuery}" માટે કોઈ પરિણામ મળ્યું નથી. કૃપા કરીને સ્પેલિંગ તપાસો અથવા અલગ શબ્દ વડે શોધો.
+                            </p>
+                            <button
+                                type="button"
+                                id="btn-no-results-clear-search"
+                                onClick={() => setSearchQuery('')}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs border-0 cursor-pointer"
+                            >
+                                શોધ સાફ કરો (Clear Search)
+                            </button>
+                        </div>
                     ) : (
                         <div className="grid gap-3">
-                            {drafts.map(d => (
+                            {filteredDrafts.map(d => (
                                 <div 
                                     key={d.tracking_id}
                                     className={`bg-white border rounded-xl p-4 sm:p-5 flex flex-col gap-3.5 transition-all shadow-sm
