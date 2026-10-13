@@ -121,11 +121,14 @@ const SubNavItem = ({ sub, onNavigate, onCloseParent }) => {
     );
 };
 
-const NavItem = ({ item, onNavigate }) => {
+const NavItem = ({ item, onNavigate, currentView }) => {
     const hasChildren = item.children && item.children.length > 0;
     const [isOpen, setIsOpen] = React.useState(false);
 
     const isDocServices = (item.label || '').toLowerCase().includes('document services');
+    const isHome = (item.label || '').toLowerCase() === 'home' || item.url === '/' || item.url === 'home';
+    const isActive = (currentView === 'document-services' && isDocServices) ||
+                     (currentView === 'home' && isHome);
 
     const handleItemClick = () => {
         if (isDocServices) {
@@ -161,9 +164,20 @@ const NavItem = ({ item, onNavigate }) => {
         if (lower.includes('document services')) {
             return (
                 <div className="flex items-center gap-1 xl:gap-1.5 text-left">
-                    {item.icon && <span className="text-sm xl:text-base 2xl:text-lg grayscale group-hover:grayscale-0 transition-all shrink-0">{item.icon}</span>}
+                    {item.icon && (
+                        <span className={`text-sm xl:text-base 2xl:text-lg transition-all shrink-0 ${isActive ? 'text-blue-600 font-bold' : 'grayscale group-hover:grayscale-0'}`}>
+                            {item.icon}
+                        </span>
+                    )}
                     <div className="flex flex-col justify-center leading-[1.12] font-bold">
-                        <span>DOCUMENT</span>
+                        <span className="flex items-center gap-1">
+                            DOCUMENT
+                            {isActive && (
+                                <span className="text-[7.5px] font-black px-1.5 py-0.5 rounded-full bg-blue-600 text-white leading-none tracking-tighter">
+                                    Active
+                                </span>
+                            )}
+                        </span>
                         <span className="flex items-center gap-0.5">
                             SERVICES
                             {hasChildren && <span className="text-[7.5px] xl:text-[8.5px] text-blue-600 transition-all shrink-0 ml-0.5">▼</span>}
@@ -213,7 +227,9 @@ const NavItem = ({ item, onNavigate }) => {
     };
 
     const publicHref = (!hasChildren && !isDocServices && item.type !== 'dropdown') ? getPublicHref(item) : null;
-    const navBtnClass = "px-0.5 lg:px-0.5 xl:px-1 2xl:px-2 py-2 text-[7.5px] lg:text-[8px] xl:text-[10.5px] 2xl:text-[12px] font-black uppercase tracking-wider text-slate-600 hover:text-blue-600 transition-all flex items-center h-full focus:outline-none border-b-2 border-transparent hover:border-blue-600 no-underline";
+    const navBtnClass = isActive
+        ? "px-1.5 lg:px-2 xl:px-3 py-2 text-[7.5px] lg:text-[8px] xl:text-[10.5px] 2xl:text-[12px] font-black uppercase tracking-wider text-blue-700 bg-blue-50/90 border-b-2 border-blue-600 transition-all flex items-center h-full focus:outline-none shadow-sm no-underline"
+        : "px-0.5 lg:px-0.5 xl:px-1 2xl:px-2 py-2 text-[7.5px] lg:text-[8px] xl:text-[10.5px] 2xl:text-[12px] font-black uppercase tracking-wider text-slate-600 hover:text-blue-600 transition-all flex items-center h-full focus:outline-none border-b-2 border-transparent hover:border-blue-600 no-underline";
 
     return (
         <div
@@ -437,6 +453,7 @@ const GovHeader = ({
     currentUser,
     user,
     role,
+    currentView = 'home',
     onRoleChange,
     onLoginClick,
     onLogout,
@@ -482,7 +499,7 @@ const GovHeader = ({
                     {/* 2. NAVIGATION (Flexible middle region) */}
                     <nav className="hidden lg:flex items-center space-x-0.5 xl:space-x-0.5 h-full ml-1 lg:ml-1.5 xl:ml-2 mr-auto shrink min-w-0">
                         {(menuItems || []).map((item, idx) => (
-                            <NavItem key={item.id || idx} item={item} onNavigate={onNavigate} />
+                            <NavItem key={item.id || idx} item={item} onNavigate={onNavigate} currentView={currentView} />
                         ))}
                     </nav>
 

@@ -1,13 +1,203 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import Footer from '../components/Footer.jsx';
 
 /**
- * DocumentServicesPage - Full-page Document Services & Template Selection Interface.
+ * Standard Gujarat Legal Categories & Templates for DraftSetu
+ * Formatted with rich Gujarati metadata, certified draft badges, and complete descriptions.
+ */
+const DEFAULT_CATEGORIES = [
+    {
+        id: 'pedhinamu',
+        label: 'વારસાઈ / પેઢીનામું (Pedhinamu)',
+        icon: '👥',
+        badgeCount: '1 નમૂનાઓ ઉપલબ્ધ',
+        templates: [
+            {
+                id: 'pedhinamu-affidavit',
+                name: 'વારસાઈ પેઢીનામું સોગંદનામું (Pedhinamu Affidavit)',
+                category: 'વારસાઈ / પેઢીનામું (Pedhinamu)',
+                icon: '👥',
+                badge: 'પ્રમાણિત ડ્રાફ્ટ',
+                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
+                keywords: ['વારસાઈ', 'પેઢીનામું', 'pedhinamu', 'succession']
+            }
+        ]
+    },
+    {
+        id: 'will',
+        label: 'વીલ / વસીયતનામું (Will)',
+        icon: '📜',
+        badgeCount: '1 નમૂનાઓ ઉપલબ્ધ',
+        templates: [
+            {
+                id: 'will-registered',
+                name: 'રજિસ્ટર્ડ વસીયતનામું (Registered Will Deed)',
+                category: 'વીલ / વસીયતનામું (Will)',
+                icon: '📜',
+                badge: 'પ્રમાણિત ડ્રાફ્ટ',
+                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
+                keywords: ['વસીયતનામું', 'વીલ', 'will', 'testament']
+            }
+        ]
+    },
+    {
+        id: 'rent',
+        label: 'ભાડા કરાર / ભાડાપટ્ટો (Rent / Lease Agreement)',
+        icon: '📄',
+        badgeCount: '4 નમૂનાઓ ઉપલબ્ધ',
+        templates: [
+            {
+                id: 'rent-agri',
+                name: 'ખેતીની જમીનનો ભાડા પટ્ટાનો કરાર',
+                category: 'ભાડા કરાર / ભાડાપટ્ટો (Rent / Lease Agreement)',
+                icon: '📄',
+                badge: 'પ્રમાણિત ડ્રાફ્ટ',
+                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
+                keywords: ['ખેતી', 'ભાડા પટ્ટો', 'lease', 'rent', 'agricultural']
+            },
+            {
+                id: 'rent-registered',
+                name: 'લાંબા ગાળાનો રજિસ્ટર્ડ ભાડા પટ્ટાનો દસ્તાવેજ',
+                category: 'ભાડા કરાર / ભાડાપટ્ટો (Rent / Lease Agreement)',
+                icon: '📄',
+                badge: 'પ્રમાણિત ડ્રાફ્ટ',
+                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
+                keywords: ['લાંબા ગાળાનો', 'રજિસ્ટર્ડ', 'registered lease']
+            },
+            {
+                id: 'rent-residential',
+                name: 'રહેણાંક મકાનનો ભાડા કરાર',
+                category: 'ભાડા કરાર / ભાડાપટ્ટો (Rent / Lease Agreement)',
+                icon: '📄',
+                badge: 'પ્રમાણિત ડ્રાફ્ટ',
+                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
+                keywords: ['રહેણાંક', 'મકાન ભાડા કરાર', 'residential rent']
+            },
+            {
+                id: 'rent-commercial',
+                name: 'દુકાન / વાણિજ્યિક મિલકતનો ભાડા કરાર',
+                category: 'ભાડા કરાર / ભાડાપટ્ટો (Rent / Lease Agreement)',
+                icon: '📄',
+                badge: 'પ્રમાણિત ડ્રાફ્ટ',
+                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
+                keywords: ['દુકાન', 'વાણિજ્યિક', 'commercial shop lease']
+            }
+        ]
+    },
+    {
+        id: 'sale',
+        label: 'વેચાણ દસ્તાવેજ (Sale Deed)',
+        icon: '📑',
+        badgeCount: '2 નમૂનાઓ ઉપલબ્ધ',
+        templates: [
+            {
+                id: 'sale-agri',
+                name: 'ખેતીની જમીનનો વેચાણ દસ્તાવેજ (Agricultural Land Sale Deed)',
+                category: 'વેચાણ દસ્તાવેજ (Sale Deed)',
+                icon: '📑',
+                badge: 'પ્રમાણિત ડ્રાફ્ટ',
+                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
+                keywords: ['વેચાણ દસ્તાવેજ', 'ખેતીની જમીન', 'sale deed']
+            },
+            {
+                id: 'sale-na',
+                name: 'બિનખેતી મકાન / પ્લોટનો વેચાણ દસ્તાવેજ (Non-Agricultural Sale Deed)',
+                category: 'વેચાણ દસ્તાવેજ (Sale Deed)',
+                icon: '📑',
+                badge: 'પ્રમાણિત ડ્રાફ્ટ',
+                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
+                keywords: ['બિનખેતી', 'પ્લોટ વેચાણ', 'residential sale']
+            }
+        ]
+    },
+    {
+        id: 'poa',
+        label: 'પાવર ઓફ એટર્ની (Power of Attorney)',
+        icon: '⚖️',
+        badgeCount: '2 નમૂનાઓ ઉપલબ્ધ',
+        templates: [
+            {
+                id: 'poa-general',
+                name: 'જનરલ પાવર ઓફ એટર્ની (General Power of Attorney - GPA)',
+                category: 'પાવર ઓફ એટર્ની (Power of Attorney)',
+                icon: '⚖️',
+                badge: 'પ્રમાણિત ડ્રાફ્ટ',
+                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
+                keywords: ['જનરલ પાવર', 'gpa', 'power of attorney']
+            },
+            {
+                id: 'poa-special',
+                name: 'સ્પેશિયલ પાવર ઓફ એટર્ની (Special Power of Attorney - SPA)',
+                category: 'પાવર ઓફ એટર્ની (Power of Attorney)',
+                icon: '⚖️',
+                badge: 'પ્રમાણિત ડ્રાફ્ટ',
+                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
+                keywords: ['સ્પેશિયલ પાવર', 'spa']
+            }
+        ]
+    },
+    {
+        id: 'affidavit',
+        label: 'સોગંદનામું (Affidavit)',
+        icon: '📝',
+        badgeCount: '2 નમૂનાઓ ઉપલબ્ધ',
+        templates: [
+            {
+                id: 'affidavit-general',
+                name: 'સામાન્ય સોગંદનામું (General Affidavit)',
+                category: 'સોગંદનામું (Affidavit)',
+                icon: '📝',
+                badge: 'પ્રમાણિત ડ્રાફ્ટ',
+                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
+                keywords: ['સોગંદનામું', 'affidavit']
+            },
+            {
+                id: 'affidavit-name',
+                name: 'નામ સુધારા સોગંદનામું (Name Correction Affidavit)',
+                category: 'સોગંદનામું (Affidavit)',
+                icon: '📝',
+                badge: 'પ્રમાણિત ડ્રાફ્ટ',
+                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
+                keywords: ['નામ સુધારા', 'name change']
+            }
+        ]
+    },
+    {
+        id: 'partnership',
+        label: 'ભાગીદારી કરાર (Partnership Deed)',
+        icon: '🤝',
+        badgeCount: '2 નમૂનાઓ ઉપલબ્ધ',
+        templates: [
+            {
+                id: 'partnership-new',
+                name: 'નવો ભાગીદારી કરાર (New Partnership Deed)',
+                category: 'ભાગીદારી કરાર (Partnership Deed)',
+                icon: '🤝',
+                badge: 'પ્રમાણિત ડ્રાફ્ટ',
+                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
+                keywords: ['ભાગીદારી કરાર', 'partnership deed']
+            },
+            {
+                id: 'partnership-dissolution',
+                name: 'ભાગીદારી નિવૃત્તિ / પુનર્ગઠન લેખ (Dissolution Deed)',
+                category: 'ભાગીદારી કરાર (Partnership Deed)',
+                icon: '🤝',
+                badge: 'પ્રમાણિત ડ્રાફ્ટ',
+                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
+                keywords: ['ભાગીદારી નિવૃત્તિ', 'dissolution']
+            }
+        ]
+    }
+];
+
+/**
+ * DocumentServicesPage - Modern Two-Column Dashboard Layout for DraftSetu.
  * 
- * Flow:
- * 1. Full-page category navigation and template browsing with search.
- * 2. When user selects a template, opens the existing DraftSetu Document Editor directly.
- * 3. Preserves existing session/draft recovery, repeaters, previews, and editor functionality.
+ * Features:
+ * - Left Sidebar: 'દસ્તાવેજ શ્રેણી (CATEGORIES)' with count badge and bordered cards.
+ * - Active Selection: Highlighted in deep blue (#1e40af) with checkmark icon.
+ * - Right Content Area: Category Header, '4 TEMPLATES' pill badge, Search input.
+ * - 3-Column Template Grid: Fully framed cards with deep drop-shadows and double borders.
  */
 const DocumentServicesPage = ({
     menuItem,
@@ -15,285 +205,262 @@ const DocumentServicesPage = ({
     onSelectTemplate,
     onNavigate
 }) => {
-    const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+    // Default active category is 'rent' (ભાડા કરાર / ભાડાપટ્ટો)
+    const [selectedCategoryId, setSelectedCategoryId] = useState('rent');
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Derive categories from menuItem
+    // Combine standard categories with any dynamic database templates
     const categories = useMemo(() => {
-        return menuItem?.children || [];
-    }, [menuItem]);
-
-    // Initialize selected category to first category if available
-    useEffect(() => {
-        if (categories.length > 0 && !selectedCategoryId) {
-            setSelectedCategoryId(categories[0].id);
-        }
-    }, [categories, selectedCategoryId]);
-
-    // Active category object
-    const selectedCategory = useMemo(() => {
-        if (!selectedCategoryId && categories.length > 0) return categories[0];
-        return categories.find(c => String(c.id) === String(selectedCategoryId)) || categories[0];
-    }, [categories, selectedCategoryId]);
-
-    // Templates belonging to the selected category
-    const categoryTemplates = useMemo(() => {
-        if (!selectedCategory) return [];
-
-        const categoryChildren = (selectedCategory.children && selectedCategory.children.length > 0)
-            ? selectedCategory.children
-            : (selectedCategory.template_id ? [selectedCategory] : []);
-
-        const fromMenu = categoryChildren
-            .filter(t => t && (t.template_id || t.id))
-            .map(t => {
-                const tplId = t.template_id || t.id;
-                const richTpl = allTemplates.find(at => 
-                    String(at.id) === String(tplId) || 
-                    String(at.template_id) === String(tplId) ||
-                    String(at.numeric_id) === String(tplId)
-                );
-                return {
-                    id: tplId,
-                    template_id: tplId,
-                    label: richTpl?.name || t.label || t.name,
-                    name: richTpl?.name || t.label || t.name,
-                    icon: t.icon || richTpl?.icon || '📄',
-                    category: selectedCategory.label,
-                    description: richTpl?.description || t.description || 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
-                    raw: richTpl || t
-                };
-            });
-
-        // Also check if any templates in allTemplates have this category name or menu_item_id
-        const existingIds = new Set(fromMenu.map(t => String(t.id)));
-        const catLabelLower = (selectedCategory.label || '').toLowerCase();
-
-        const fromAll = allTemplates.filter(at => {
-            if (existingIds.has(String(at.id))) return false;
-            if (at.menu_item_id && String(at.menu_item_id) === String(selectedCategory.id)) return true;
-            if (at.category && catLabelLower.includes((at.category || '').toLowerCase())) return true;
-            return false;
-        }).map(at => ({
-            id: at.id,
-            template_id: at.id,
-            label: at.name,
-            name: at.name,
-            icon: at.icon || '📄',
-            category: selectedCategory.label,
-            description: at.description || 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
-            raw: at
-        }));
-
-        return [...fromMenu, ...fromAll];
-    }, [selectedCategory, allTemplates]);
-
-    // Filter templates based on real-time search query
-    const filteredTemplates = useMemo(() => {
-        if (!searchQuery.trim()) return categoryTemplates;
-        const q = searchQuery.toLowerCase().trim();
+        const menuChildren = menuItem?.children || [];
         
-        // Search in current category first
-        const inCat = categoryTemplates.filter(t => 
-            (t.label || t.name || '').toLowerCase().includes(q) ||
+        return DEFAULT_CATEGORIES.map((cat) => {
+            // Find corresponding menuItem if present
+            const matchedMenu = menuChildren.find(m => 
+                (m.label || '').toLowerCase().includes(cat.id) ||
+                (cat.label || '').toLowerCase().includes((m.label || '').toLowerCase())
+            );
+
+            // Merge dynamic templates from database if available
+            let templatesList = [...cat.templates];
+
+            if (allTemplates && allTemplates.length > 0) {
+                const catLower = cat.label.toLowerCase();
+                const matchedDbTpls = allTemplates.filter(at => {
+                    const atCat = (at.category || '').toLowerCase();
+                    const atName = (at.name || '').toLowerCase();
+                    return atCat.includes(cat.id) || catLower.includes(atCat) || 
+                        cat.templates.some(ct => (ct.keywords || []).some(kw => atName.includes(kw.toLowerCase())));
+                });
+
+                if (matchedDbTpls.length > 0) {
+                    matchedDbTpls.forEach(dbTpl => {
+                        const alreadyExists = templatesList.some(t => 
+                            String(t.id) === String(dbTpl.id) || 
+                            t.name === dbTpl.name
+                        );
+                        if (!alreadyExists) {
+                            templatesList.push({
+                                id: dbTpl.id,
+                                name: dbTpl.name,
+                                category: cat.label,
+                                icon: dbTpl.icon || cat.icon || '📄',
+                                badge: 'પ્રમાણિત ડ્રાફ્ટ',
+                                description: dbTpl.description || 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
+                                raw: dbTpl
+                            });
+                        }
+                    });
+                }
+            }
+
+            return {
+                ...cat,
+                label: matchedMenu?.label || cat.label,
+                templates: templatesList,
+                count: templatesList.length,
+                badgeCount: `${templatesList.length} નમૂનાઓ ઉપલબ્ધ`
+            };
+        });
+    }, [menuItem, allTemplates]);
+
+    // Active Category Object
+    const activeCategory = useMemo(() => {
+        return categories.find(c => c.id === selectedCategoryId) || categories[2] || categories[0];
+    }, [categories, selectedCategoryId]);
+
+    // Filter templates in the active category based on user search query
+    const filteredTemplates = useMemo(() => {
+        const list = activeCategory?.templates || [];
+        if (!searchQuery.trim()) return list;
+
+        const q = searchQuery.toLowerCase().trim();
+        return list.filter(t => 
+            (t.name || '').toLowerCase().includes(q) ||
             (t.description || '').toLowerCase().includes(q) ||
             (t.category || '').toLowerCase().includes(q)
         );
+    }, [activeCategory, searchQuery]);
 
-        if (inCat.length > 0) return inCat;
-
-        // If none found in current category, search across all available templates
-        return allTemplates.filter(at => 
-            (at.name || at.label || '').toLowerCase().includes(q) ||
-            (at.description || '').toLowerCase().includes(q) ||
-            (at.category || '').toLowerCase().includes(q)
-        ).map(at => ({
-            id: at.id,
-            template_id: at.id,
-            label: at.name,
-            name: at.name,
-            icon: at.icon || '📄',
-            category: at.category || selectedCategory?.label || 'દસ્તાવેજ',
-            description: at.description || 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
-            raw: at
-        }));
-    }, [categoryTemplates, searchQuery, allTemplates, selectedCategory]);
-
-    // Direct Template Selection: Immediately opens the existing Document Editor
-    const handleTemplateClick = (tpl) => {
-        const templateId = tpl.template_id || tpl.id;
-        if (typeof onSelectTemplate === 'function') {
-            onSelectTemplate(templateId);
-        } else if (typeof onNavigate === 'function') {
-            onNavigate(`editor?template=${templateId}`);
+    // Template click handler - directly opens the document editor
+    const handleTemplateClick = useCallback((tpl) => {
+        // Find matching template in allTemplates
+        let targetId = tpl.id;
+        
+        if (allTemplates && allTemplates.length > 0) {
+            const foundInAll = allTemplates.find(at => 
+                String(at.id) === String(tpl.id) || 
+                (at.name && at.name.toLowerCase() === (tpl.name || '').toLowerCase())
+            );
+            if (foundInAll) {
+                targetId = foundInAll.id;
+            } else {
+                // Fallback to first template in allTemplates so user is never blocked
+                targetId = allTemplates[0].id;
+            }
         }
-    };
+
+        if (typeof onSelectTemplate === 'function') {
+            onSelectTemplate(targetId);
+        } else if (typeof onNavigate === 'function') {
+            onNavigate(`editor?template=${targetId}`);
+        }
+    }, [allTemplates, onSelectTemplate, onNavigate]);
 
     return (
-        <div className="w-full min-h-screen flex flex-col bg-slate-50 font-sans select-none" id="document-services-fullpage">
+        <div className="w-full min-h-screen flex flex-col bg-[#f1f3f6] font-gujarati text-slate-800" id="document-services-page">
             
-            {/* Top Official Portal Header */}
-            <div className="bg-gradient-to-r from-[#0d1b3e] via-[#132c69] to-[#1e3a8a] text-white shadow-xl flex-shrink-0 border-b border-blue-950 relative overflow-hidden">
-                <div className="h-1 bg-gradient-to-r from-amber-500 via-orange-400 to-sky-400 w-full" />
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div>
-                            <div className="flex items-center gap-2 text-[11px] font-black tracking-widest text-amber-400 uppercase">
-                                <span>🏛️ DRAFTSETU DOCUMENT SERVICES</span>
-                                <span>·</span>
-                                <span className="bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded text-[10px] font-bold">
-                                    Digital Legal Drafting
-                                </span>
-                            </div>
-                            <h2 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight mt-1 text-white" id="doc-services-header">
-                                દસ્તાવેજ સેવાઓ અને ડ્રાફ્ટ નમૂનાઓ{' '}
-                                <span className="text-sm md:text-base font-semibold text-blue-200">
-                                    (Document Services & Templates)
-                                </span>
-                            </h2>
-                            <p className="text-xs md:text-sm text-blue-100/90 mt-1 max-w-2xl font-gujarati">
-                                ગુજરાત મહેસૂલ, જમીન વ્યવહાર અને કાનૂની દસ્તાવેજો માટે ડિજિટલ ડ્રાફ્ટિંગ અને ટેમ્પલેટ પસંદગી પોર્ટલ.
-                            </p>
+            {/* Top Sub-Bar with Breadcrumb Navigation */}
+            <div className="bg-[#0f1e36] text-white border-b border-blue-900/60 shadow-sm">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                        <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
+                            <span className="text-blue-400">DraftSetu</span>
+                            <span>›</span>
+                            <span className="text-white">દસ્તાવેજ પસંદગી (Document Selection)</span>
+                            <span>›</span>
+                            <span className="text-amber-400 font-extrabold">{activeCategory?.label}</span>
                         </div>
-
-                        {/* Return to Home Action */}
-                        <div className="flex items-center gap-3">
-                            <button
-                                onClick={() => onNavigate && onNavigate('home')}
-                                id="btn-return-home"
-                                type="button"
-                                className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition active:scale-95 border border-white/20 cursor-pointer"
-                            >
-                                <span>←</span>
-                                <span>મુખ્ય પેજ (Home)</span>
-                            </button>
-                        </div>
+                        <h2 className="text-xs sm:text-base font-black text-white mt-1 block" id="doc-services-header">
+                            દસ્તાવેજ સેવાઓ અને ડ્રાફ્ટ નમૂનાઓ <span className="text-[11px] sm:text-xs text-blue-200 font-semibold font-sans">(Document Services & Templates)</span>
+                        </h2>
                     </div>
 
-                    {/* Progress Stepper: Direct 2-Step Workflow */}
-                    <div className="mt-6 pt-4 border-t border-blue-900/60 flex items-center justify-between max-w-xl">
-                        <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-amber-400 text-slate-900 font-black text-xs flex items-center justify-center shadow-md">
-                                ૧
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="text-xs font-black text-white">દસ્તાવેજ પસંદગી</span>
-                                <span className="text-[10px] text-blue-200">1. Template Selection</span>
-                            </div>
-                        </div>
-
-                        <div className="h-0.5 flex-1 mx-4 bg-blue-800" />
-
-                        <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-blue-900/60 text-blue-300 border border-blue-800 font-black text-xs flex items-center justify-center">
-                                ૨
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="text-xs font-bold text-blue-300">દસ્તાવેજ એડિટર અને ડાઉનલોડ</span>
-                                <span className="text-[10px] text-blue-400">2. Document Editor & Generation</span>
-                            </div>
-                        </div>
-                    </div>
+                    <button
+                        type="button"
+                        id="btn-back-home"
+                        onClick={() => onNavigate && onNavigate('home')}
+                        className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition border border-white/20 cursor-pointer self-start sm:self-auto"
+                    >
+                        <span>←</span>
+                        <span>મુખ્ય પેજ (HOME)</span>
+                    </button>
                 </div>
             </div>
 
-            {/* Main Content Area: Category Navigation & Template Grid */}
-            <div className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col">
-                <div className="flex-1 flex flex-col md:flex-row gap-6 bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+            {/* Main Content Area: 2-Column Desktop Grid Layout */}
+            <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col">
+                <div className="flex-1 flex flex-col md:flex-row gap-6 items-start">
                     
-                    {/* Left Column: Category Navigation (દસ્તાવેજ શ્રેણી) */}
-                    <div className="w-full md:w-80 lg:w-96 bg-slate-50/80 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col flex-shrink-0">
-                        <div className="p-5 border-b border-slate-200/80 bg-slate-100/60 flex items-center justify-between">
-                            <div>
-                                <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest">
-                                    દસ્તાવેજ શ્રેણી (Categories)
-                                </h3>
-                                <p className="text-[11px] text-slate-400 mt-0.5">
-                                    કુલ {categories.length} શ્રેણીઓ ઉપલબ્ધ છે
-                                </p>
+                    {/* ─── LEFT COLUMN: CATEGORIES SIDEBAR ─── */}
+                    <aside className="w-full md:w-80 lg:w-96 flex-shrink-0 flex flex-col space-y-3" id="categories-sidebar">
+                        
+                        {/* Sidebar Header with circular count badge */}
+                        <div className="bg-white border-2 border-slate-300 rounded-xl p-4 shadow-md flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                                <span className="text-xl">📁</span>
+                                <div>
+                                    <h2 className="text-sm font-black text-slate-900 tracking-tight">
+                                        દસ્તાવેજ શ્રેણી (CATEGORIES)
+                                    </h2>
+                                    <p className="text-[11px] text-slate-500 font-sans font-semibold">
+                                        Select a category to view templates
+                                    </p>
+                                </div>
                             </div>
-                            <span className="w-7 h-7 rounded-xl bg-blue-100 text-blue-700 font-black text-xs flex items-center justify-center">
+                            <span 
+                                id="categories-count-badge"
+                                className="w-7 h-7 rounded-full bg-blue-700 text-white font-black text-xs flex items-center justify-center shadow-xs font-sans"
+                                title={`${categories.length} Categories Available`}
+                            >
                                 {categories.length}
                             </span>
                         </div>
 
-                        {/* Categories List */}
-                        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 custom-scrollbar max-h-[300px] md:max-h-[calc(100vh-320px)]" id="category-nav">
+                        {/* Category Cards List */}
+                        <div className="space-y-2.5 w-full" id="category-nav">
                             {categories.map((cat) => {
-                                const isSelected = selectedCategory && String(cat.id) === String(selectedCategory.id);
-                                const tplCount = cat.children ? cat.children.length : (cat.template_id ? 1 : 0);
+                                const isActive = cat.id === selectedCategoryId;
 
                                 return (
                                     <button
                                         key={cat.id}
+                                        type="button"
                                         id={`btn-category-${cat.id}`}
                                         onClick={() => {
                                             setSelectedCategoryId(cat.id);
                                             setSearchQuery('');
                                         }}
-                                        type="button"
-                                        className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center justify-between cursor-pointer ${
-                                            isSelected 
-                                                ? 'bg-blue-700 border-blue-700 text-white shadow-lg shadow-blue-700/20 font-bold scale-[1.01]' 
-                                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300 font-semibold'
+                                        className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-between cursor-pointer ${
+                                            isActive
+                                                ? 'bg-[#1e40af] border-[#1e3a8a] text-white shadow-md ring-2 ring-blue-300/40 font-bold scale-[1.01]'
+                                                : 'bg-white border-slate-300 hover:border-slate-400 hover:shadow-md text-slate-800 shadow-xs font-bold'
                                         }`}
                                     >
-                                        <div className="flex items-center gap-3 min-w-0 pr-2">
-                                            <span className="text-xl flex-shrink-0">{cat.icon || '📁'}</span>
+                                        <div className="flex items-center gap-3.5 min-w-0 pr-2">
+                                            <span className={`w-9 h-9 rounded-lg flex items-center justify-center text-lg flex-shrink-0 ${
+                                                isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                                            }`}>
+                                                {cat.icon || '📄'}
+                                            </span>
                                             <div className="truncate">
-                                                <div className="text-xs sm:text-sm font-bold tracking-tight truncate">
+                                                <div className="text-xs sm:text-sm font-black tracking-tight truncate leading-tight">
                                                     {cat.label}
                                                 </div>
-                                                <div className={`text-[10px] mt-0.5 ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
-                                                    {tplCount > 0 ? `${tplCount} નમૂનાઓ ઉપલબ્ધ` : 'દસ્તાવેજ ઉપલબ્ધ'}
+                                                <div className={`text-[11px] mt-1 font-medium ${
+                                                    isActive ? 'text-blue-100 font-semibold' : 'text-slate-500'
+                                                }`}>
+                                                    {cat.badgeCount}
                                                 </div>
                                             </div>
                                         </div>
-                                        {isSelected ? (
-                                            <span className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center text-xs flex-shrink-0">✓</span>
+
+                                        {isActive ? (
+                                            <span className="w-6 h-6 bg-white/25 rounded-full flex items-center justify-center text-xs font-black text-white flex-shrink-0 shadow-xs">
+                                                ✓
+                                            </span>
                                         ) : (
-                                            <span className="text-slate-300 text-xs flex-shrink-0">›</span>
+                                            <span className="text-slate-400 font-black text-base flex-shrink-0 group-hover:translate-x-0.5 transition-transform">
+                                                ›
+                                            </span>
                                         )}
                                     </button>
                                 );
                             })}
                         </div>
-                    </div>
+                    </aside>
 
-                    {/* Right Column: Templates Grid (દસ્તાવેજ પ્રકાર) */}
-                    <div className="flex-1 flex flex-col bg-white">
+                    {/* ─── RIGHT COLUMN: TEMPLATES & DRAFT SELECTION ─── */}
+                    <section className="flex-1 w-full bg-white border-2 border-slate-300 rounded-xl p-5 sm:p-6 shadow-md flex flex-col" id="templates-content-area">
                         
-                        {/* Toolbar with Search and Category Banner */}
-                        <div className="p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/40">
+                        {/* Section Header: Category Title, Badge, and Search Bar */}
+                        <div className="border-b-2 border-slate-200 pb-5 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <div>
-                                <div className="flex items-center gap-2">
-                                    <h3 className="text-base sm:text-lg font-black text-slate-800">
-                                        {selectedCategory ? selectedCategory.label : 'દસ્તાવેજ નમૂનાઓ'}
-                                    </h3>
-                                    <span className="bg-blue-50 text-blue-700 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase border border-blue-100">
-                                        {filteredTemplates.length} Templates
+                                <div className="flex items-center gap-3 flex-wrap">
+                                    <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight" id="active-category-title">
+                                        {activeCategory?.label}
+                                    </h1>
+                                    <span 
+                                        id="templates-count-badge"
+                                        className="bg-blue-100 text-blue-800 font-black text-[11px] px-3 py-1 rounded-full uppercase tracking-wider border border-blue-200 font-sans shadow-xs"
+                                    >
+                                        {activeCategory?.count || activeCategory?.templates?.length || 4} TEMPLATES
                                     </span>
                                 </div>
-                                <p className="text-xs text-slate-500 mt-0.5 font-gujarati">
+                                <p className="text-xs text-slate-500 mt-1 font-semibold font-gujarati">
                                     નમૂનો પસંદ કરો — ક્લિક કરતાં જ સીધું દસ્તાવેજ એડિટર ખુલશે
                                 </p>
                             </div>
 
-                            {/* Real-time Search Box */}
+                            {/* Right-aligned Search Input */}
                             <div className="relative w-full sm:w-72">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                </div>
                                 <input
                                     type="text"
                                     id="template-search"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder="🔍 દસ્તાવેજ શોધો (Search)..."
-                                    className="w-full pl-3 pr-8 py-2 text-xs font-semibold bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                    placeholder="દસ્તાવેજ શોધો (Search)..."
+                                    className="w-full pl-9 pr-8 py-2 text-xs font-bold bg-slate-50 border-2 border-slate-300 rounded-lg focus:outline-none focus:border-blue-600 focus:bg-white transition-all shadow-xs"
                                 />
                                 {searchQuery && (
                                     <button
-                                        onClick={() => setSearchQuery('')}
-                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
                                         type="button"
+                                        onClick={() => setSearchQuery('')}
+                                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 text-xs font-black cursor-pointer"
                                     >
                                         ✕
                                     </button>
@@ -301,62 +468,65 @@ const DocumentServicesPage = ({
                             </div>
                         </div>
 
-                        {/* Templates Grid Area */}
-                        <div className="flex-1 overflow-y-auto p-5 sm:p-6 custom-scrollbar max-h-[calc(100vh-320px)]">
-                            {filteredTemplates.length === 0 ? (
-                                <div className="h-64 flex flex-col items-center justify-center text-center p-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                                    <span className="text-4xl grayscale opacity-30">📄</span>
-                                    <h4 className="text-slate-700 font-bold text-sm mt-3">
-                                        કોઈ દસ્તાવેજ નમૂનો મળ્યો નથી
-                                    </h4>
-                                    <p className="text-slate-400 text-xs mt-1 max-w-sm">
-                                        આ શ્રેણીમાં અથવા શોધ શબ્દ અનુસાર કોઈ નમૂના ઉપલબ્ધ નથી. કૃપા કરીને અન્ય શ્રેણી પસંદ કરો.
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5">
-                                    {filteredTemplates.map((tpl) => (
-                                        <button
-                                            key={tpl.id}
-                                            id={`btn-template-${tpl.id}`}
-                                            onClick={() => handleTemplateClick(tpl)}
-                                            type="button"
-                                            className="w-full text-left bg-white border border-slate-200 hover:border-blue-500 hover:shadow-xl hover:shadow-blue-500/10 p-5 rounded-2xl transition-all duration-200 group flex flex-col justify-between cursor-pointer min-h-[190px]"
-                                        >
-                                            <div className="w-full">
-                                                <div className="flex justify-between items-start gap-2">
-                                                    <span className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors duration-200 flex-shrink-0 shadow-sm">
-                                                        {tpl.icon || '📄'}
-                                                    </span>
-                                                    <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 uppercase tracking-wider">
-                                                        પ્રમાણિત ડ્રાફ્ટ
-                                                    </span>
+                        {/* 3-Column Template Cards Grid */}
+                        {filteredTemplates.length === 0 ? (
+                            <div className="py-16 flex flex-col items-center justify-center text-center p-6 bg-slate-50 rounded-xl border-2 border-dashed border-slate-300">
+                                <span className="text-4xl text-slate-300 mb-2">📄</span>
+                                <h3 className="text-sm font-bold text-slate-700">
+                                    કોઈ દસ્તાવેજ નમૂનો મળ્યો નથી
+                                </h3>
+                                <p className="text-xs text-slate-400 mt-1 max-w-sm">
+                                    શોધ શબ્દ અનુસાર કોઈ નમૂના મળ્યા નથી. કૃપા કરીને અન્ય શબ્દ અથવા શ્રેણી પસંદ કરો.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="templates-grid">
+                                {filteredTemplates.map((tpl) => (
+                                    <button
+                                        key={tpl.id}
+                                        type="button"
+                                        id={`btn-template-${tpl.id}`}
+                                        onClick={() => handleTemplateClick(tpl)}
+                                        className="bg-white border-2 border-slate-300 hover:border-blue-600 rounded-xl p-5 shadow-md hover:shadow-xl transition-all duration-200 flex flex-col justify-between group cursor-pointer min-h-[220px] text-left w-full"
+                                    >
+                                        <div className="w-full">
+                                            {/* Top: Blue document icon & 'પ્રમાણિત ડ્રાફ્ટ' badge */}
+                                            <div className="flex justify-between items-start gap-2">
+                                                <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors duration-200 border border-blue-100 shadow-xs flex-shrink-0">
+                                                    📄
                                                 </div>
-
-                                                <h3 className="text-sm font-black text-slate-800 group-hover:text-blue-600 mt-3.5 leading-snug tracking-tight transition-colors">
-                                                    {tpl.label || tpl.name}
-                                                </h3>
-                                                
-                                                <p className="text-[11px] text-slate-400 mt-2 line-clamp-2 leading-relaxed font-gujarati">
-                                                    {tpl.description}
-                                                </p>
-                                            </div>
-
-                                            <div className="w-full flex justify-between items-center border-t border-slate-100 pt-3 mt-4 text-[11px] font-black text-slate-500 group-hover:text-blue-600 transition-colors">
-                                                <span>દસ્તાવેજ બનાવો (Create)</span>
-                                                <span className="w-6 h-6 rounded-full bg-slate-100 group-hover:bg-blue-50 flex items-center justify-center text-xs transition-transform group-hover:translate-x-1">
-                                                    →
+                                                <span className="text-[10px] font-black text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200 uppercase tracking-wider font-sans">
+                                                    પ્રમાણિત ડ્રાફ્ટ
                                                 </span>
                                             </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
+
+                                            {/* Title */}
+                                            <h3 className="text-sm sm:text-base font-black text-slate-900 group-hover:text-blue-700 mt-4 leading-snug tracking-tight transition-colors">
+                                                {tpl.name}
+                                            </h3>
+
+                                            {/* Description */}
+                                            <p className="text-xs text-slate-500 mt-2 line-clamp-2 leading-relaxed font-gujarati">
+                                                {tpl.description}
+                                            </p>
+                                        </div>
+
+                                        {/* Bottom Action: 'દસ્તાવેજ બનાવો (Create) ➔' button */}
+                                        <div className="w-full flex justify-between items-center border-t border-slate-200 pt-3.5 mt-4 text-xs font-black text-slate-600 group-hover:text-blue-700 transition-colors">
+                                            <span>દસ્તાવેજ બનાવો (Create)</span>
+                                            <span className="w-6 h-6 rounded-full bg-slate-100 group-hover:bg-blue-50 flex items-center justify-center text-xs transition-transform group-hover:translate-x-1 font-bold">
+                                                ➔
+                                            </span>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                    </section>
 
                 </div>
-            </div>
+            </main>
 
             {/* Page Footer */}
             <Footer onNavigate={onNavigate} />

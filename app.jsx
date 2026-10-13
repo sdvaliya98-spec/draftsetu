@@ -1755,6 +1755,7 @@ const App = () => {
                 currentUser={currentUser}
                 user={user}
                 role={role}
+                currentView={currentView}
                 onRoleChange={handleRoleChange}
                 onLoginClick={(context) => {
                     const isExplicitContext = context && typeof context === 'object' && !context.nativeEvent && context.reason;
