@@ -2,191 +2,58 @@ import React, { useState, useMemo, useCallback } from 'react';
 import Footer from '../components/Footer.jsx';
 
 /**
- * Standard Gujarat Legal Categories & Templates for DraftSetu
- * Formatted with rich Gujarati metadata, certified draft badges, and complete descriptions.
+ * Canonical Gujarat Legal Document Categories from Database Menu (parent_id = 2)
+ * Exact 7 categories configured in the database:
+ * 1. ભાડા કરાર / ભાડાપટ્ટો (Rent / Lease Agreement) - ID: 18
+ * 2. વેચાણ દસ્તાવેજ (Sale Deed) - ID: 7
+ * 3. પેપર નોટીસ (Paper Notice) - ID: 8
+ * 4. એફિડેવિટ (Affidavit) - ID: 9
+ * 5. હક્ક રીલીઝનો લેખ (Release Deed) - ID: 10
+ * 6. વારસાઈ / પેઢીનામું (Pedhinamu) - ID: 16
+ * 7. વીલ / વસીયતનામું (Will) - ID: 17
  */
-const DEFAULT_CATEGORIES = [
+const CANONICAL_CATEGORIES = [
     {
-        id: 'pedhinamu',
+        id: 18,
+        label: 'ભાડા કરાર / ભાડાપટ્ટો (Rent / Lease Agreement)',
+        icon: '📑',
+        template_id: null
+    },
+    {
+        id: 7,
+        label: 'વેચાણ દસ્તાવેજ (Sale Deed)',
+        icon: '✍️',
+        template_id: 'tpl_997fd57d'
+    },
+    {
+        id: 8,
+        label: 'પેપર નોટીસ (Paper Notice)',
+        icon: '📰',
+        template_id: 'tpl_adff5672'
+    },
+    {
+        id: 9,
+        label: 'એફિડેવિટ (Affidavit)',
+        icon: '📄',
+        template_id: 'tpl_ecd0bc4a'
+    },
+    {
+        id: 10,
+        label: 'હક્ક રીલીઝનો લેખ (Release Deed)',
+        icon: '✒️',
+        template_id: 'tpl_737760b1'
+    },
+    {
+        id: 16,
         label: 'વારસાઈ / પેઢીનામું (Pedhinamu)',
         icon: '👥',
-        badgeCount: '1 નમૂનાઓ ઉપલબ્ધ',
-        templates: [
-            {
-                id: 'pedhinamu-affidavit',
-                name: 'વારસાઈ પેઢીનામું સોગંદનામું (Pedhinamu Affidavit)',
-                category: 'વારસાઈ / પેઢીનામું (Pedhinamu)',
-                icon: '👥',
-                badge: 'પ્રમાણિત ડ્રાફ્ટ',
-                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
-                keywords: ['વારસાઈ', 'પેઢીનામું', 'pedhinamu', 'succession']
-            }
-        ]
+        template_id: 'tpl_60cbf655'
     },
     {
-        id: 'will',
+        id: 17,
         label: 'વીલ / વસીયતનામું (Will)',
         icon: '📜',
-        badgeCount: '1 નમૂનાઓ ઉપલબ્ધ',
-        templates: [
-            {
-                id: 'will-registered',
-                name: 'રજિસ્ટર્ડ વસીયતનામું (Registered Will Deed)',
-                category: 'વીલ / વસીયતનામું (Will)',
-                icon: '📜',
-                badge: 'પ્રમાણિત ડ્રાફ્ટ',
-                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
-                keywords: ['વસીયતનામું', 'વીલ', 'will', 'testament']
-            }
-        ]
-    },
-    {
-        id: 'rent',
-        label: 'ભાડા કરાર / ભાડાપટ્ટો (Rent / Lease Agreement)',
-        icon: '📄',
-        badgeCount: '4 નમૂનાઓ ઉપલબ્ધ',
-        templates: [
-            {
-                id: 'rent-agri',
-                name: 'ખેતીની જમીનનો ભાડા પટ્ટાનો કરાર',
-                category: 'ભાડા કરાર / ભાડાપટ્ટો (Rent / Lease Agreement)',
-                icon: '📄',
-                badge: 'પ્રમાણિત ડ્રાફ્ટ',
-                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
-                keywords: ['ખેતી', 'ભાડા પટ્ટો', 'lease', 'rent', 'agricultural']
-            },
-            {
-                id: 'rent-registered',
-                name: 'લાંબા ગાળાનો રજિસ્ટર્ડ ભાડા પટ્ટાનો દસ્તાવેજ',
-                category: 'ભાડા કરાર / ભાડાપટ્ટો (Rent / Lease Agreement)',
-                icon: '📄',
-                badge: 'પ્રમાણિત ડ્રાફ્ટ',
-                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
-                keywords: ['લાંબા ગાળાનો', 'રજિસ્ટર્ડ', 'registered lease']
-            },
-            {
-                id: 'rent-residential',
-                name: 'રહેણાંક મકાનનો ભાડા કરાર',
-                category: 'ભાડા કરાર / ભાડાપટ્ટો (Rent / Lease Agreement)',
-                icon: '📄',
-                badge: 'પ્રમાણિત ડ્રાફ્ટ',
-                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
-                keywords: ['રહેણાંક', 'મકાન ભાડા કરાર', 'residential rent']
-            },
-            {
-                id: 'rent-commercial',
-                name: 'દુકાન / વાણિજ્યિક મિલકતનો ભાડા કરાર',
-                category: 'ભાડા કરાર / ભાડાપટ્ટો (Rent / Lease Agreement)',
-                icon: '📄',
-                badge: 'પ્રમાણિત ડ્રાફ્ટ',
-                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
-                keywords: ['દુકાન', 'વાણિજ્યિક', 'commercial shop lease']
-            }
-        ]
-    },
-    {
-        id: 'sale',
-        label: 'વેચાણ દસ્તાવેજ (Sale Deed)',
-        icon: '📑',
-        badgeCount: '2 નમૂનાઓ ઉપલબ્ધ',
-        templates: [
-            {
-                id: 'sale-agri',
-                name: 'ખેતીની જમીનનો વેચાણ દસ્તાવેજ (Agricultural Land Sale Deed)',
-                category: 'વેચાણ દસ્તાવેજ (Sale Deed)',
-                icon: '📑',
-                badge: 'પ્રમાણિત ડ્રાફ્ટ',
-                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
-                keywords: ['વેચાણ દસ્તાવેજ', 'ખેતીની જમીન', 'sale deed']
-            },
-            {
-                id: 'sale-na',
-                name: 'બિનખેતી મકાન / પ્લોટનો વેચાણ દસ્તાવેજ (Non-Agricultural Sale Deed)',
-                category: 'વેચાણ દસ્તાવેજ (Sale Deed)',
-                icon: '📑',
-                badge: 'પ્રમાણિત ડ્રાફ્ટ',
-                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
-                keywords: ['બિનખેતી', 'પ્લોટ વેચાણ', 'residential sale']
-            }
-        ]
-    },
-    {
-        id: 'poa',
-        label: 'પાવર ઓફ એટર્ની (Power of Attorney)',
-        icon: '⚖️',
-        badgeCount: '2 નમૂનાઓ ઉપલબ્ધ',
-        templates: [
-            {
-                id: 'poa-general',
-                name: 'જનરલ પાવર ઓફ એટર્ની (General Power of Attorney - GPA)',
-                category: 'પાવર ઓફ એટર્ની (Power of Attorney)',
-                icon: '⚖️',
-                badge: 'પ્રમાણિત ડ્રાફ્ટ',
-                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
-                keywords: ['જનરલ પાવર', 'gpa', 'power of attorney']
-            },
-            {
-                id: 'poa-special',
-                name: 'સ્પેશિયલ પાવર ઓફ એટર્ની (Special Power of Attorney - SPA)',
-                category: 'પાવર ઓફ એટર્ની (Power of Attorney)',
-                icon: '⚖️',
-                badge: 'પ્રમાણિત ડ્રાફ્ટ',
-                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
-                keywords: ['સ્પેશિયલ પાવર', 'spa']
-            }
-        ]
-    },
-    {
-        id: 'affidavit',
-        label: 'સોગંદનામું (Affidavit)',
-        icon: '📝',
-        badgeCount: '2 નમૂનાઓ ઉપલબ્ધ',
-        templates: [
-            {
-                id: 'affidavit-general',
-                name: 'સામાન્ય સોગંદનામું (General Affidavit)',
-                category: 'સોગંદનામું (Affidavit)',
-                icon: '📝',
-                badge: 'પ્રમાણિત ડ્રાફ્ટ',
-                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
-                keywords: ['સોગંદનામું', 'affidavit']
-            },
-            {
-                id: 'affidavit-name',
-                name: 'નામ સુધારા સોગંદનામું (Name Correction Affidavit)',
-                category: 'સોગંદનામું (Affidavit)',
-                icon: '📝',
-                badge: 'પ્રમાણિત ડ્રાફ્ટ',
-                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
-                keywords: ['નામ સુધારા', 'name change']
-            }
-        ]
-    },
-    {
-        id: 'partnership',
-        label: 'ભાગીદારી કરાર (Partnership Deed)',
-        icon: '🤝',
-        badgeCount: '2 નમૂનાઓ ઉપલબ્ધ',
-        templates: [
-            {
-                id: 'partnership-new',
-                name: 'નવો ભાગીદારી કરાર (New Partnership Deed)',
-                category: 'ભાગીદારી કરાર (Partnership Deed)',
-                icon: '🤝',
-                badge: 'પ્રમાણિત ડ્રાફ્ટ',
-                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
-                keywords: ['ભાગીદારી કરાર', 'partnership deed']
-            },
-            {
-                id: 'partnership-dissolution',
-                name: 'ભાગીદારી નિવૃત્તિ / પુનર્ગઠન લેખ (Dissolution Deed)',
-                category: 'ભાગીદારી કરાર (Partnership Deed)',
-                icon: '🤝',
-                badge: 'પ્રમાણિત ડ્રાફ્ટ',
-                description: 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
-                keywords: ['ભાગીદારી નિવૃત્તિ', 'dissolution']
-            }
-        ]
+        template_id: 'tpl_85507d16'
     }
 ];
 
@@ -205,67 +72,67 @@ const DocumentServicesPage = ({
     onSelectTemplate,
     onNavigate
 }) => {
-    // Default active category is 'rent' (ભાડા કરાર / ભાડાપટ્ટો)
-    const [selectedCategoryId, setSelectedCategoryId] = useState('rent');
+    // Default active category is Rent / Lease Agreement (ID 18)
+    const [selectedCategoryId, setSelectedCategoryId] = useState(18);
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Combine standard categories with any dynamic database templates
+    // Categories derived dynamically from menuItem.children (with canonical fallback)
     const categories = useMemo(() => {
-        const menuChildren = menuItem?.children || [];
-        
-        return DEFAULT_CATEGORIES.map((cat) => {
-            // Find corresponding menuItem if present
-            const matchedMenu = menuChildren.find(m => 
-                (m.label || '').toLowerCase().includes(cat.id) ||
-                (cat.label || '').toLowerCase().includes((m.label || '').toLowerCase())
-            );
+        const rawCategories = (menuItem?.children && menuItem.children.length > 0)
+            ? menuItem.children
+            : CANONICAL_CATEGORIES;
 
-            // Merge dynamic templates from database if available
-            let templatesList = [...cat.templates];
+        return rawCategories.map((cat) => {
+            // Find templates that legitimately belong to this category by menu_item_id or template_id
+            const matchedTemplates = (allTemplates || []).filter(t => {
+                const isMenuMatch = t.menu_item_id === cat.id;
+                const isTemplateIdMatch = Boolean(
+                    cat.template_id && (
+                        t.id === cat.template_id ||
+                        t.template_id === cat.template_id ||
+                        String(t.numeric_id) === String(cat.template_id)
+                    )
+                );
+                return isMenuMatch || isTemplateIdMatch;
+            });
 
-            if (allTemplates && allTemplates.length > 0) {
-                const catLower = cat.label.toLowerCase();
-                const matchedDbTpls = allTemplates.filter(at => {
-                    const atCat = (at.category || '').toLowerCase();
-                    const atName = (at.name || '').toLowerCase();
-                    return atCat.includes(cat.id) || catLower.includes(atCat) || 
-                        cat.templates.some(ct => (ct.keywords || []).some(kw => atName.includes(kw.toLowerCase())));
-                });
-
-                if (matchedDbTpls.length > 0) {
-                    matchedDbTpls.forEach(dbTpl => {
-                        const alreadyExists = templatesList.some(t => 
-                            String(t.id) === String(dbTpl.id) || 
-                            t.name === dbTpl.name
-                        );
-                        if (!alreadyExists) {
-                            templatesList.push({
-                                id: dbTpl.id,
-                                name: dbTpl.name,
-                                category: cat.label,
-                                icon: dbTpl.icon || cat.icon || '📄',
-                                badge: 'પ્રમાણિત ડ્રાફ્ટ',
-                                description: dbTpl.description || 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
-                                raw: dbTpl
-                            });
-                        }
-                    });
-                }
-            }
+            const templateList = matchedTemplates.map(t => ({
+                id: t.id,
+                name: t.name,
+                category: cat.label,
+                icon: cat.icon || '📄',
+                badge: 'પ્રમાણિત ડ્રાફ્ટ',
+                description: t.description || 'ગુજરાત મહેસૂલ અને કાયદાકીય નિયમો અનુસાર પ્રમાણિત ડ્રાફ્ટ ફોર્મેટ.',
+                raw: t
+            }));
 
             return {
-                ...cat,
-                label: matchedMenu?.label || cat.label,
-                templates: templatesList,
-                count: templatesList.length,
-                badgeCount: `${templatesList.length} નમૂનાઓ ઉપલબ્ધ`
+                id: cat.id,
+                label: cat.label,
+                icon: cat.icon || '📄',
+                template_id: cat.template_id,
+                templates: templateList,
+                count: templateList.length,
+                badgeCount: `${templateList.length} નમૂનાઓ ઉપલબ્ધ`
             };
         });
     }, [menuItem, allTemplates]);
 
     // Active Category Object
     const activeCategory = useMemo(() => {
-        return categories.find(c => c.id === selectedCategoryId) || categories[2] || categories[0];
+        if (!categories || categories.length === 0) return null;
+        if (selectedCategoryId != null) {
+            const found = categories.find(c => 
+                String(c.id) === String(selectedCategoryId) ||
+                (typeof selectedCategoryId === 'string' && (
+                    (c.label || '').toLowerCase().includes(selectedCategoryId.toLowerCase()) ||
+                    (selectedCategoryId === 'rent' && c.id === 18) ||
+                    (selectedCategoryId === 'sale' && c.id === 7)
+                ))
+            );
+            if (found) return found;
+        }
+        return categories[0];
     }, [categories, selectedCategoryId]);
 
     // Filter templates in the active category based on user search query
@@ -433,7 +300,7 @@ const DocumentServicesPage = ({
                                         id="templates-count-badge"
                                         className="bg-blue-100 text-blue-800 font-black text-[11px] px-3 py-1 rounded-full uppercase tracking-wider border border-blue-200 font-sans shadow-xs"
                                     >
-                                        {activeCategory?.count || activeCategory?.templates?.length || 4} TEMPLATES
+                                        {activeCategory?.count ?? activeCategory?.templates?.length ?? 0} TEMPLATES
                                     </span>
                                 </div>
                                 <p className="text-xs text-slate-500 mt-1 font-semibold font-gujarati">
