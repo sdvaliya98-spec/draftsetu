@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Footer from '../components/Footer.jsx';
 
 /**
@@ -75,6 +75,64 @@ const DocumentServicesPage = ({
     // Default active category is Rent / Lease Agreement (ID 18)
     const [selectedCategoryId, setSelectedCategoryId] = useState(18);
     const [searchQuery, setSearchQuery] = useState('');
+
+    // SEO Metadata Management
+    useEffect(() => {
+        const pageTitle = 'દસ્તાવેજ સેવાઓ અને નમૂનાઓ (Document Services) | DraftSetu';
+        const pageDesc = 'DraftSetu પર ગુજરાતના તમામ પ્રમાણિત કાનૂની દસ્તાવેજોના નમૂનાઓ: વેચાણ દસ્તાવેજ, ભાડા કરાર, એફિડેવિટ, પેઢીનામું, વિલ અને હક્ક રીલીઝ.';
+        const canonicalUrl = 'https://draftsetu.in/document-services';
+        const defaultOgImage = 'https://draftsetu.in/logo.png';
+
+        document.title = pageTitle;
+
+        const setMetaTag = (attr, val, content) => {
+            let el = document.querySelector(`meta[${attr}="${val}"]`);
+            if (!el) {
+                el = document.createElement('meta');
+                el.setAttribute(attr, val);
+                document.head.appendChild(el);
+            }
+            el.setAttribute('content', content);
+        };
+
+        setMetaTag('name', 'description', pageDesc);
+        setMetaTag('property', 'og:title', pageTitle);
+        setMetaTag('property', 'og:description', pageDesc);
+        setMetaTag('property', 'og:url', canonicalUrl);
+        setMetaTag('property', 'og:type', 'website');
+        setMetaTag('property', 'og:image', defaultOgImage);
+        setMetaTag('name', 'twitter:card', 'summary');
+        setMetaTag('name', 'twitter:title', pageTitle);
+        setMetaTag('name', 'twitter:description', pageDesc);
+        setMetaTag('name', 'twitter:image', defaultOgImage);
+
+        let canonicalLink = document.querySelector('link[rel="canonical"]');
+        if (!canonicalLink) {
+            canonicalLink = document.createElement('link');
+            canonicalLink.setAttribute('rel', 'canonical');
+            document.head.appendChild(canonicalLink);
+        }
+        canonicalLink.setAttribute('href', canonicalUrl);
+
+        let robotsMeta = document.querySelector('meta[name="robots"]');
+        if (!robotsMeta) {
+            robotsMeta = document.createElement('meta');
+            robotsMeta.setAttribute('name', 'robots');
+            document.head.appendChild(robotsMeta);
+        }
+        robotsMeta.setAttribute('content', 'index, follow');
+
+        return () => {
+            document.title = 'DraftSetu — Gujarati Legal Document Templates & DOCX/PDF';
+            const defaultDesc = 'DraftSetu પર તૈયાર Gujarati legal document Templates પસંદ કરો, માહિતી દાખલ કરો, Live Preview તપાસો અને DOCX/PDF Document તૈયાર કરો.';
+            setMetaTag('name', 'description', defaultDesc);
+            setMetaTag('property', 'og:title', 'DraftSetu — Gujarati Legal Document Templates & DOCX/PDF');
+            setMetaTag('property', 'og:description', defaultDesc);
+            setMetaTag('property', 'og:url', 'https://draftsetu.in/');
+            const currentLink = document.querySelector('link[rel="canonical"]');
+            if (currentLink) currentLink.setAttribute('href', 'https://draftsetu.in/');
+        };
+    }, []);
 
     // Categories derived dynamically from menuItem.children (with canonical fallback)
     const categories = useMemo(() => {

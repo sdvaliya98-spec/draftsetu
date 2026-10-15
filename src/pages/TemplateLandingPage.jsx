@@ -70,6 +70,12 @@ const TemplateLandingPage = ({ templateSlug, templates = [], isTemplatesLoading 
 
     // SEO Metadata Management
     useEffect(() => {
+        // While templates are loading or initial template list has not yet loaded,
+        // avoid classifying the template as missing or injecting premature noindex.
+        if (isTemplatesLoading || !templates || templates.length === 0) {
+            return;
+        }
+
         if (!matchedTemplate || !isAccessible) {
             document.title = 'Template ઉપલબ્ધ નથી | DraftSetu';
             const staleBreadcrumb = document.getElementById('schema-template-breadcrumb');
@@ -163,8 +169,8 @@ const TemplateLandingPage = ({ templateSlug, templates = [], isTemplatesLoading 
                 {
                     "@type": "ListItem",
                     "position": 2,
-                    "name": "Templates",
-                    "item": "https://draftsetu.in/#quick-services"
+                    "name": "દસ્તાવેજ સેવાઓ (Document Services)",
+                    "item": "https://draftsetu.in/document-services"
                 },
                 {
                     "@type": "ListItem",
@@ -234,7 +240,7 @@ const TemplateLandingPage = ({ templateSlug, templates = [], isTemplatesLoading 
             }
         };
 
-    }, [matchedTemplate, isAccessible, canonicalSlug]);
+    }, [matchedTemplate, isAccessible, canonicalSlug, isTemplatesLoading, templates]);
 
     // Handle WhatsApp Share Action
     const handleWhatsAppShare = () => {
@@ -387,16 +393,16 @@ const TemplateLandingPage = ({ templateSlug, templates = [], isTemplatesLoading 
                         </a>
                         <span>/</span>
                         <a
-                            href="/#quick-services"
+                            href="/document-services"
                             onClick={(e) => {
                                 if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
                                     e.preventDefault();
-                                    onNavigate('home');
+                                    onNavigate('document-services');
                                 }
                             }}
                             className="hover:text-white transition cursor-pointer no-underline text-inherit"
                         >
-                            <span>દસ્તાવેજ નમૂનાઓ</span>
+                            <span>દસ્તાવેજ સેવાઓ (Document Services)</span>
                         </a>
                         <span>/</span>
                         <span className="text-white font-black truncate max-w-[200px] sm:max-w-none">

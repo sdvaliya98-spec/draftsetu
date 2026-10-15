@@ -1,4 +1,16 @@
 import './initGlobals.js';
+
+// Clean legacy /page:* URLs immediately upon script execution before mounting
+if (typeof window !== 'undefined' && window.location.pathname.toLowerCase().startsWith('/page:')) {
+    const rawSlug = window.location.pathname.slice(6).trim().toLowerCase();
+    const cleanPages = ['non-agricultural', 'user-guide', 'faqs', 'heirship', 'relinquishment', 'contact'];
+    if (cleanPages.includes(rawSlug)) {
+        try {
+            window.history.replaceState({ view: 'page', slug: rawSlug }, '', `/${rawSlug}`);
+        } catch (_) {}
+    }
+}
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from '../app.jsx';

@@ -483,6 +483,11 @@ const StaticPageView = ({ slug, onNavigate }) => {
         }
 
         let robotsMeta = document.querySelector('meta[name="robots"]');
+        if (!robotsMeta) {
+            robotsMeta = document.createElement('meta');
+            robotsMeta.setAttribute('name', 'robots');
+            document.head.appendChild(robotsMeta);
+        }
         const cleanSlug = slug ? String(slug).trim().replace(/^\/?page:/, '').replace(/^\/+|\/+$/g, '') : '';
         const defaultOgImage = 'https://draftsetu.in/logo.png';
         const pageCanonical = cleanSlug === 'non-agricultural'
@@ -491,7 +496,7 @@ const StaticPageView = ({ slug, onNavigate }) => {
 
         if (cleanSlug) {
             canonicalLink.setAttribute('href', pageCanonical);
-            if (robotsMeta) robotsMeta.setAttribute('content', 'index, follow');
+            robotsMeta.setAttribute('content', 'index, follow');
         }
 
         if (cleanSlug === 'non-agricultural') {

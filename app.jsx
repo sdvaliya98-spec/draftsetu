@@ -383,11 +383,7 @@ const App = () => {
     useEffect(() => {
         if (isDownloading) return;
         refreshMenu();
-        // Background-load templates after a small delay to prioritize initial view render
-        const timer = setTimeout(() => {
-            refreshTemplates();
-        }, 100);
-        return () => clearTimeout(timer);
+        refreshTemplates();
     }, [isDownloading]);
 
     useEffect(() => {
@@ -425,7 +421,13 @@ const App = () => {
         else if (currentView === 'terms-of-service') path = '/terms-of-service';
         else if (currentView === 'document-services') path = '/document-services';
         else if (currentView === 'page' && currentPageSlug) {
-            path = CLEAN_STATIC_PAGES.includes(currentPageSlug) ? `/${currentPageSlug}` : `/page:${currentPageSlug}`;
+            const isClean = CLEAN_STATIC_PAGES.includes(currentPageSlug);
+            path = isClean ? `/${currentPageSlug}` : `/page:${currentPageSlug}`;
+            if (isClean && typeof window !== 'undefined' && window.location.pathname.toLowerCase().startsWith('/page:')) {
+                try {
+                    window.history.replaceState({ view: 'page', slug: currentPageSlug }, '', `/${currentPageSlug}`);
+                } catch { }
+            }
         }
         else if (currentView === 'template-landing' && currentTemplateSlug) path = `/templates/${currentTemplateSlug}`;
         else if (currentView === 'editor') path = activeTemplateId ? `/editor?template=${activeTemplateId}` : '/editor';
